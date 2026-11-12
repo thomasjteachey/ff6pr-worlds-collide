@@ -10,7 +10,7 @@ their seed. Seeds match the website's for the same seed and flags.
 Download `WorldsCollide-PR.zip` from the [latest release](../../releases/latest) and follow its
 README: BepInEx 6 (IL2CPP, bleeding edge) and Magicite first, then extract the zip into the
 game folder. Steam Deck / Linux: add `WINEDLLOVERRIDES="winhttp=n,b" %command%` to the game's
-launch options. The first start takes a minute or two longer: the mod makes the game data it
+launch options. The first start takes about ten seconds longer: the mod makes the game data it
 works from out of your own copy of the game (no game files are distributed).
 
 On the title screen choose **Worlds Collide**, pick a preset or paste flags, then

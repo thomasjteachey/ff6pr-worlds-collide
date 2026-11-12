@@ -32,7 +32,7 @@ Steam Deck / Linux (Proton): BepInEx only starts with this in the game's Steam l
 {setup}{note}"""
 
 SETUP = """
-The first start with the mod takes a minute or two longer (the console window stays up): it
+The first start with the mod takes about ten seconds longer (the console window stays up): it
 makes the data it needs from your own copy of the game, since no game files come with this zip.
 Later starts don't.
 """

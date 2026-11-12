@@ -155,7 +155,7 @@ def build(out):
     # "WC without the game's files"). .complete marks this build's copies as made.
     import wc_gamedata
     wc_gamedata.write_baseline_data(plugin, magicite)
-    manifest = wc_gamedata.manifest(gen)
+    manifest = wc_gamedata.make_recipe(gen, plugin, magicite)   # what a player's setup makes, and from what
     with open(os.path.join(gen, "vanilla", wc_gamedata.MARK), "w", encoding="utf-8") as f:
         f.write(manifest["id"])
     notes.append(f"gamedata.json: {len(manifest['files'])} game files for a player's setup")

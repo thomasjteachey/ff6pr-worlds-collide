@@ -23,7 +23,7 @@ def stamp():
     if _stamp is None:
         h = hashlib.sha1()
         with os.scandir(P.VANILLA) as it:
-            for name in sorted(e.name for e in it):
+            for name in sorted(e.name for e in it if not e.name.startswith(".")):   # not .complete (wc_gamedata)
                 h.update(name.encode() + b";")
         try:
             st = os.stat(os.path.join(P.VANILLA, MARK))

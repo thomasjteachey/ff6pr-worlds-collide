@@ -441,6 +441,52 @@ class WcScripts(unittest.TestCase):
                 else:
                     self.assertEqual([t[2][0] for t in r.did("EncountBoss")], [461], f"{name}: the fight")
 
+    def battle_script(self, name):
+        rel = os.path.join("battle_script", "Assets", "GameAssets", "Serial", "Res", "Battle", "BattleScript", name + ".json")
+        return load(os.path.join(self.tmp, rel)), load(os.path.join(S.P.VANILLA, rel))
+
+    def test_ultros_battle_scenes(self):
+        """Ultros' battle-script scenes (the user's Deck, 2026-11-12: "dialogue during an ultros
+        battle": Ultros 1 shuffled into the Dream Stooges' place ran the Lete River script). In a
+        WC game: the Lete River dive ends the fight with no lines and no raft talk; Esper
+        Mountain's Relm never joins (no scene, the event marked done) and his defeat says nothing.
+        Outside WC all of it plays."""
+        built, _ = self.battle_script("sc_b_0065")
+        event = next(n for n, m in enumerate(built["Mnemonics"]) if m["label"] == "Event00")
+        for wc in (1, 0):
+            st = State()
+            st.set(E.WC_FLAGS, E.WC_GAME, wc)
+            r = Run(built, st, start=event)
+            lines = [t[3][0] for t in r.did("Msg")]
+            self.assertEqual(len(lines), 0 if wc else 20, f"Lete River, WC game {wc}: {lines}")
+            self.assertTrue(r.did("SysCall", "オルトロス潜る") and r.did("BattleForceExit"), f"Lete River, WC game {wc}: the dive, the end")
+            effects = [t for t in r.did("PlayBattleEffect") if t[2][0] == 1]    # the party's animations
+            self.assertEqual(bool(effects), not wc, f"Lete River, WC game {wc}: the raft talk's animations")
+        built, _ = self.battle_script("sc_b_0547")
+        labels = {m["label"]: n for n, m in enumerate(built["Mnemonics"]) if m["label"]}
+        for wc in (1, 0):
+            st = State()
+            st.set(E.WC_FLAGS, E.WC_GAME, wc)
+            r = Run(built, st, start=labels["Event00"])
+            self.assertEqual(bool(r.did("SysCall", "バトル参戦：リルム")), not wc, f"Esper Mountain, WC game {wc}: Relm joins")
+            self.assertEqual(len(r.did("Msg")), 0 if wc else 19, f"Esper Mountain, WC game {wc}: the scene's lines")
+            self.assertEqual(st.get("ScriptLocalVariable", 2), 1, "the event marked done (on to the defeat's check)")
+            r = Run(built, st, start=labels["Event_01"])
+            self.assertEqual(len(r.did("Msg")), 0 if wc else 3, f"Esper Mountain's defeat, WC game {wc}")
+            self.assertTrue(r.did("BattleForceExitOnSave"), "the fight still ends")
+
+    def test_plugin_removed_battle_lines_are_ultros_ai_lines(self):
+        """The plugin's WcRemovedBattleLines (WcEvents.cs) are the PR Ultros 2/3 AI's own lines."""
+        src = open(os.path.join(PR, "plugin", "WcPlugin", "WcEvents.cs"), encoding="utf-8").read()
+        block = src[src.index("WcRemovedBattleLines = new HashSet<string>"):]
+        keys = set(re.findall(r'"(E\d{4}_\d\d_\d{3}_b_\d\d)"', block[:block.index("};")]))
+        ai = set()
+        for f in glob.glob(os.path.join(S.P.VANILLA, "monster_ai", "**", "sc_ai_12[DE]_Ultros.json"), recursive=True):
+            for m in load(f)["Mnemonics"]:
+                ai.update(s for s in m["operands"]["sValues"] if s)
+        self.assertEqual(len(keys), 7)
+        self.assertTrue(keys <= ai, f"not Ultros AI lines: {sorted(keys - ai)}")
+
     def test_wc_removed_lines_are_cut(self):
         """Speakerless lines WC removes (E.WC_REMOVED_LINES; the user's Deck, 2026-11-12): in every
         copy of their script the line's place jumps to a block that, in a WC game, goes straight

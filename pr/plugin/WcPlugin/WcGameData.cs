@@ -50,7 +50,7 @@ namespace WorldsCollide.PR
                 Plugin.L.LogError("[wc] game data can't be made: " + Error);
                 return;
             }
-            Plugin.L.LogInfo("[wc] game data: making Worlds Collide's copies of the game's files from this game (once; up to a minute or two)");
+            Plugin.L.LogInfo("[wc] game data: making Worlds Collide's copies of the game's files from this game (once, about ten seconds)");
             var psi = new ProcessStartInfo
             {
                 FileName = py,

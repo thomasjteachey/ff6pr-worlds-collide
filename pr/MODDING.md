@@ -183,13 +183,25 @@ that needs copies of game files makes them on the player's machine from their ow
 `package_magicite: false` keep the made parts out of the zip. `player_setup` names the script the
 plugin runs to make them; the packager refuses the mod until the plugin's DLL names it.
 
-Worlds Collide's (2026-11-12): `tools/wc_gamedata.py`. `wc_bundle.py` writes
-`generator/gamedata.json` (3,009 files: the generator's `vanilla/` and what building the baseline
-reads, each with its sha1); `wc_gamedata.py setup` (bundled Python, ~40 s on the PC) extracts them
-from the game's bundles and makes `generator/vanilla`, `generator/cache`, `baseline/files`,
-`baseline/vanilla_data` and the Magicite folder, the same files as the dev build, then writes
-`generator/vanilla/.complete` (the manifest's id). `wc_gamedata.py status` exits 0 when that's
-current.
+Worlds Collide is public (2026-11-12, the user: "just make a github release and make the entire WC
+thing public"): https://github.com/thomasjteachey/ff6pr-worlds-collide. `tools/wc_publish.py`
+re-exports its tree into `../ff6pr-worlds-collide` (the WC plugin, all of `tools/*.py`, prkit, the WC
+tests, these docs; WC itself as the `mods/worlds-collide` submodule at the commit used here; the
+same game-file check as the zip), then commit and push from there. Releases carry
+`build/dist/WorldsCollide-PR.zip`; it's over the Chrome extension's 10 MB upload limit, so it goes
+up in two parts that the release page's JavaScript rejoins into one File (SHA-256 checked) and hands
+to its `#releases-upload` input (v0.6.0, 2026-11-12), or by hand. No GitHub CLI on this PC.
+
+Worlds Collide's (2026-11-12): `tools/wc_gamedata.py`. Every copy of the game has the same files, so
+`wc_bundle.py` works out the player's files once (`make_recipe`, ~40 s): `generator/gamedata_recipe.json`
+says how to make each of the 1,633 (a copy of a game file, a game monster AI script under a slot's
+name, a line patch of a game file's JSON or text with WC's changes, a duplicate, or one of ours
+shipped in `generator/gamedata/`: key lists, the cache), each with its sha1, and
+`generator/gamedata.json` lists the 1,584 game files that takes. `wc_gamedata.py setup` (bundled
+Python, ~10 s on the PC: 5.5 extract, 4.5 make) reads them from the game's bundles, makes and checks
+every file, gives the shipped cache this folder's vcache stamp, then writes `generator/vanilla/.complete`
+(the manifest's id). `wc_gamedata.py status` exits 0 when that's current; `selftest` makes a player's
+install from the build and compares it file by file.
 
 ## Where BNW and WC stand, and what's left
 

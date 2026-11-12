@@ -155,6 +155,20 @@ namespace WorldsCollide.PR
             @"^<CT>(Obtained|Received|Learned|Found|Got|HP and MP)|dragons? remaining|magicite!|joined the party",
             System.Text.RegularExpressions.RegexOptions.IgnoreCase);   // 72 of the 3,546 story lines
 
+        // Battle lines WC removes from fights whose PR AI the seed keeps (WC data/enemy_script_dialogs.py
+        // cleanup_mod; the user's Deck, 2026-11-12: "i was also getting dialogue during an ultros
+        // battle"). The PR's monster AI shows them (BattleAI.ViewMes -> Msg) and can't read story flags.
+        // Ultros 2 (sc_ai_12D, the Opera: "It's me again! / Long time no see! / Did ya miss me?", "Imp!
+        // Buddy! Pal!") and Ultros 3 (sc_ai_12E, Esper Mountain: "Thought you wouldn't see me again?..."):
+        // WC's "long time no see", "imp! pal! buddy!", "i was just thinking about you". (Ultros 1's AI
+        // has no lines; Ultros/Chupon runs WC's own script. Their battle scripts' scenes: wc_events
+        // ultros_battles.)
+        internal static readonly HashSet<string> WcRemovedBattleLines = new HashSet<string>
+        {
+            "E0344_01_114_b_01", "E0344_01_114_b_02", "E0344_01_114_b_03", "E0344_01_114_b_04",
+            "E0547_01_425_b_01", "E0547_01_425_b_02", "E0547_01_425_b_03",
+        };
+
         internal static string StoryWhy = "";   // the last decision's reason (the self-test logs it)
 
         // The game leaves the message window open after a line when another Msg comes next, for it
@@ -189,6 +203,8 @@ namespace WorldsCollide.PR
         {
             StoryWhy = "not story text";
             if (string.IsNullOrEmpty(key) || key[0] != 'E') return false;
+            StoryWhy = "a battle line WC removes";
+            if (WcRemovedBattleLines.Contains(key)) return true;
             var script = Integrator.Instance?.scriptName ?? "";
             StoryWhy = "not a scene";
             if (!script.StartsWith("sc_e_", StringComparison.OrdinalIgnoreCase)) return false;
@@ -253,7 +269,7 @@ namespace WorldsCollide.PR
                     string k = c?.op?.sValues?[0];
                     if (!SkipStoryLine(c, k)) { if (k != null && k.Length > 0 && k[0] == 'E') StoryKept++; return true; }
                     StorySkipped++;
-                    CloseAfterSkipped(c);
+                    if (!WcRemovedBattleLines.Contains(k)) CloseAfterSkipped(c);   // a battle line: no field window to close
                     __result = 0;
                     return false;
                 }

@@ -16,7 +16,7 @@ namespace WorldsCollide.PR
     public class Plugin : BasePlugin
     {
         public const string Guid = "ff6mod.worldscollide";
-        public const string Version = "0.6.0";
+        public const string Version = "0.6.1";
         internal static ManualLogSource L;
         internal static string Folder;
         internal static bool WcMode;

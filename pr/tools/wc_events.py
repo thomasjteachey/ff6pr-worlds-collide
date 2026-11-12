@@ -1509,6 +1509,47 @@ def ultima_intros():
     return out
 
 
+def ultros_battles():
+    """Ultros' fights' battle-script scenes (the user's Deck, 2026-11-12: "i was also getting
+    dialogue during an ultros battle"; the boss shuffle had put Ultros 1, with his Lete River
+    battle script, in the Dream Stooges' place). WC removes Ultros' battle chatter in all four
+    fights (data/enemy_script_dialogs.py cleanup_mod) and the scenes around them; the PR moved
+    those scenes into the fights' battle scripts, where the plugin's story rule doesn't reach:
+      * sc_b_0065 (Ultros 1, the Lete River): when he dives (Event00) the party's whole raft talk
+        plays with battle animations (Sabin's jump into the river: WC's lete_river.py removes the
+        scene after Ultros). A WC game: the dive, no "*sploosh!*" / "*glub glub...*", the music
+        stopped and the fight's statuses cleared as vanilla, then the fight ends;
+      * sc_b_0547 (Ultros 3, Esper Mountain): Event00 is Relm arriving and joining the fight
+        (SysCall バトル参戦：リルム) with the sketch scene: WC blanks that battle event
+        (esper_mountain.py "esper mountain ultros battle relm appears"): nothing, the event marked
+        done; Event_01's defeat lines ("How can this be?...", WC removes 0x50) don't show.
+    The PR AI's own chatter for Ultros 2 and 3 (sc_ai_12D/12E) is the plugin's: AI scripts can't
+    read story flags (WcEvents.WcRemovedBattleLines)."""
+    out = []
+    base = os.path.join(P.VANILLA, "battle_script", "Assets", "GameAssets", "Serial", "Res", "Battle", "BattleScript")
+    f = os.path.join(base, "sc_b_0065.json")
+    sc = S.load_path(f)
+    ms = sc["Mnemonics"]
+    assert ms[13]["label"] == "Event00" and [ms[i]["operands"]["sValues"][0] for i in (24, 25)] == \
+        ["E0065_01_347_b_15", "E0065_01_347_b_16"] and ms[27]["mnemonic"] == "StopBGM" and ms[30]["mnemonic"] == "PlayBGM" \
+        and ms[91]["mnemonic"] == "Wait" and ms[92]["mnemonic"] == "BattleForceExit", "Lete River Ultros' battle script changed"
+    S.hook(sc, 24, "wc_no_ultros_lines", [if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"), S.op("Jump", i=[26])])
+    S.hook(sc, 30, "wc_no_raft_talk", [if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"), S.op("Jump", i=[90])])
+    out.append((sc, f))
+
+    f = os.path.join(base, "sc_b_0547.json")
+    sc = S.load_path(f)
+    ms = sc["Mnemonics"]
+    assert ms[17]["label"] == "Event00" and ms[27]["operands"]["sValues"][0] == "バトル参戦：リルム" \
+        and ms[88]["mnemonic"] == "Calc" and ms[88]["operands"]["iValues"][:2] == [2, 1] and ms[89]["mnemonic"] == "Return" \
+        and ms[90]["label"] == "Event_01" and [ms[i]["operands"]["sValues"][0] for i in (94, 95, 96)] == \
+        ["E0547_01_425_b_29", "E0547_01_425_b_30", "E0547_01_425_b_31"], "Esper Mountain Ultros' battle script changed"
+    S.hook(sc, 18, "wc_no_relm", [if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"), S.op("Jump", i=[87])])
+    S.hook(sc, 94, "wc_no_ultros_lines", [if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"), S.op("Jump", i=[96])])
+    out.append((sc, f))
+    return out
+
+
 def fanatics_tower():
     """The Cultists' Tower's foot (WC event/fanatics_tower.py, gate Strago; map 476): the seed's first
     reward instead of Strago's join (with a full party he'd go to the reserve: skipped too).
@@ -3393,7 +3434,7 @@ SCRIPTS = [opening, blackjack_helm, falcon_helm, tzen_wob, tzen_wor, tzen_map, a
            collapsing_house_map, collapsing_house, narshe_wor, magitek_ifrit, magitek_shiva,
            doma_wor, doma_wor_throne, mobliz_wor_start, mobliz_wor, mobliz_fenrir, doom_gaze_start, doom_gaze,
            magitek_tubes, magitek_escape, lone_wolf, lone_wolf_hairpin, daryl_tomb, baren_falls_jump, baren_falls, south_figaro,
-           figaro_castle_wob, mt_kolts_start, mt_kolts, magitek_024_start, magitek_024, doma_stooges, doma_stooges_lines, veldt, veldt_world, veldt_battle, ultima_intros,
+           figaro_castle_wob, mt_kolts_start, mt_kolts, magitek_024_start, magitek_024, doma_stooges, doma_stooges_lines, veldt, veldt_world, veldt_battle, ultima_intros, ultros_battles,
            fanatics_tower, fanatics_tower_dragon, magimaster, dragons, auction_golem, auction_zona_seeker, kefka_tower_atma, final_kefka,
            fc_airship_trip, fc_arrive, fc_airship_return, fc_beast, fc_statues, fc_escape, veldt_cave_start, veldt_cave_shadow,
            veldt_cave_relm, lete_river_start, lete_river, sealed_gate_start, sealed_gate, sealed_gate_after,

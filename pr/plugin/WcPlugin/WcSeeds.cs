@@ -638,19 +638,25 @@ namespace WorldsCollide.PR
             foreach (var dt in new[] { typeof(PictureBookSaveManager), typeof(SystemConfigManager) })
                 foreach (var m in dt.GetMethods().Where(m => m.Name == "Save"))
                     h.Patch(m, prefix: new HarmonyMethod(typeof(WcSeeds), m.ReturnType == typeof(bool) ? nameof(NoDataSaveInTestBool) : nameof(NoDataSaveInTest)));
+            // ... and the bestiary's updates, which write it without its hooked Save: the Floating
+            // Continent trip's headless test (2026-11-12) rewrote it mid-run with no "Save skipped",
+            // around the Air Force fight's script registering Chupon (SysCall 図鑑登録：テュポーン)
+            foreach (var m in typeof(PictureBookSaveManager).GetMethods()
+                         .Where(m => m.Name is "Registration" or "UpdateDefeatCount" or "AddTotalSubjugationCount" or "UpdateScenarioFlags"))
+                h.Patch(m, prefix: new HarmonyMethod(typeof(WcSeeds), nameof(NoDataSaveInTest)));
         }
 
         public static bool NoDataSaveInTest(System.Reflection.MethodBase __originalMethod)
         {
             if (!WcTest.Running) return true;
-            Plugin.L.LogInfo($"[wc test] {__originalMethod.DeclaringType?.Name}.Save skipped (test run)");
+            Plugin.L.LogInfo($"[wc test] {__originalMethod.DeclaringType?.Name}.{__originalMethod.Name} skipped (test run)");
             return false;
         }
 
         public static bool NoDataSaveInTestBool(System.Reflection.MethodBase __originalMethod, ref bool __result)
         {
             if (!WcTest.Running) return true;
-            Plugin.L.LogInfo($"[wc test] {__originalMethod.DeclaringType?.Name}.Save skipped (test run)");
+            Plugin.L.LogInfo($"[wc test] {__originalMethod.DeclaringType?.Name}.{__originalMethod.Name} skipped (test run)");
             __result = true;
             return false;
         }
