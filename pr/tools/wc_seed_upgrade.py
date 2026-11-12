@@ -21,6 +21,9 @@ Also, without regenerating: the Cultists' Tower's battle script on the swapped e
 copies (seeds made before 2026-11-12 gave a copy its target's script, so MagiMaster fought elsewhere
 kept the tower's magic-only status: wc_seed.place_script). Only the script_name of those copy rows
 (ids from wc_seed.EVENT_LOOK_BASE) in monster_party.csv changes; nothing new is added.
+And undead in battle (seeds made before 2026-11-12 cleared only the species bit for -bnu, so its
+bosses stayed undead in battle): monster_flag_group_id of the monster rows whose undead bit says
+otherwise (port.flag_group_with) in monster.csv; nothing new is added.
 """
 import argparse
 import csv
@@ -76,24 +79,76 @@ def tower_fixes(seed_dir):
     return out
 
 
-def apply_tower_fixes(seed_dir, fixes):
-    """Rewrite those rows' script_name in monster_party.csv, the file's text otherwise as it is."""
-    path = os.path.join(seed_dir, MONSTER_PARTY)
+def rewrite_column(seed_dir, rel, column, fixes):
+    """Rewrite one column of the given rows ({id: (now, wanted)}) of a seed table, the file's text
+    otherwise as it is."""
+    path = os.path.join(seed_dir, rel)
     with open(path, encoding="utf-8", newline="") as f:
         lines = f.read().splitlines(keepends=True)
-    col = lines[0].rstrip("\r\n").split(",").index("script_name")
+    col = lines[0].rstrip("\r\n").split(",").index(column)
     done = 0
     for i, line in enumerate(lines[1:], 1):
         body = line.rstrip("\r\n")
         cells = body.split(",")
         if cells[0] in fixes:
-            assert cells[col] == fixes[cells[0]][0], f"party {cells[0]}: script {cells[col]}"
+            assert cells[col] == fixes[cells[0]][0], f"{rel} row {cells[0]}: {column} {cells[col]}"
             cells[col] = fixes[cells[0]][1]
             lines[i] = ",".join(cells) + line[len(body):]
             done += 1
     assert done == len(fixes), f"{done} of {len(fixes)} rows found"
     with open(path, "w", encoding="utf-8", newline="") as f:
         f.write("".join(lines))
+
+
+def apply_tower_fixes(seed_dir, fixes):
+    """Rewrite those rows' script_name in monster_party.csv, the file's text otherwise as it is."""
+    rewrite_column(seed_dir, MONSTER_PARTY, "script_name", fixes)
+
+
+def undead_fixes(seed_dir):
+    """Monsters whose undead bit (species bit 0) and undead in battle (the Undead flag in their
+    monster_flag_group: tools/decomp/undead) disagree. Seeds made before 2026-11-12 moved only the
+    species bit, so WC's -bnu left its bosses undead in battle (the user's seed gaadl68ix7j4: the
+    Assassin's Dagger healed the second Behemoth King to full on every hit). {monster id: (flag
+    group now, flag group wanted)}; one that would need a flag group of its own is left (logged)."""
+    sys.path.insert(0, HERE)
+    import port
+    import prdata as P
+    own = os.path.join(seed_dir, MASTER + "monster_flag_group.csv")
+    groups = P.Table("monster_flag_group", open(own, encoding="utf-8").read() if os.path.exists(own) else None)
+    undead = {int(r["group_id"]) for r in groups if int(r["monster_flag_id"]) == port.UNDEAD_FLAG}
+    out = {}
+    for mid, r in rows(os.path.join(seed_dir, MONSTER)).items():
+        on, gid = bool(int(r["species"]) & 1), int(r["monster_flag_group_id"])
+        if on == (gid in undead):
+            continue
+        made = set()
+        want = port.flag_group_with(groups, gid, port.UNDEAD_FLAG, on, made)
+        if made:
+            print(f"monster {mid}: no flag group has group {gid}'s flags {'with' if on else 'without'} Undead; left as it is")
+            continue
+        out[mid] = (str(gid), str(want))
+    return out
+
+
+def upgrade_undead(seed_dir, deck, dry_run):
+    """The undead part of the upgrade, PC (and the Deck's copy): None when nothing to do."""
+    fixes = undead_fixes(seed_dir)
+    if not fixes:
+        return None
+    for mid, (was, want) in fixes.items():
+        print(f"monster {mid}: flag group {was} -> {want} (undead in battle as its species says)")
+    if dry_run:
+        return 0
+    bak = backup_dir(seed_dir)
+    shutil.copytree(seed_dir, bak)
+    rewrite_column(seed_dir, MONSTER, "monster_flag_group_id", fixes)
+    info = json.load(open(os.path.join(seed_dir, "wc_seed.json"), encoding="utf-8"))
+    info["upgraded"] = time.strftime("%Y-%m-%d %H:%M:%S") + " (undead in battle follows the undead bit: -bnu)"
+    with open(os.path.join(seed_dir, "wc_seed.json"), "w", encoding="utf-8") as f:
+        json.dump(info, f, indent=1)
+    print(f"PC: {len(fixes)} monsters in {seed_dir} (backup: {bak})")
+    return push_deck(deck, seed_dir, [MONSTER], False) if deck else 0
 
 
 def upgrade_tower(seed_dir, deck, dry_run):
@@ -270,6 +325,10 @@ def main():
     tower = upgrade_tower(seed_dir, a.deck, a.dry_run)
     if tower:
         return tower
+    # before a regeneration: the regenerated monster table has the fixed flag groups
+    undead = upgrade_undead(seed_dir, a.deck, a.dry_run)
+    if undead:
+        return undead
     info = json.load(open(os.path.join(seed_dir, "wc_seed.json"), encoding="utf-8"))
     what = needed(info)
     if not what:

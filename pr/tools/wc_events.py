@@ -819,9 +819,12 @@ def collapsing_house():
         assert ms[at]["mnemonic"] == "Msg", f"Tzen WoR line {at} changed"
         skip_at(sc, at, f"wc_skip_story_{at}")
     assert ms[1]["mnemonic"] == "SetEntities" and ms[2]["mnemonic"] == "FinishTimer" and ms[55]["label"],         "Tzen WoR's escape changed"
-    # and none of the scene with Sabin outside (it played on, silent): the countdown stops, then
-    # vanilla's end from its done flags (56: the house's after state, the reward at 69, fade in)
-    S.hook(sc, 1, "wc_no_scene", [if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla")] + S.copy_ops(sc, 2, 3) + [
+    assert ms[19]["mnemonic"] == "Shake" and ms[19]["operands"]["iValues"][0] == 0, "Tzen WoR's quake stop moved"
+    # and none of the scene with Sabin outside (it played on, silent): the countdown stops, the
+    # house's quake stops (19: sc_e_0634 started it to re-run on every map, so skipping vanilla's
+    # stop left the whole game shaking), then vanilla's end from its done flags (56: the house's
+    # after state, the reward at 69, fade in)
+    S.hook(sc, 1, "wc_no_scene", [if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla")] + S.copy_ops(sc, 2, 3) + S.copy_ops(sc, 19, 20) + [
         S.op("Jump", i=[55])])
     reward_at(sc, 69, "collapsing_house", dark=True)
     return sc
@@ -1807,20 +1810,26 @@ def event_timers():
 
 def fc_escape():
     """Back on the Blackjack after the escape (sc_e_0607_1, map 119): the seed's third reward,
-    then the deck as it was: no world collapse (WC drops it)."""
+    then the deck as it was: no world collapse (WC drops it), and no quake (the escape's maps,
+    sc_e_0603_1-0606_1, start it to re-run on every map; vanilla stops it only on the world map
+    after the collapse, sc_e_0607_7: the user's Deck, 2026-11-12, "the whole game rumbles now")."""
     sc = S.load("sc_e_0607_1")
     ms = sc["Mnemonics"]
     assert ms[14]["mnemonic"] == "ChangeMap" and ms[14]["operands"]["sValues"][0] == "sc_e_0607_2", "FC escape changed"
     assert ms[2]["operands"]["sValues"][0] == "背景変更：飛空艇（通常）" and ms[8]["operands"]["sValues"][0] == "背景変更：北の崖FO" \
         and ms[13]["mnemonic"] == "StopEnvSe", "FC escape background changed"
+    stop = S.load("sc_e_0607_7")["Mnemonics"][1]
+    assert stop["mnemonic"] == "Shake" and stop["operands"]["iValues"][0] == 0, "FC collapse's quake stop moved"
     # the scene has turned the deck's background to the cliff's fade-out (ms[8]): back to the
-    # airship's normal one (as ms[2] set it) and the scene's sound stopped (as ms[13]) before the
-    # deck reloads through the boarding arrival, as the WC start arrives
+    # airship's normal one (as ms[2] set it), the scene's sound stopped (as ms[13]) and the quake
+    # (vanilla's own stop: Shake 0 also ends the shake that re-runs on each map) before the deck
+    # reloads through the boarding arrival, as the WC start arrives
     S.hook(sc, 11, "wc_reward", [
         if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
     ] + give("floating_continent", n=2, check="floating_continent_3") + [
         S.op("FadeOut", i=[0, 0, 0, 255], r=[0.7]),
         S.op("StopEnvSe", r=[0.7]),
+        dict(copy.deepcopy(stop), label=""),
         S.op("SysCall", s=["背景変更：飛空艇（通常）"]),
         S.op("ChangeMap", i=[119, 1, 0, 0, 1, 0], s=["sc_e_BJinboard_1"]),
         S.op("Exit"),

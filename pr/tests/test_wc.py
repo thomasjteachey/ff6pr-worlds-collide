@@ -1017,6 +1017,23 @@ class WcScripts(unittest.TestCase):
         self.assertEqual(st.get("ScenarioFlag2", 56), 1)
         self.assertEqual(r.end, ("Exit",))
         self.assertFalse(r.black)
+        # the house's quake (sc_e_0634: Shake iValues[3], re-run on every map) stops as vanilla's
+        # skipped scene stops it (sc_e_0639: 19), or the whole game shakes after the check
+        self.assertEqual([t[2][0] for t in r.did("Shake")], [0], "the quake stops")
+
+    def test_floating_continent_escape_stops_the_quake(self):
+        """The user's Deck (2026-11-12): "after i completed the floating continent the whole game
+        rumbles now". The escape's maps start a quake that re-runs on every map (sc_e_0603_1-0606_1,
+        Shake iValues[3]); vanilla stops it on the world map after the collapse (sc_e_0607_7),
+        which WC drops: its end back on the Blackjack stops it."""
+        st, _ = self.new_game()
+        r = Run(self.script("sc_e_0607_1"), st)
+        self.assertEqual(len(r.did("SysCall", "WC:reward floating_continent 2")), 1)
+        stops = [t for t in r.did("Shake") if t[2][0] == 0]
+        self.assertEqual(len(stops), 1, "the quake stops")
+        self.assertEqual(r.end[:2], ("ChangeMap", E.DECK_MAP), r.end)
+        self.assertEqual(r.trace[-1][1], "ChangeMap")
+        self.assertGreater(stops[0], r.did("SysCall", "WC:reward floating_continent 2")[0], "after the reward")
 
     def test_serpent_trench_helmet_has_no_story_cutscene(self):
         # WC event/serpent_trench.py removes the party split, Gau/Sabin/Cyan dialogue and the

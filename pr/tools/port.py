@@ -241,10 +241,38 @@ def drop_fields(items):
 PR_EQUIP_SLOT = (1, 2, 4, 3, 5, 6)             # SNES equip index -> character_status content_idN
 PR_EMPTY_SLOT = {1: 93, 2: 93, 3: 198, 4: 199, 5: 200, 6: 200}
 
+UNDEAD_FLAG = 2   # MonsterFragType.Undead (monster_flag_group's monster_flag_id)
+
+
+def flag_group_with(groups, gid, flag, on, new_rows):
+    """The monster flag group with group gid's flags plus (on) or minus `flag`: an existing group
+    with exactly those flags (0: none), else a new one (its rows added to `groups`, their ids to
+    `new_rows`). The vanilla groups pair up for the undead flag: 2 <-> none, 8 <-> 4."""
+    sets = {}
+    for r in groups:
+        sets.setdefault(int(r["group_id"]), set()).add(int(r["monster_flag_id"]))
+    have = sets.get(gid, set())
+    want = have | {flag} if on else have - {flag}
+    if want == have:
+        return gid
+    if not want:
+        return 0
+    for g, s in sorted(sets.items()):
+        if s == want:
+            return g
+    g, rid = max(sets) + 1, max(groups.rows) + 1
+    for f in sorted(want):
+        groups.rows[rid] = dict(zip(groups.columns, (str(rid), str(g), str(f))))
+        new_rows.add(rid)
+        rid += 1
+    return g
+
 
 def port_enemies(van, bnw, tables):
+    """The monster table's changes, and the monster_flag_group rows made for them."""
     mo = tables["monster"]
-    ch = set()
+    groups = tables.setdefault("monster_flag_group", P.Table("monster_flag_group"))
+    ch, new_groups = set(), set()
     blanks, kept_hp = [], []
     for ev, eb in zip(S.enemies(van), S.enemies(bnw)):
         if ev.raw == eb.raw and ev.items == eb.items:
@@ -265,10 +293,18 @@ def port_enemies(van, bnw, tables):
                          ("defense", eb.defense), ("ability_defense", eb.mdef), ("evasion_rate", eb.evade),
                          ("magic_evasion_rate", eb.mblock), ("accuracy_rate", eb.accuracy)):
             setv(row, col, val, ch)
-        # undead (SNES byte 18 bit 7; WC's -bnu clears it on bosses) = the PR's species bit 0
+        # undead (SNES byte 18 bit 7; WC's -bnu clears it on bosses): the PR's species bit 0 (the
+        # species list killer weapons read) and the Undead flag in the monster's flag group, which is
+        # what a battle reads (EnemyCharacterParameter's constructor sets CharacterParameterBase.undead
+        # from the flags: tools/decomp/undead). With species alone, -bnu's bosses stayed undead in
+        # battle: the Assassin's Dagger healed the second Behemoth King to full on every hit (the
+        # user's seed gaadl68ix7j4, 2026-11-12), and revive items still killed the Phantom Train
         if (ev.raw[18] ^ eb.raw[18]) & 0x80:
+            undead = bool(eb.raw[18] & 0x80)
             sp = int(row["species"])
-            setv(row, "species", sp | 1 if eb.raw[18] & 0x80 else sp & ~1, ch)
+            setv(row, "species", sp | 1 if undead else sp & ~1, ch)
+            gid = flag_group_with(groups, int(row["monster_flag_group_id"]), UNDEAD_FLAG, undead, new_groups)
+            setv(row, "monster_flag_group_id", gid, ch)
         if ev.items != eb.items:
             (rate, d1, d2), (s1, s2) = drop_fields(eb.items)
             setv(row, "drop_rate", rate, ch)
@@ -279,8 +315,9 @@ def port_enemies(van, bnw, tables):
             setv(row, "steal_content_id1", s1, ch)
             setv(row, "steal_content_id2", s2, ch)
     log(f"monster: {len(ch)} changed; {len(blanks)} slots BNW emptied keep the PR's monster "
-        f"(SNES {', '.join(map(str, blanks))}); {len(kept_hp)} placeholders keep their HP (SNES {', '.join(map(str, kept_hp))})")
-    return ch
+        f"(SNES {', '.join(map(str, blanks))}); {len(kept_hp)} placeholders keep their HP (SNES {', '.join(map(str, kept_hp))})"
+        + (f"; {len(new_groups)} monster_flag_group rows made" if new_groups else ""))
+    return ch, new_groups
 
 
 MESSAGE_PATH = "Assets/GameAssets/Serial/Data/Message"
@@ -625,7 +662,9 @@ def main(profile):
     changed.update(port_items(van, bnw, tables, jobs))
     for k, v in port_sell(tables).items():
         changed.setdefault(k, set()).update(v)
-    changed["monster"] = port_enemies(van, bnw, tables)
+    changed["monster"], flag_rows = port_enemies(van, bnw, tables)
+    if flag_rows:
+        changed["monster_flag_group"] = flag_rows
     tables["job_group"] = jobs.t
     changed["job_group"] = jobs.new
     log(f"job_group: {len(jobs.new)} new equip groups")

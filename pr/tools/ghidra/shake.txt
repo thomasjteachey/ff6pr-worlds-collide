@@ -1,0 +1,5 @@
+# The event Shake command (2026-11-12: after a WC Floating Continent escape "the whole game rumbles"):
+# its operands, the shake that re-runs on every field (ReExecuteShakerSocket) and what stops it
+^Last\.Interpreter\.Instructions\.External\.Misc\$\$Shake$
+^Last\.Systems\.Camera\.ReExecuteShakerSocket\$\$
+^Last\.Systems\.Camera\.Shaker\$\$(Play|Stop|Clear)$

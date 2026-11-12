@@ -1,0 +1,6 @@
+# What makes a monster undead in the PR (2026-11-12: WC's -bnu clears the undead bit, species bit 0,
+# yet the Assassin's Dagger still fully healed the second Behemoth King): where EnemyCharacterParameter
+# sets CharacterParameterBase.undead (0x158), and what IsUndead reads
+^Last\.Data\.EnemyCharacterParameter\$\$\.ctor$
+^Last\.Data\.CharacterParameterBase\$\$IsUndead$
+^Last\.Data\.PlayerCharacterParameter\$\$IsUndead$
