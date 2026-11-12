@@ -1,0 +1,4 @@
+# Shadow's random leaving after a battle (SysCall シャドウ離脱抽選 in sc_b_0097/0239/2006/2008): what it
+# checks, so a WC game (WC removes the SNES's check) never loses Shadow
+SystemCall\.Current\$\$LotSecedeShadow$
+SystemCall\.Current\$\$RemoveShadowInBattle$

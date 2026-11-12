@@ -23,9 +23,20 @@ gate met, the check not done), and so is the script its fight or map change lead
 the puppet routines it still calls (Call) and its story lines. WC trims its checks to the fight
 and the reward, so a long list here is a scene to cut.
 
+--music (the user, 2026-11-12: Kefka's theme in Figaro Castle after the throne check, "what about
+the story changing other music"): every map whose arrival script can leave more than one kind
+of music under a WC game's flags, each track with the undecided flags that pick it and the
+scripts that change those flags. A map whose music is fixed but keyed to a story state WC's
+start sets (South Figaro's pub, Mobliz WoR) doesn't show here: compare those with WC's SNES
+game (pr/tools/snes_harness.py; $1F80 is the SNES's current song).
+
+Limits: flags set by the scripts a boss fight leads to (EncountBoss's after-script) aren't
+followed, so they count as never set.
+
   .venv/Scripts/python tools/wc_scene_audit.py [--fresh] [--world wob|wor|both] [--kinds touch,entry,...]
                                                [--min-lines N] [--json OUT]
   .venv/Scripts/python tools/wc_scene_audit.py --checks [--min-calls N]
+  .venv/Scripts/python tools/wc_scene_audit.py --music [--fresh] [--world wob|wor|both]
 """
 import argparse
 import csv
@@ -108,7 +119,7 @@ def run(sc, state):
     "scenes": [(op, name, map id)], "battles": [...], "layers": [...], "sets": {(cat, idx)}}."""
     ms = sc["Mnemonics"]
     targets = labels(ms)
-    out = {"msgs": [], "scenes": [], "battles": [], "layers": [], "sets": set(), "puppets": 0, "joins": []}
+    out = {"msgs": [], "scenes": [], "battles": [], "layers": [], "sets": set(), "writes": set(), "puppets": 0, "joins": []}
     seen, todo = set(), [0]
     while todo:
         pc = todo.pop()
@@ -146,6 +157,7 @@ def run(sc, state):
                 out["layers"] += [x for x in sv if x]
             elif op in ("SetFlag", "ResetFlag") and sv[0] in FLAG_CATS:
                 out["sets"].add((sv[0], iv[0]))
+                out["writes"].add((sv[0], iv[0], 1 if op == "SetFlag" else 0))
             elif op == "SetPuppet":
                 out["puppets"] += 1
             elif op == "SysCall" and sv[0].startswith(JOIN):
@@ -208,14 +220,24 @@ def follow(scripts, state, name, folder, map_of, depth=0, seen=None):
             r["msgs"] += [(n, k) for n, k in sub["msgs"]]
             r["battles"] += sub["battles"]
             r["sets"] |= sub["sets"]
+            r["writes"] |= sub["writes"]
             r["puppets"] += sub["puppets"]
             r["joins"] += sub["joins"]
             r["chain"] += sub["chain"]
     return r
 
 
-def audit(scripts, state):
-    """[{map, name, kind, entity, script, chain, msgs, battles, puppets}] and every flag set."""
+def audit(scripts, state, setters=None):
+    """[{map, name, kind, entity, script, chain, msgs, battles, puppets}] and every flag a
+    reachable script changes (sets while clear or clears while set; `setters`, if given, gets
+    {flag: [(map id, script)]})."""
+
+    def changes(r, mid, name):
+        out = {(c, i) for c, i, v in r["writes"] if state.known.get((c, i), 0) != v}
+        if setters is not None:
+            for f in out:
+                setters.setdefault(f, []).append((mid, name))
+        return out
     folders = map_folders()
     map_of = {mid: folder for mid, _, folder in folders}
     found, sets = [], set()
@@ -226,7 +248,7 @@ def audit(scripts, state):
             r = follow(scripts, state, main[:-5], folder, map_of)
             if r:
                 placed |= {x + ".json" for x in r["layers"]}
-                sets |= r["sets"]
+                sets |= changes(r, mid, main[:-5])
                 if r["msgs"] or r["battles"] or r["joins"]:
                     found.append(dict(map=mid, name=mname, kind="entry", entity="", script=main[:-5], **_brief(r)))
         for layer in sorted(placed):
@@ -240,7 +262,7 @@ def audit(scripts, state):
                 r = follow(scripts, state, name, folder, map_of)
                 if not r:
                     continue
-                sets |= r["sets"]
+                sets |= changes(r, mid, name)
                 if r["msgs"] or r["battles"] or r["joins"]:
                     found.append(dict(map=mid, name=mname, kind=KIND.get(otype, f"type{otype}"), layer=lay,
                                       entity=ename, at=(x // 16 if x is not None else None, y // 16 if y is not None else None),
@@ -251,6 +273,166 @@ def audit(scripts, state):
 def _brief(r):
     return {"chain": r["chain"], "msgs": [k for _, k in r["msgs"]], "battles": [b[1] for b in r["battles"]],
             "puppets": r["puppets"], "joins": r["joins"], "sets": sorted(f"{c}:{i}" for c, i in r["sets"])}
+
+
+BGM_OPS = ("PlayBGM", "StopBGM")
+ENV_OPS = ("PlayEnvSe", "StopEnvSe")
+
+
+def track_names():
+    """{PlayBGM id (bgm_asset id): English track name}."""
+    msg = {}
+    for line in open(os.path.join(P.VANILLA, "message", "Assets", "GameAssets", "Serial", "Data", "Message",
+                                  "etc_text_en.txt"), encoding="utf-8"):
+        k, _, v = line.rstrip("\n").partition("\t")
+        msg[k] = v
+    names = {}
+    for r in master("sound_player_list"):
+        names.setdefault(int(r["bgm_asset_id"]), msg.get(r["message_id"], r["message_id"]))
+    for r in master("bgm_asset"):
+        names.setdefault(int(r["id"]), r["asset_name"][5:-4])
+    return names
+
+
+def music_paths(sc, state, limit=20000):
+    """{(bgm, env): [conditions]}: the music a map script leaves playing (the last PlayBGM id or
+    "stop", the last environment sound id or "stop"; None = untouched) on each path through it,
+    with the undecided flags (WC's own, or story flags a WC game may have either way) each path
+    takes. Paths stop once no music op can follow."""
+    ms = sc["Mnemonics"]
+    targets = labels(ms)
+    n = len(ms)
+
+    def edges(pc):
+        m = ms[pc]
+        o = m.get("operands") or {}
+        iv = o.get("iValues") or [0] * 8
+        op = m["mnemonic"]
+        if op in ("Exit", "Return", "ChangeScript"):
+            return []
+        if op == "Jump":
+            return [iv[0] + 1]
+        if op == "Call":
+            return [pc + 1, iv[0] + 1]
+        if op == "Branch":
+            return [pc + 1, iv[2] + 1]
+        if op.startswith("BranchBy") or op == "JumpIfSpecificLanguage":
+            return [pc + 1] + [t + 1 for t in iv if t > pc and t in targets]
+        return [pc + 1]
+
+    # music[pc]: a music op can still run from pc (ignoring conditions)
+    music = [ms[pc]["mnemonic"] in BGM_OPS + ENV_OPS for pc in range(n)]
+    changed = True
+    while changed:
+        changed = False
+        for pc in range(n - 1, -1, -1):
+            if not music[pc] and any(0 <= s < n and music[s] for s in edges(pc)):
+                music[pc] = changed = True
+
+    out = {}
+    todo = [(0, (), (), None, None)]
+    seen = set()
+    while todo and limit > 0:
+        pc, conds, stack, bgm, env = todo.pop()
+        while True:
+            limit -= 1
+            key = (pc, conds, stack, bgm, env)
+            if key in seen:            # a loop: this path's outcome is already recorded
+                break
+            seen.add(key)
+            live = (0 <= pc < n and music[pc]) or any(0 <= r < n and music[r] for r in stack)
+            if not (0 <= pc < n) or not live:
+                out.setdefault((bgm, env), []).append(conds)
+                break
+            m = ms[pc]
+            o = m.get("operands") or {}
+            iv, sv = o.get("iValues") or [0] * 8, o.get("sValues") or [""] * 8
+            op = m["mnemonic"]
+            if op == "PlayBGM":
+                bgm = iv[0]
+            elif op == "StopBGM":
+                bgm = "stop"
+            elif op == "PlayEnvSe":
+                env = iv[0]
+            elif op == "StopEnvSe":
+                env = "stop"
+            elif op == "SysCall" and sv[0].startswith("WC:"):
+                # the plugin answers in the scratch flag (WC:gate, WC:theme...): a new value
+                conds = tuple(c for c in conds if not (len(c) == 2 and c[0] == (W.WC_FLAGS, W.SCRATCH)))
+            if op in ("Exit", "ChangeScript") or (op == "Return" and not stack):
+                out.setdefault((bgm, env), []).append(conds)
+                break
+            if op == "Return":
+                pc, stack = stack[-1], stack[:-1]
+                continue
+            if op == "Call":
+                pc, stack = iv[0] + 1, stack + (pc + 1,)
+                continue
+            if op == "Branch":
+                cat, cmp_ = sv[0], sv[1]
+                known = dict((c[0], c[1]) for c in conds if len(c) == 2)
+                v = state.value(cat, iv[0]) if sv[2] == "imm" else None
+                if v is None and sv[2] == "imm":
+                    v = known.get((cat, iv[0]))
+                if v is not None and cmp_ in OPS:
+                    pc = iv[2] + 1 if OPS[cmp_](v, iv[1]) else pc + 1
+                    continue
+                if sv[2] == "imm" and cmp_ in ("＝", "≠") and iv[1] in (0, 1):
+                    jump_v = iv[1] if cmp_ == "＝" else 1 - iv[1]
+                    todo.append((iv[2] + 1, conds + (((cat, iv[0]), jump_v),), stack, bgm, env))
+                    conds = conds + (((cat, iv[0]), 1 - jump_v),)
+                else:
+                    todo.append((iv[2] + 1, conds + ((f"{cat}[{iv[0]}]{cmp_}{iv[1]}",),), stack, bgm, env))
+                    conds = conds + ((f"not {cat}[{iv[0]}]{cmp_}{iv[1]}",),)
+                pc += 1
+                continue
+            nxt = edges(pc)
+            for t in nxt[1:]:
+                todo.append((t, conds + ((f"{op}->{t - 1}",),), stack, bgm, env))
+            if len(nxt) > 1:
+                conds = conds + ((f"{op}->next",),)
+            pc = nxt[0] if nxt else -1
+    return out
+
+
+def music_audit(scripts, state):
+    """[(map id, map name, script, {(bgm, env): [conditions]})] for every map whose entry script
+    can leave more than one kind of music playing under `state`."""
+    out = []
+    for mid, mname, folder in map_folders():
+        main = next((f for f in os.listdir(folder) if f.lower() == f"sc_{mname.lower()}.json"), None)
+        if not main:
+            continue
+        sc, _ = scripts.load(main[:-5], folder)
+        if sc is None:
+            continue
+        paths = music_paths(sc, state)
+        if len(paths) > 1:
+            out.append((mid, mname, main[:-5], paths))
+    return out
+
+
+def _cond(c, names=None):
+    if len(c) == 1:
+        return c[0]
+    (cat, idx), v = c
+    short = {"ScenarioFlag1": "SF1", "ScenarioFlag2": "SF2", "ScenarioFlag3": "SF3", "ScenarioFlag4": "SF4"}
+    if cat == W.WC_FLAGS:
+        check = next((k for k, x in W.CHECK_FLAGS.items() if x == idx), None)
+        label = f"check {check} done" if check else ("WC game" if idx == W.WC_GAME else f"WC[{idx}]")
+        return label if v else f"not {label}"
+    return f"{short.get(cat, cat)}:{idx}={v}"
+
+
+def fixpoint(scripts, world, fresh=False):
+    """A WC game's flag state in one world: START_FLAGS, plus (unless `fresh`) "either" for every
+    story flag some reachable script sets, grown until nothing new is reachable."""
+    maybe = set()
+    while True:
+        _, sets = audit(scripts, State(world, maybe))
+        if fresh or sets <= maybe:
+            return State(world, maybe)
+        maybe |= sets
 
 
 def build_wc(root):
@@ -319,6 +501,7 @@ def check_paths(root, min_calls):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--checks", action="store_true", help="the WC path through every check's own scripts")
+    ap.add_argument("--music", action="store_true", help="maps whose entry music depends on story flags")
     ap.add_argument("--min-calls", type=int, default=5, help="--checks: list scripts with this many puppet routines")
     ap.add_argument("--fresh", action="store_true", help="every story flag WC's start doesn't set is clear")
     ap.add_argument("--world", default="both", choices=("wob", "wor", "both"))
@@ -337,16 +520,43 @@ def main():
         print(f"{len(rows)} check paths")
         return
     kinds = set(filter(None, a.kinds.split(",")))
+    worlds = ("wob", "wor") if a.world == "both" else (a.world,)
+    if a.music:
+        names = track_names()
+
+        def say(x, sound=False):
+            if x is None:
+                return "-"
+            return x if x == "stop" else (f"se {x}" if sound else f"{x} {names.get(x, '?')}")
+        with tempfile.TemporaryDirectory() as tmp:
+            scripts = Scripts(build_wc(tmp))
+            rows, setters = {}, {}
+            for world in worlds:
+                state = fixpoint(scripts, world, a.fresh)
+                audit(scripts, state, setters)
+                for mid, mname, script, paths in music_audit(scripts, state):
+                    rows.setdefault((mid, mname, script), {})[world] = paths
+        for (mid, mname, script), by_world in sorted(rows.items()):
+            print(f"{mid:4} {mname:16} {script}  [{'/'.join(by_world)}]")
+            paths = by_world[next(iter(by_world))]
+            for (bgm, env), conds in sorted(paths.items(), key=str):
+                shown = sorted({" & ".join(_cond(c) for c in cs) or "always" for cs in conds})
+                more = f" (+{len(shown) - 3} more)" if len(shown) > 3 else ""
+                print(f"       {say(bgm):38} env {say(env, True):8} if {' | '.join(shown[:3])}{more}")
+            flags = sorted({c[0] for ps in by_world.values() for conds in ps.values() for cs in conds for c in cs
+                            if len(c) == 2 and c[0][0] in FLAG_CATS})
+            for f in flags:
+                who = sorted(set(setters.get(f, [])))
+                print(f"         {_cond((f, 1))[:-2]} changed by {', '.join(f'{m}:{s}' for m, s in who[:6])}"
+                      f"{f' (+{len(who) - 6})' if len(who) > 6 else ''}")
+        print(f"{len(rows)} maps whose music depends on the story")
+        return
     with tempfile.TemporaryDirectory() as tmp:
         scripts = Scripts(build_wc(tmp))
         rows = {}
-        for world in (("wob", "wor") if a.world == "both" else (a.world,)):
-            maybe = set()
-            while True:
-                found, sets = audit(scripts, State(world, maybe))
-                if a.fresh or sets <= maybe:
-                    break
-                maybe |= sets
+        for world in worlds:
+            state = fixpoint(scripts, world, a.fresh)
+            found, _ = audit(scripts, state)
             for f in found:
                 key = (f["map"], f["kind"], f.get("layer"), f["entity"], f["script"])
                 row = rows.setdefault(key, dict(f, worlds=[]))

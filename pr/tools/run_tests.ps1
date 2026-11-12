@@ -124,6 +124,8 @@ $scenarios = [ordered]@{
     # the Floating Continent from the Blackjack's wheel: the trip's deck under attack (no wheel),
     # WC's 3 air force fights, Ultros/Chupon, Air Force, the landing (the user's Deck, 2026-11-12)
     "fc-trip"     = "seed=t-fctrip;$p;newgame=1;check=fc_trip"
+    # Vargas' fight without the PR's Sabin events (WC blanks them): no one joins or leaves, no line, won
+    "vargas"      = "seed=t-vargas;$p;newgame=1;check=vargas"
     # the game's own GetItem op gives what a script names (the porter's scripted chests without the WC plugin)
     "getitem"     = "seed=t-getitem;$p;newgame=1;check=getitem"
     "menu"        = "menu=1"

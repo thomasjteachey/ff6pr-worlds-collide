@@ -369,12 +369,41 @@ def pick_party():
     ]
 
 
-def give(module, flags=(), n=0, check=None, se=True):
+# WC (music/song_utils.py, the events' character_music_mod): where a check's vanilla scene cues
+# its character's theme, WC plays the reward character's theme instead (a character reward;
+# otherwise the vanilla one). PR character id -> PlayBGM id (bgm_asset id: Terra's Theme ...)
+CHARACTER_THEMES = {1: 27, 2: 5, 3: 14, 4: 12, 5: 8, 6: 8, 7: 23, 8: 49, 9: 50, 10: 42, 11: 48, 12: 19,
+                    13: 59, 14: 62}
+_themes = 0
+
+
+def reward_theme(module, vanilla, n=0):
+    """PlayBGM the seed's reward character's theme (the plugin's WC:theme answers per theme),
+    else `vanilla` (the scene's own character theme)."""
+    global _themes
+    _themes += 1
+    done = f"wc_theme_{_themes}"
+    by_bgm = {}
+    for c, bgm in CHARACTER_THEMES.items():
+        by_bgm.setdefault(bgm, []).append(c)
+    ops = []
+    for bgm, chars in by_bgm.items():
+        ops += [S.op("SysCall", s=[f"WC:theme {module} {n} {','.join(map(str, chars))}"]),
+                if_flag(WC_FLAGS, SCRATCH, 1, f"@{done}_{bgm}")]
+    ops += [S.op("PlayBGM", i=[vanilla, 1]), S.op("Jump", i=[f"@{done}"])]
+    for bgm in by_bgm:
+        ops += [S.label(f"{done}_{bgm}"), S.op("PlayBGM", i=[bgm, 1]), S.op("Jump", i=[f"@{done}"])]
+    return ops + [S.label(done)]
+
+
+def give(module, flags=(), n=0, check=None, se=True, theme=None):
     """The check's reward line: WC:reward (the seed's n-th reward of that WC event), the
     "Obtained ..." text, the check's done flag (CHECK_FLAGS[check or module]) and `flags`; a
     character then gets WC's party pick (pick_party). se=False: no fanfare (PlaySE keeps its
-    handle in a script-local: not in scripts that count with one, sc_e_0975)."""
-    return [
+    handle in a script-local: not in scripts that count with one, sc_e_0975). theme: the
+    vanilla scene's character theme (PlayBGM id), which WC swaps for the reward character's
+    (reward_theme), played before the line."""
+    return (reward_theme(module, theme, n) if theme else []) + [
         reset(WC_FLAGS, PICK_PARTY),
         S.op("SysCall", s=[f"WC:reward {module} {n}"]),
     ] + ([S.op("PlaySE", i=[105, 1])] if se else []) + [
@@ -486,8 +515,7 @@ def gau_father_house_map():
     S.hook(sc, 8, "wc_house", [
         if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
         if_flag(WC_FLAGS, CHECK_FLAGS["gau_father_house"], 1, 13),     # done: nobody there
-    ] + gate("gau_father_house", 13) + [
-        S.op("PlayBGM", i=[12, 1]),
+    ] + gate("gau_father_house", 13) + reward_theme("gau_father_house", 12) + [   # Shadow's, or the reward's
         S.op("SetEntities", s=["ev_e_0097"]),
         S.op("Exit"),
     ])
@@ -522,15 +550,18 @@ def gau_father_house():
 def kohlingen_map():
     """Kohlingen's inn (WoB, Map_20131_1 = PR map 98; WC event/kohlingen.py, gate Setzer): the
     NPC (the PR's Shadow, hired there for 3000 gil) is there in a WC game until the check is
-    done, if its gate is met (vanilla: between two story points, until hired)."""
+    done, if its gate is met (vanilla: between two story points, until hired). The inn keeps the
+    town's music (WC's SNES game, seed gaadl68ix7j4 in the SNES harness: Kids Run Through the
+    City with the check open; vanilla played Shadow's theme while he sat there)."""
     sc = S.load("sc_map_20131_1")
     ms = sc["Mnemonics"]
     assert ms[1]["mnemonic"] == "Branch" and ms[7]["label"] and ms[5]["operands"]["sValues"][0] == "ev_e_0285", "Kohlingen inn changed"
+    assert ms[8]["mnemonic"] == "PlayBGM" and ms[8]["operands"]["iValues"][0] == 21, "Kohlingen inn's music changed"
     S.hook(sc, 1, "wc_inn", [
         if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
         if_flag(WC_FLAGS, CHECK_FLAGS["kohlingen"], 1, 7),
     ] + gate("kohlingen", 7) + [
-        S.op("PlayBGM", i=[12, 1]),
+        S.op("PlayBGM", i=[21, 1]),
         S.op("SetEntities", s=["ev_e_0285"]),
         S.op("Exit"),
     ])
@@ -607,7 +638,7 @@ def zozo():
     return sc
 
 
-def talk_reward(name, at, module, done_flags, expect=None, hide=(), after_state=False):
+def talk_reward(name, at, module, done_flags, expect=None, hide=(), after_state=False, theme=None):
     """A recruit scene as a WC check: in a WC game, talking gives the seed's reward right away
     (WC strips these cutscenes) if the check's gate is met, and sets the scene's vanilla done
     flags so the room's map script leaves its NPC out from the next load on; gate closed:
@@ -627,7 +658,7 @@ def talk_reward(name, at, module, done_flags, expect=None, hide=(), after_state=
     S.hook(sc, at, "wc_" + module, [
         if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
         if_flag(WC_FLAGS, CHECK_FLAGS[module], 1, "@vanilla" if after_state else "@closed"),
-    ] + gate(module, "@closed") + give(module, done_flags) + gone + [
+    ] + gate(module, "@closed") + give(module, done_flags, theme=theme) + gone + [
         S.op("Exit"),
         S.label("closed"),
         S.op("Exit"),
@@ -676,7 +707,7 @@ def fade_out():
     return S.op("FadeOut", i=[0, 0, 0, 255], r=[0.7])
 
 
-def reward_at(sc, at, module, then=None, n=0, check=None, dark=False):
+def reward_at(sc, at, module, then=None, n=0, check=None, dark=False, theme=None):
     """In a WC game, the vanilla instruction at `at` (the vanilla character's join, a done flag...)
     gives way to the seed's reward; then the vanilla code goes on at `then` (default at + 1:
     the instruction is replaced) or, with then="keep", the instruction runs too.
@@ -685,7 +716,7 @@ def reward_at(sc, at, module, then=None, n=0, check=None, dark=False):
     opened on black waits for a press nobody can tell it wants (the user's playtest,
     2026-11-06: the Imperial Camp; test_wc test_no_reward_line_on_a_black_screen)."""
     after = [S.op("Jump", i=["@vanilla"])] if then == "keep" else [S.op("Jump", i=[(then or at + 1) - 1])]
-    reward = give(module, n=n, check=check)
+    reward = give(module, n=n, check=check, theme=theme)
     if dark:
         reward = [fade_in()] + reward + [fade_out()]
     S.hook(sc, at, "wc_reward", [
@@ -750,6 +781,9 @@ def figaro_castle_wor():
     S.hook(sc, 2, "wc_no_scene", [
         if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
         fade_in(),
+        # WC ("scenes after tentacles"): StartSong(0x0a), Edgar & Sabin's theme, whatever the
+        # reward (the scene's opening Returners kept playing here)
+        S.op("PlayBGM", i=[8, 1]),
     ] + give("figaro_castle_wor") + [
         flag("ScenarioFlag2", 79),
         fade_out(),
@@ -1019,9 +1053,17 @@ def doma_wor_throne():
 
 def mobliz_wor_start():
     """Mobliz in the WoR (WC event/mobliz_wor.py, gate Terra; map 207): the last Phunbaba scene
-    (sc_e_0709_2) only with the gate met."""
+    (sc_e_0709_2) only with the gate met. Its music: WC (phunbaba_mod) replaces Katarin's scene
+    with The Unforgiven (StartSong 0x32) before the fight, where the PR's scene stops the music
+    (after the battle the field went on in silence)."""
     sc = S.load("sc_e_0709_2")
+    ms = sc["Mnemonics"]
+    assert ms[1]["mnemonic"] == "StopBGM" and ms[2]["mnemonic"] == "PlayEnvSe", "Mobliz's last scene's start changed"
     gate_at(sc, 1, "mobliz_wor")
+    S.hook(sc, 2, "wc_bgm", [
+        if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
+        S.op("PlayBGM", i=[15, 1]),
+    ])
     return sc
 
 
@@ -1196,7 +1238,8 @@ def skip_at(sc, at, label="wc_skip"):
 def lone_wolf():
     """The Lone Wolf chase's end on Narshe's cliffs (WC event/lone_wolf.py, gate Mog; map 20):
     Mog's scene (sc_e_0438) gives the seed's first reward instead of Mog (ScenarioFlag1 215)."""
-    return talk_reward("sc_e_0438", 1, "lone_wolf", [("ScenarioFlag1", 215)], expect="SysCall")
+    # WC ("Play Song Mog"): Mog's theme, or the reward character's
+    return talk_reward("sc_e_0438", 1, "lone_wolf", [("ScenarioFlag1", 215)], expect="SysCall", theme=48)
 
 
 def lone_wolf_hairpin():
@@ -1246,6 +1289,10 @@ def baren_falls():
     assert ms[24]["operands"]["sValues"][0].startswith("名前入力") and ms[35]["operands"]["sValues"][0].endswith("ガウ") \
         and ms[39]["operands"]["sValues"][0].startswith("メンバー離脱"), "riverside changed"
     assert ms[10]["operands"]["iValues"][0] == 171 and ms[12]["mnemonic"] == "Call", "riverside's Gau scene changed"
+    assert ms[8]["mnemonic"] == "PlayBGM" and ms[8]["operands"]["iValues"][0] == 19, "riverside's music changed"
+    # WC ("Play Song Gau"): Gau's theme, or the reward character's
+    S.hook(sc, 8, "wc_theme", [if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla")] + reward_theme("baren_falls", 19) +
+           [S.op("Jump", i=[8])])
     skip_at(sc, 24)
     # WC ("baren falls gau moving/naming", "gau runs off") has no Gau scene: past the river's
     # flags (9, 10), the reward
@@ -1332,6 +1379,10 @@ def mt_kolts():
     sc = S.load("sc_e_0055_1")
     ms = sc["Mnemonics"]
     assert ms[1]["mnemonic"] == "SysCall" and ms[44]["operands"]["sValues"][0].endswith("マッシュ"), "Mt. Kolts changed"
+    # the battle party's restore pairs with the save in the fight's Sabin event (sc_b_0055 Event00),
+    # which a WC game doesn't play (boss_battle_events): nothing to restore
+    assert ms[1]["operands"]["sValues"][0] == "バトルデータ復元：sc_b_0055", "Mt. Kolts' restore changed"
+    skip_at(sc, 1, "wc_no_restore")
     S.hook(sc, 2, "wc_finish", [
         if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
         flag("ScenarioFlag1", 41),
@@ -1550,6 +1601,83 @@ def ultros_battles():
     return out
 
 
+def boss_battle_events():
+    """Other bosses' battle-script scenes WC removes (the audit after Ultros, 2026-11-12: every PR
+    battle script and monster AI that shows lines, against WC's source). WC blanks these SNES battle
+    events (their event modules' Reserve(0x10xxxx, ...)); the PR plays them in the fights' battle
+    scripts, which the plugin's story rule doesn't reach. In a WC game:
+      * Vargas (sc_b_0055; mt_kolts.py "vargas battle sabin appears", "sabin death sentence",
+        "sabin pummeled vargas"): Event00 (Sabin joins the fight, the party is blown away, Vargas'
+        Death Sentence on him) and Event01 (the Blitz lesson) only mark themselves done; a Pummel
+        still ends the fight as the PR's (Event02) but says nothing. Without them Vargas is fought
+        down as any boss (his PR AI's normal death, IsCheckHp 0 -> 普通に倒す); the field after the
+        fight skips the battle party's restore (mt_kolts), which only Event00 saved;
+      * Tunnel Armor (sc_b_0086; south_figaro_cave_wob.py "tunnel armor battle dialog"): Celes and
+        Locke's talk about Runic; the ATB reset stays;
+      * the Whelk (sc_b_0011; whelk.py "wedge/vicks whelk battle animation"): Biggs and Wedge's lines
+        and poses;
+      * Kefka at Narshe (sc_b_0460_1; WC's SNES fight has no talk, kefka_narshe_dialog_mod removes
+        his flee line): the opening talk (Event00) and "Oh! / Th-the door is opening!" (Event02);
+        the Terra-esper ending (Event01, sc_b_0460_2) comes from the field scene WC's Narshe Battle
+        skips (narshe_battle);
+      * Kefka's last form (sc_b_2022; kefka_tower.py "kefka tower kefka battle intro", animations
+        kept): "Life... Dreams... Hope..." and its two lines."""
+    out = []
+    base = os.path.join(P.VANILLA, "battle_script", "Assets", "GameAssets", "Serial", "Res", "Battle", "BattleScript")
+
+    def script(name):
+        f = os.path.join(base, name + ".json")
+        return S.load_path(f), f
+
+    def skip(sc, at, to, label):
+        """In a WC game the code at `at` goes on at `to` + 1."""
+        S.hook(sc, at, label, [if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"), S.op("Jump", i=[to])])
+
+    sc, f = script("sc_b_0055")
+    ms = sc["Mnemonics"]
+    assert ms[26]["label"] == "Event00" and ms[33]["operands"]["sValues"][0] == "バトル参戦：マッシュ" \
+        and ms[106]["operands"]["iValues"][:2] == [1, 1] and ms[107]["mnemonic"] == "Return" \
+        and ms[108]["label"] == "Event01" and ms[131]["operands"]["iValues"][:2] == [1, 2] and ms[132]["mnemonic"] == "Return" \
+        and ms[133]["label"] == "Event02" and [ms[i]["mnemonic"] for i in (138, 139, 140, 142, 145)] == \
+        ["Msg", "PlayBattleEffect", "Msg", "BattleCondition", "BattleForceExitOnSave"], "Vargas' battle script changed"
+    skip(sc, 27, 105, "wc_no_sabin")              # on at 106: the event done (1)
+    skip(sc, 109, 130, "wc_no_blitz_lesson")      # on at 131: done (2)
+    skip(sc, 138, 140, "wc_no_pummel_lines")      # on at 141: Vargas falls, the fight ends
+    out.append((sc, f))
+
+    sc, f = script("sc_b_0086")
+    ms = sc["Mnemonics"]
+    assert ms[15]["label"] == "Event00" and all(ms[i]["mnemonic"] == "Msg" for i in range(18, 23)) \
+        and ms[24]["operands"]["sValues"][0].startswith("ATB"), "Tunnel Armor's battle script changed"
+    skip(sc, 18, 22, "wc_no_runic_talk")
+    out.append((sc, f))
+
+    sc, f = script("sc_b_0011")
+    ms = sc["Mnemonics"]
+    assert ms[15]["label"] == "Event00" and ms[18]["mnemonic"] == "SysCall" and ms[42]["operands"]["sValues"][0] == "E0011_01_323_b_06" \
+        and ms[43]["mnemonic"] == "SysCall", "the Whelk's battle script changed"
+    skip(sc, 18, 42, "wc_no_biggs_wedge")         # on at 43: the side's depth back, the UI
+    out.append((sc, f))
+
+    sc, f = script("sc_b_0460_1")
+    ms = sc["Mnemonics"]
+    assert ms[18]["label"] == "Event00" and ms[24]["operands"]["sValues"][0] == "E0460_01_606_b_01" \
+        and ms[42]["mnemonic"] == "SysCall" and ms[105]["label"] == "Event02" \
+        and [ms[i]["operands"]["sValues"][0] for i in (111, 112)] == ["E0460_01_606_b_09", "E0460_01_606_b_10"], \
+        "Narshe Kefka's battle script changed"
+    skip(sc, 20, 41, "wc_no_kefka_talk")          # on at 42: the look after the event, the UI back
+    skip(sc, 111, 112, "wc_no_kefka_flee_lines")
+    out.append((sc, f))
+
+    sc, f = script("sc_b_2022")
+    ms = sc["Mnemonics"]
+    assert [ms[i]["operands"]["sValues"][0] for i in (93, 94, 95)] == ["E1004_00_571_b_01", "E1004_00_571_b_02", "E1004_00_571_b_03"], \
+        "the last battle's script changed"
+    skip(sc, 93, 95, "wc_no_kefka_intro")
+    out.append((sc, f))
+    return out
+
+
 def fanatics_tower():
     """The Cultists' Tower's foot (WC event/fanatics_tower.py, gate Strago; map 476): the seed's first
     reward instead of Strago's join (with a full party he'd go to the reserve: skipped too).
@@ -1564,8 +1692,9 @@ def fanatics_tower():
         if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
         S.op("Jump", i=[54]),              # on at 55: full-party branch, reward, cleanup
     ])
-    reward_at(sc, 59, "fanatics_tower")
-    reward_at(sc, 64, "fanatics_tower", then=66)
+    # WC ("Play Song Relm" after MagiMaster): Relm's theme, or the reward character's
+    reward_at(sc, 59, "fanatics_tower", theme=50)
+    reward_at(sc, 64, "fanatics_tower", then=66, theme=50)
     return sc
 
 
@@ -2154,7 +2283,8 @@ def opera_house():
     # reward: the stage fades in, the reward (40), the deck (43)
     S.hook(sc, 5, "wc_no_scene", [if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla")] + S.copy_ops(sc, 7, 8) + [
         S.op("Jump", i=[39])])
-    reward_at(sc, 40, "opera_house_wob", then="keep")
+    # WC ("Play Song Setzer" as Setzer comes in): Setzer's theme, or the reward character's
+    reward_at(sc, 40, "opera_house_wob", then="keep", theme=42)
     S.hook(sc, 43, "wc_deck", [
         if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
         flag("ScenarioFlag1", 177),
@@ -2222,8 +2352,18 @@ def imperial_camp_map():
         S.op("PlayBGM", i=ms[12]["operands"]["iValues"][:2]),   # the camp's own music
         S.op("Exit"),
         S.label("closed"),
+        S.op("PlayBGM", i=ms[12]["operands"]["iValues"][:2]),   # (it kept the world map's)
         S.op("Jump", i=[55]),
     ] + puppets("hide_leo", CAMP_WALK_NPCS, lambda k: [S.op("Hide", kind=2)]))
+    # Music: WC's camp plays its own (Troops March On; SNES map 0x75 in the SNES harness) until
+    # "Cyan rushes in" (WC: StartSong 0x32, The Unforgiven: imperial_camp_walk). The after-Doma
+    # state (90) played The Unforgiven on arrival.
+    assert ms[59]["mnemonic"] == "PlayBGM" and ms[59]["operands"]["iValues"][0] == 15, "Imperial Camp's music changed"
+    S.hook(sc, 59, "wc_bgm", [
+        if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
+        S.op("PlayBGM", i=ms[12]["operands"]["iValues"][:2]),
+        S.op("Jump", i=[59]),
+    ])
     return sc
 
 
@@ -2242,6 +2382,7 @@ def imperial_camp_walk():
         if_flag("MapLocalVariable", CAMP_AT_CYAN, 1, "@done"),
         S.op("Calc", i=[CAMP_AT_CYAN, 1], s=["MapLocalVariable", "←", "imm"]),
         S.op("FadeOut", i=[0, 0, 0, 255], r=[0.35]),
+        S.op("PlayBGM", i=[15, 1]),            # WC's "Cyan rushes in": StartSong 0x32, The Unforgiven
         S.op("Call", i=["@to_cyan"]),
         S.op("FadeIn", i=[0, 0, 0, 255], r=[0.35]),
         S.label("done"),
@@ -2834,28 +2975,105 @@ def south_figaro_basement():
     """South Figaro's basement (sc_map_20071_12, map 50): WC's South Figaro is the town as it is
     after Locke's escape (event/south_figaro.py: not occupied; the start flags no longer set
     ScenarioFlag1 50, the occupation) with Celes still chained below (its npc bit). The PR places
-    her only "during Locke's scenario" (50 set, 64 not): in a WC game, until she is freed."""
+    her only "during Locke's scenario" (50 set, 64 not): in a WC game, until she is freed. Its
+    music is the town's (Kids Run Through the City; WC's SNES basement 0x53 in the SNES harness),
+    not the occupation's Under Martial Law that scenario plays."""
     sc = S.load("sc_map_20071_12")
     ms = sc["Mnemonics"]
     assert ms[1]["operands"]["iValues"][:3] == [50, 0, 11] and ms[2]["operands"]["iValues"][:3] == [64, 1, 11] \
         and ms[6]["operands"]["sValues"][0] == "ev_e_0079", "South Figaro basement changed"
+    assert ms[4]["mnemonic"] == "PlayBGM" and ms[4]["operands"]["iValues"][0] == 22, "South Figaro basement's music changed"
     S.hook(sc, 1, "wc_basement", [
         if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
-        S.op("Jump", i=[2]),                        # "during Locke's scenario": Celes until freed (59)
+        S.op("PlayBGM", i=[21, 1]),
+        S.op("Jump", i=[4]),                        # on at 5, "during Locke's scenario": Celes until freed (59)
     ])
     return sc
+
+
+SPINACH_RAG = "スピナッチラグ"   # the opera maps' label before PlayBGM 32
+
+
+def opera_music(sc, name):
+    """An opera house map (sc_map_20160, sc_Map_20161_1-4): vanilla picks the Overture (158, the
+    overture seen) or the Wedding Waltz (165, performed) between the story's opera scenes, and
+    Spinach Rag, the house's own theme, before and after them. WC's start is after the opera's
+    story (SAW_OPERA_OVERTURE ... SETZER_ABDUCTED_CELES): its SNES game plays Spinach Rag in every
+    opera map, before and after the performance quest (SNES harness, seed gaadl68ix7j4, maps
+    0xE7-0xEB). The disruption's own track (167/176 running, 177 after) stays: those branches
+    come first."""
+    ms = sc["Mnemonics"]
+    at = next(i for i in range(1, 12) if ms[i]["mnemonic"] == "Branch" and ms[i]["operands"]["iValues"][:2] == [165, 1]
+              and ms[i]["operands"]["sValues"][0] == "ScenarioFlag1")
+    rag = next(i for i, m in enumerate(ms) if m.get("label") == SPINACH_RAG)
+    before = {ms[i]["operands"]["iValues"][0] for i in range(1, at) if ms[i]["mnemonic"] == "Branch"}
+    assert {177, 176, 167} <= before and any(m["mnemonic"] == "PlayBGM" and m["operands"]["iValues"][0] == 32
+                                            for m in ms[rag:rag + 3]), f"{name}'s music changed"
+    wc_jump(sc, at, rag, "wc_opera_bgm")
+    return sc
+
+
+def story_music():
+    """Map music the PR keys to a story scene WC's start leaves "in progress" (tools/wc_scene_audit.py
+    --music lists every map whose music depends on story flags; WC's SNES game read in the SNES
+    harness, seed gaadl68ix7j4, the user's report 2026-11-12: Kefka's theme in Figaro Castle):
+      * the opera house: Spinach Rag (opera_music);
+      * Narshe's house where Terra wakes (sc_map_20011_14): "Awakening" until Terra's escape
+        (ScenarioFlag1 14, the moogle defense's reward): WC's Narshe plays the town's theme
+        (SNES maps 0x14-0x2F: The Mines of Narshe, never Awakening);
+      * South Figaro's pub (sc_map_20071_5): Shadow's theme while Shadow sits there (ScenarioFlag1
+        27, which WC's start sets; WC hides him): Kids Run Through the City, as every South Figaro
+        map in WC's game (SNES 0x4A-0x59);
+      * Mobliz in the WoR (sc_map_20341_9, the house with the Phunbaba trigger): The Unforgiven
+        between the Phunbaba fights (ScenarioFlag2 99, set by WC's start): From That Day On...,
+        WC's (SNES 0x96/0x9A: its entrance event plays 0x34 until Terra is recruited)."""
+    out = []
+    for name in ("sc_map_20160", "sc_map_20161_2", "sc_map_20161_3", "sc_map_20161_4"):
+        out.append((opera_music(S.load(name), name), S.path(name)))
+    sc = S.load("sc_map_20011_14")
+    ms = sc["Mnemonics"]
+    assert ms[1]["operands"]["iValues"][:3] == [14, 1, 4] and ms[2]["operands"]["iValues"][0] == 4 and ms[4]["label"], \
+        "Narshe's Awakening house changed"
+    wc_jump(sc, 1, 4, "wc_bgm")                 # on at 5: WoB Narshe / WoR
+    out.append((sc, S.path("sc_map_20011_14")))
+    sc = S.load("sc_map_20071_5")
+    ms = sc["Mnemonics"]
+    assert ms[9]["operands"]["iValues"][:3] == [27, 0, 13] and ms[11]["operands"]["iValues"][0] == 12 and \
+        ms[13]["label"] and ms[14]["operands"]["iValues"][0] == 21, "South Figaro's pub changed"
+    wc_jump(sc, 9, 13, "wc_bgm")                # on at 14: Kids Run Through the City
+    out.append((sc, S.path("sc_map_20071_5")))
+    sc = S.load("sc_map_20341_9")
+    ms = sc["Mnemonics"]
+    assert ms[5]["operands"]["iValues"][:3] == [99, 0, 11] and ms[7]["mnemonic"] == "PlayBGM" and \
+        ms[7]["operands"]["iValues"][0] == 15 and ms[13]["operands"]["iValues"][0] == 57, "Mobliz WoR house changed"
+    S.hook(sc, 7, "wc_bgm", [
+        if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
+        S.op("PlayBGM", i=[57, 1]),
+        S.op("Jump", i=[7]),                    # on at 8: the Phunbaba trigger
+    ])
+    out.append((sc, S.path("sc_map_20341_9")))
+    return out
 
 
 def figaro_castle_map():
     """Figaro Castle's main WoB map (sc_map_20050): WC clears the SNES NPC bit shared by the
     castle guards during initialization. The PR models those two guards as the ev_e_0018_1 or
     ev_e_0026 entity layers instead; skip both layers in a WC game so they do not block the doors
-    to the east and west wings (and therefore the shops)."""
+    to the east and west wings (and therefore the shops).
+
+    Music: vanilla plays Kefka's theme here between naming Edgar (ScenarioFlag1 17) and Kefka's
+    visit (20/21), and the fire's track while Kefka attacks (23, not 24). The throne check sets
+    17 and WC plays no Kefka scene, so a WC game always gets the castle's theme (the user's game,
+    2026-11-12: Kefka's theme after the throne check)."""
     sc = S.load("sc_map_20050")
     ms = sc["Mnemonics"]
     assert ms[21]["operands"]["iValues"][:3] == [15, 1, 24] and \
         ms[22]["operands"]["sValues"][0] == "ev_e_0018_1" and \
         ms[26]["operands"]["sValues"][0] == "ev_e_0026" and ms[33]["label"], "Figaro castle changed"
+    assert ms[3]["operands"]["iValues"][:3] == [23, 0, 9] and ms[13]["operands"]["iValues"][0] == 9 and \
+        ms[15]["label"] and ms[16]["mnemonic"] == "PlayBGM" and ms[16]["operands"]["iValues"][0] == 8, \
+        "Figaro castle's music changed"
+    wc_jump(sc, 3, 15, "wc_castle_bgm")       # on at 16: the castle's theme
     wc_jump(sc, 21, 32, "wc_no_guards")       # on to the next independent group at index 33
     wc_jump(sc, 72, 92, "wc_no_story")        # no Kefka/Edgar story triggers after the throne check
     return sc
@@ -3177,7 +3395,9 @@ def magitek_shiva():
 def owzer_mansion():
     """Owzer's Mansion (WC event/owzer_mansion.py; map 446): after Chadarnook, Relm and Owzer
     (sc_e_0775): the seed's reward instead of Lakshmi + Relm (ScenarioFlag2 135 = done)."""
-    return talk_reward("sc_e_0775", 1, "owzer_mansion", [("ScenarioFlag2", 135)], expect="PlayBGM")
+    # the scene opens with Relm's theme (PlayBGM 50): WC ("Play Song Relm") plays the reward
+    # character's instead
+    return talk_reward("sc_e_0775", 1, "owzer_mansion", [("ScenarioFlag2", 135)], expect="PlayBGM", theme=50)
 
 
 def zone_eater():
@@ -3191,7 +3411,9 @@ def mt_zozo():
     """Mt. Zozo (WC event/mt_zozo.py; map 474): Cyan's room (sc_e_0735, the start of the letters
     scene): the seed's reward instead of the scene and Cyan (ScenarioFlag2 109); once done, the
     vanilla door into the room without the scene."""
-    return talk_reward("sc_e_0735", 1, "mt_zozo", [("ScenarioFlag2", 109)], expect="Branch", after_state=True)
+    # WC ("Play Song Cyan"): Cyan's theme, or the reward character's
+    return talk_reward("sc_e_0735", 1, "mt_zozo", [("ScenarioFlag2", 109)], expect="Branch", after_state=True,
+                       theme=14)
 
 
 def umaro_cave():
@@ -3340,7 +3562,7 @@ def opera_performance():
     (sc_e_0330, the opera check) once the letter is read (166): in a WC game without waiting for
     the performance (165)."""
     out = []
-    sc = S.load("sc_Map_20161_1")
+    sc = opera_music(S.load("sc_Map_20161_1"), "sc_Map_20161_1")
     ms = sc["Mnemonics"]
     assert ms[26]["operands"]["iValues"][:3] == [161, 1, 29] and ms[42]["label"], "opera stage map changed"
     S.hook(sc, 26, "wc_opera_stage", [
@@ -3434,7 +3656,7 @@ SCRIPTS = [opening, blackjack_helm, falcon_helm, tzen_wob, tzen_wor, tzen_map, a
            collapsing_house_map, collapsing_house, narshe_wor, magitek_ifrit, magitek_shiva,
            doma_wor, doma_wor_throne, mobliz_wor_start, mobliz_wor, mobliz_fenrir, doom_gaze_start, doom_gaze,
            magitek_tubes, magitek_escape, lone_wolf, lone_wolf_hairpin, daryl_tomb, baren_falls_jump, baren_falls, south_figaro,
-           figaro_castle_wob, mt_kolts_start, mt_kolts, magitek_024_start, magitek_024, doma_stooges, doma_stooges_lines, veldt, veldt_world, veldt_battle, ultima_intros, ultros_battles,
+           figaro_castle_wob, mt_kolts_start, mt_kolts, magitek_024_start, magitek_024, doma_stooges, doma_stooges_lines, veldt, veldt_world, veldt_battle, ultima_intros, ultros_battles, boss_battle_events,
            fanatics_tower, fanatics_tower_dragon, magimaster, dragons, auction_golem, auction_zona_seeker, kefka_tower_atma, final_kefka,
            fc_airship_trip, fc_arrive, fc_airship_return, fc_beast, fc_statues, fc_escape, veldt_cave_start, veldt_cave_shadow,
            veldt_cave_relm, lete_river_start, lete_river, sealed_gate_start, sealed_gate, sealed_gate_after,
@@ -3447,7 +3669,7 @@ SCRIPTS = [opening, blackjack_helm, falcon_helm, tzen_wob, tzen_wor, tzen_map, a
            burning_house_start, burning_house, mines_1f_map, whelk_start, whelk,
            quest_checkpoint_start, quest_checkpoint_south, quest_checkpoint_north, quest_zozo_clock, bum_rush_last,
            opera_performance, narshe_rooms, thamasa_shops, thamasa_strago_house, south_figaro_basement,
-           story_scenes, phantom_train_scenes, doma_dream, tower_scenes, wor_scenes]
+           story_music, story_scenes, phantom_train_scenes, doma_dream, tower_scenes, wor_scenes]
 
 
 # Lines WC removes that the PR gives no speaker (the user's Deck, 2026-11-12: "i'm gettting

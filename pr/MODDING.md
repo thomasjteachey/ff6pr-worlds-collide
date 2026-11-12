@@ -191,6 +191,8 @@ same game-file check as the zip), then commit and push from there. Releases carr
 `build/dist/WorldsCollide-PR.zip`; it's over the Chrome extension's 10 MB upload limit, so it goes
 up in two parts that the release page's JavaScript rejoins into one File (SHA-256 checked) and hands
 to its `#releases-upload` input (v0.6.0, 2026-11-12), or by hand. No GitHub CLI on this PC.
+Releases so far (both marked Pre-release, as the user published v0.6.0): v0.6.0, v0.6.1 (the setup
+recipe: first start ~10 s; playtest fixes). Bump `Plugin.Version` with each.
 
 Worlds Collide's (2026-11-12): `tools/wc_gamedata.py`. Every copy of the game has the same files, so
 `wc_bundle.py` works out the player's files once (`make_recipe`, ~40 s): `generator/gamedata_recipe.json`

@@ -75,6 +75,9 @@ namespace WorldsCollide.PR
             if (joinGauBattle != null)
                 h.Patch(joinGauBattle, prefix: new HarmonyMethod(typeof(WcEvents), nameof(JoinGauInBattle_Prefix)));
             else Plugin.L.LogWarning("[wc] no Current.JoinGauInBattle: Veldt reward still uses Gau's scene");
+            var lotShadow = AccessTools.Method(typeof(Last.Interpreter.Instructions.SystemCall.Current), "LotSecedeShadow");
+            if (lotShadow != null) h.Patch(lotShadow, prefix: new HarmonyMethod(typeof(WcEvents), nameof(LotSecedeShadow_Prefix)));
+            else Plugin.L.LogWarning("[wc] no Current.LotSecedeShadow: Shadow may leave after a battle");
             // the dried meat's first-join branch (battle event 01, SysCall "ガウ初回予約"): the one a
             // WC game takes (ScenarioFlag1 126 is never set by a WC game's Gau)
             var firstJoin = AccessTools.Method(typeof(Last.Interpreter.Instructions.SystemCall.Current), "ReserveScriptGauFirstJoin");
@@ -163,11 +166,34 @@ namespace WorldsCollide.PR
         // WC's "long time no see", "imp! pal! buddy!", "i was just thinking about you". (Ultros 1's AI
         // has no lines; Ultros/Chupon runs WC's own script. Their battle scripts' scenes: wc_events
         // ultros_battles.)
+        // The audit after (every PR AI with lines whose monster keeps its PR AI): Vargas (sc_ai_103: "Now... /
+        // Get ready to join your beloved master!", "Why hold back, (MASH)? / Your time's almost up!"; WC's
+        // vargas_dialog_mod removes all four of his) and Chadarnook ("The girl in this picture is mine!",
+        // the demon's "Y...you... / You couldn't have..."; chadarnook_dialog_mod; "Back off!" stays).
         internal static readonly HashSet<string> WcRemovedBattleLines = new HashSet<string>
         {
             "E0344_01_114_b_01", "E0344_01_114_b_02", "E0344_01_114_b_03", "E0344_01_114_b_04",
             "E0547_01_425_b_01", "E0547_01_425_b_02", "E0547_01_425_b_03",
+            "E0055_02_343_b_13", "E0055_02_343_b_14", "E0055_02_343_b_17", "E0055_02_343_b_18",
+            "E0773_01_446_b_02", "E0773_01_446_b_04", "E0773_01_446_b_05",
         };
+
+        // Shadow's random leaving after a battle (SysCall シャドウ離脱抽選 in the normal battle script
+        // sc_b_0097 and the Veldt's: Current.LotSecedeShadow, decompiled in tools/decomp/shadow_leave: with
+        // a pair of its shadowSecedeStartList/StopList scenario flags set/clear, Shadow among the party
+        // and more than one member, a draw). WC drops the SNES's check (event/veldt.py queue_gau_event):
+        // Shadow never leaves at random. A WC game takes the draw's "stays" path: its first step only.
+        public static bool LotSecedeShadow_Prefix(ref int __result)
+        {
+            try
+            {
+                if (!WcGame()) return true;
+                DataStorage.Instance?.Set(DataStorage.Category.kScriptLocalVariable, 3, 0);
+                __result = 0;
+                return false;
+            }
+            catch (Exception e) { WcRunner.WarnOnce("shadow-lot", e); return true; }
+        }
 
         internal static string StoryWhy = "";   // the last decision's reason (the self-test logs it)
 
@@ -531,6 +557,24 @@ namespace WorldsCollide.PR
                 case "item": ChestItem(int.Parse(args[1]), args.Length > 2 ? int.Parse(args[2]) : 1); return;
                 case "reward": Reward(args[1], args.Length > 2 ? int.Parse(args[2]) : 0, mc); return;
                 case "gate": Gate(args[1]); return;
+                // WC:theme <module> <n> <ids>: Scratch = 1 if the check's n-th reward is one of these
+                // characters. Where a check's vanilla scene cues its character's theme, WC plays the
+                // reward character's (music/song_utils.py); the script then picks the PlayBGM
+                // (tools/wc_events.py theme)
+                case "theme":
+                    {
+                        var c = CheckOf(args[1]);
+                        int n = int.Parse(args[2]);
+                        var ids = args[3].Split(',').Select(int.Parse).ToArray();
+                        bool hit = false;
+                        if (c != null && c.Rewards.Count > n)
+                        {
+                            var (kind, id) = c.Rewards[n];
+                            hit = kind == "character" && ids.Contains(id);
+                        }
+                        SetWcFlag(Scratch, hit ? 1 : 0);
+                        return;
+                    }
                 // a flag the seed has (WC:has -fbs): ScenarioFlag4 Scratch = 1 if so
                 case "has":
                     {

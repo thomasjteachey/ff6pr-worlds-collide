@@ -475,17 +475,59 @@ class WcScripts(unittest.TestCase):
             self.assertEqual(len(r.did("Msg")), 0 if wc else 3, f"Esper Mountain's defeat, WC game {wc}")
             self.assertTrue(r.did("BattleForceExitOnSave"), "the fight still ends")
 
-    def test_plugin_removed_battle_lines_are_ultros_ai_lines(self):
-        """The plugin's WcRemovedBattleLines (WcEvents.cs) are the PR Ultros 2/3 AI's own lines."""
+    def test_plugin_removed_battle_lines_are_ai_lines(self):
+        """The plugin's WcRemovedBattleLines (WcEvents.cs) are lines of the PR AIs the seed keeps:
+        Ultros 2/3, Vargas, Chadarnook (painting and demon); Chadarnook's "Back off!" isn't one."""
         src = open(os.path.join(PR, "plugin", "WcPlugin", "WcEvents.cs"), encoding="utf-8").read()
         block = src[src.index("WcRemovedBattleLines = new HashSet<string>"):]
         keys = set(re.findall(r'"(E\d{4}_\d\d_\d{3}_b_\d\d)"', block[:block.index("};")]))
         ai = set()
-        for f in glob.glob(os.path.join(S.P.VANILLA, "monster_ai", "**", "sc_ai_12[DE]_Ultros.json"), recursive=True):
-            for m in load(f)["Mnemonics"]:
-                ai.update(s for s in m["operands"]["sValues"] if s)
-        self.assertEqual(len(keys), 7)
-        self.assertTrue(keys <= ai, f"not Ultros AI lines: {sorted(keys - ai)}")
+        for pat in ("sc_ai_12[DE]_Ultros.json", "sc_ai_103_Vargas.json", "sc_ai_11E_Chadarnook.json", "sc_ai_148_Chadarnook.json"):
+            for f in glob.glob(os.path.join(S.P.VANILLA, "monster_ai", "**", pat), recursive=True):
+                for m in load(f)["Mnemonics"]:
+                    ai.update(s for s in m["operands"]["sValues"] if s)
+        self.assertEqual(len(keys), 14)
+        self.assertTrue(keys <= ai, f"not AI lines: {sorted(keys - ai)}")
+        self.assertNotIn("E0773_01_446_b_01", keys, "WC keeps Chadarnook's 'Back off!'")
+
+    def test_boss_battle_events(self):
+        """The battle-script scenes WC blanks (wc_events boss_battle_events): in a WC game none of
+        their lines, Sabin never joins Vargas' fight (its events only mark themselves done), the
+        fights' own mechanics stay (Tunnel Armor's ATB reset, Vargas' fall after a Pummel, the UI
+        back after each event); outside WC everything plays."""
+        def run(name, label, wc):
+            built, _ = self.battle_script(name)
+            at = next(n for n, m in enumerate(built["Mnemonics"]) if m["label"] == label)
+            st = State()
+            st.set(E.WC_FLAGS, E.WC_GAME, wc)
+            return Run(built, st, start=at), st
+        cases = [   # script, event, lines outside WC, what must still run (op, sValue or None)
+            ("sc_b_0055", "Event00", 16, ("Calc", None)),
+            ("sc_b_0055", "Event01", 10, ("Calc", None)),
+            ("sc_b_0055", "Event02", 2, ("BattleForceExitOnSave", None)),
+            ("sc_b_0086", "Event00", 5, ("SysCall", "ATBリセット(ディッグアーマー)")),
+            ("sc_b_0011", "Event00", 6, ("SysCall", "ShowBattleUI")),
+            ("sc_b_0460_1", "Event00", 8, ("SysCall", "ShowBattleUI")),
+            ("sc_b_0460_1", "Event02", 2, ("BattleForceExitOnSave", None)),
+            ("sc_b_2022", "Event02", 3, ("SysCall", "LB:ケフカ降臨")),
+        ]
+        for name, label, lines, keep in cases:
+            for wc in (1, 0):
+                r, st = run(name, label, wc)
+                shown = [t[3][0] for t in r.did("Msg")]
+                self.assertEqual(len(shown), 0 if wc else lines, f"{name} {label}, WC game {wc}: {shown}")
+                self.assertTrue(r.did(*keep), f"{name} {label}, WC game {wc}: {keep} still runs")
+                if name == "sc_b_0055" and label == "Event00":
+                    self.assertEqual(bool(r.did("SysCall", "バトル参戦：マッシュ")), not wc, f"Vargas, WC game {wc}: Sabin joins")
+                    self.assertEqual(st.get("ScriptLocalVariable", 1), 1, "Sabin's event marked done")
+                if name == "sc_b_0055" and label == "Event01":
+                    self.assertEqual(st.get("ScriptLocalVariable", 1), 2, "the Blitz lesson marked done")
+        # after Vargas, the field restores the battle party only Sabin's event saved
+        for wc in (1, 0):
+            st = State()
+            st.set(E.WC_FLAGS, E.WC_GAME, wc)
+            r = Run(self.script("sc_e_0055_1"), st, syscalls={"WC:gate mt_kolts": gate(True)})
+            self.assertEqual(bool(r.did("SysCall", "バトルデータ復元：sc_b_0055")), not wc, f"Mt. Kolts' restore, WC game {wc}")
 
     def test_wc_removed_lines_are_cut(self):
         """Speakerless lines WC removes (E.WC_REMOVED_LINES; the user's Deck, 2026-11-12): in every
@@ -677,6 +719,91 @@ class WcScripts(unittest.TestCase):
         layers = [t[3][0] for t in hall.did("SetEntities")]
         self.assertNotIn("ev_e_0029", layers, "the throne story layer stays out of the main hall")
         self.assertNotIn("ev_e_0033", layers, "leaving the throne room does not start Kefka's scene")
+        # vanilla plays Kefka's theme between naming Edgar (17) and Kefka's visit (20/21)
+        self.assertEqual([t[2][0] for t in hall.did("PlayBGM")], [8], "the castle's theme after the check")
+        vanilla = State()
+        vanilla.set("ScenarioFlag1", 17, 1)
+        self.assertEqual([t[2][0] for t in Run(self.script("sc_map_20050"), vanilla).did("PlayBGM")], [9],
+                         "vanilla is unchanged")
+
+    # --- music: WC's SNES game read in the SNES harness (seed gaadl68ix7j4), the user's
+    # "what about the story changing other music" (2026-11-12) ---------------------------------
+    def bgm(self, name, st, syscalls=None):
+        return [t[2][0] for t in Run(self.script(name), st, syscalls=syscalls or {}).did("PlayBGM")]
+
+    def test_map_music_follows_wcs_story_state(self):
+        st, _ = self.new_game()
+        for name in ("sc_map_20160", "sc_Map_20161_1", "sc_map_20161_2", "sc_map_20161_3", "sc_map_20161_4",
+                     "sc_map_20161_5"):
+            self.assertEqual(self.bgm(name, st), [32], f"{name}: the opera house's Spinach Rag, not the Overture")
+        st.set("ScenarioFlag1", 165, 1)                  # the performance quest done
+        self.assertEqual(self.bgm("sc_map_20160", st), [32], "no Wedding Waltz after the performance")
+        st.set("ScenarioFlag1", 167, 1)                  # the disruption running: its own track
+        self.assertEqual(self.bgm("sc_map_20160", st), [40])
+        overture = State()
+        overture.set("ScenarioFlag1", 158, 1)
+        self.assertEqual(self.bgm("sc_map_20160", overture), [35], "vanilla keeps the Overture")
+
+        st, _ = self.new_game()
+        self.assertEqual(self.bgm("sc_map_20011_14", st), [3], "Narshe's theme where Terra woke, not Awakening")
+        self.assertEqual(self.bgm("sc_map_20011_14", State()), [4], "vanilla: Awakening before Terra's escape")
+        self.assertEqual(self.bgm("sc_map_20071_5", st), [21], "South Figaro's pub: no Shadow's theme without Shadow")
+        self.assertEqual(self.bgm("sc_map_20071_12", st), [21], "the basement: the town's theme, not the occupation's")
+        shadow = State()
+        shadow.set("ScenarioFlag1", 27, 1)
+        self.assertEqual(self.bgm("sc_map_20071_5", shadow), [12], "vanilla: Shadow's theme while he's there")
+        self.assertEqual(self.bgm("sc_map_20131_1", st, {"WC:gate kohlingen": gate(True)}), [21],
+                         "Kohlingen's inn keeps the town's theme with the check open")
+        st.set("ScenarioFlag2", 97, 1)                   # in Mobliz's WoR story
+        self.assertEqual(self.bgm("sc_map_20341_9", st), [57], "Mobliz WoR: From That Day On..., as WC's")
+        phunbaba = State()
+        phunbaba.set("ScenarioFlag2", 97, 1)
+        phunbaba.set("ScenarioFlag2", 99, 1)
+        self.assertEqual(self.bgm("sc_map_20341_9", phunbaba), [15], "vanilla: The Unforgiven between the fights")
+
+        for open_ in (False, True):
+            st, _ = self.new_game()
+            self.assertEqual(self.bgm("sc_map_30410", st, {"WC:gate imperial_camp": gate(open_)}), [13],
+                             f"the Imperial Camp's own music on arrival (gate open: {open_})")
+        self.assertEqual(self.bgm("sc_e_0114", st), [15], "The Unforgiven as the party joins Cyan's duels")
+
+    @staticmethod
+    def theme_calls(script, char):
+        """WC:theme as the plugin answers it for a seed whose reward there is character `char`
+        (None: an item or esper)."""
+        calls = {}
+        for m in script["Mnemonics"]:
+            s = (m["operands"].get("sValues") or [""])[0]
+            if m["mnemonic"] == "SysCall" and s.startswith("WC:theme"):
+                hit = char in [int(x) for x in s.split()[3].split(",")]
+                calls[s] = (lambda h: lambda st: st.set(E.WC_FLAGS, E.SCRATCH, 1 if h else 0))(hit)
+        return calls
+
+    def test_check_scenes_play_the_reward_characters_theme(self):
+        # WC (music/song_utils.py, the events' character_music_mod): the vanilla character's theme
+        # unless the reward is a character, then that character's
+        sites = [("sc_map_20090", "gau_father_house", 12), ("sc_e_0218_2", "baren_falls", 19),
+                 ("sc_e_0438", "lone_wolf", 48), ("sc_e_0735", "mt_zozo", 14), ("sc_e_0775", "owzer_mansion", 50),
+                 ("sc_e_0776", "fanatics_tower", 50), ("sc_e_0344_2", "opera_house_wob", 42)]
+        for name, module, vanilla in sites:
+            sc = self.script(name)
+            for char in (None, 1, 4, 6, 11, 14):
+                st, _ = self.new_game()
+                calls = dict(self.theme_calls(sc, char), **{f"WC:gate {module}": gate(True)})
+                got = [t[2][0] for t in Run(sc, st, syscalls=calls).did("PlayBGM")]
+                want = vanilla if char is None else E.CHARACTER_THEMES[char]
+                self.assertTrue(got and got[0] == want, f"{name}, reward character {char}: {got}, want {want} first")
+
+    def test_check_scenes_music_as_wcs(self):
+        st, _ = self.new_game()
+        r = Run(self.script("sc_e_0672_1"), st, syscalls={"WC:gate figaro_castle_wor": gate(True)})
+        order = [t[1] if t[1] == "PlayBGM" else t[3][0] for t in r.trace
+                 if t[1] == "PlayBGM" and t[2][0] == 8 or t[1] == "SysCall" and t[3][0].startswith("WC:reward")]
+        self.assertEqual(order[:2], ["PlayBGM", "WC:reward figaro_castle_wor 0"],
+                         "Edgar & Sabin's theme after the Tentacles, before the reward (WC: StartSong 0x0a)")
+        st, _ = self.new_game()
+        r = Run(self.script("sc_e_0709_2"), st, syscalls={"WC:gate mobliz_wor": gate(True)})
+        self.assertEqual([t[2][0] for t in r.did("PlayBGM")], [15], "The Unforgiven before Phunbaba (WC: 0x32)")
 
     def test_figaro_castle_shops_use_the_randomized_wob_copies(self):
         for name in ("sc_npc_20051_11_1", "sc_npc_20051_12_1"):
@@ -862,7 +989,9 @@ class WcScripts(unittest.TestCase):
         # prevents the vanilla Sabin-family scene from addressing an arbitrary seed reward.
         st, _ = self.new_game()
         r = Run(self.script("sc_e_0055_1"), st)
-        self.assertTrue(r.did("SysCall", "バトルデータ復元：sc_b_0055"), "battle data restored")
+        # the restore pairs with the save in the fight's Sabin event, which a WC game no longer
+        # plays (boss_battle_events, 2026-11-12): nothing to restore
+        self.assertFalse(r.did("SysCall", "バトルデータ復元：sc_b_0055"), "no battle data restored")
         self.assertEqual(len(r.did("SysCall", "WC:reward mt_kolts 0")), 1)
         self.assertEqual([t[3][0] for t in r.did("Msg")], ["WC_REWARD"], "no Sabin reunion dialogue")
         self.assertEqual(r.did("Call"), [], "no Sabin reunion animation")
