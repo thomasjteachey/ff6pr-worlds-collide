@@ -172,6 +172,8 @@ def main():
     with open(os.path.join(out, ".gitmodules"), "w", encoding="utf-8", newline="\n") as f:
         f.write(f'[submodule "mods/worlds-collide"]\n\tpath = mods/worlds-collide\n\turl = {WC_URL}\n')
     commit = wc_commit()
+    # the submodule's folder, empty until `git submodule update --init` (missing, `git add -A` drops it)
+    os.makedirs(os.path.join(out, "mods", "worlds-collide"), exist_ok=True)
     if os.path.isdir(os.path.join(out, ".git")):
         subprocess.run(["git", "-C", out, "update-index", "--add", "--cacheinfo", f"160000,{commit},mods/worlds-collide"],
                        check=True)
