@@ -1,0 +1,8 @@
+# Magicite menu: learning eligibility and equip behavior.
+Serial\.FF6\.UI\.MagicStoneDetailsControllerBase\$\$CreateLearnigAbilitys$
+Serial\.FF6\.UI\.MagicStoneDetailsControllerBase\$\$EquipMagicStone$
+Serial\.FF6\.UI\.MagicStoneDetailsControllerBase\.<>c\$\$<EquipMagicStone>b__32_[01]$
+Serial\.FF6\.UI\.(Touch|KeyInput)\.MagicStoneDetailsController\$\$UpdateView$
+Serial\.FF6\.UI\.(Touch|KeyInput)\.MagicStoneDetailsContentController\$\$SetData$
+Serial\.FF6\.UI\.(Touch|KeyInput)\.MagicStoneDetailsController\$\$EquipMagicStoneInit$
+Serial\.FF6\.UI\.(Touch|KeyInput)\.MagicStoneDetailsController\$\$SelectMagicStone$

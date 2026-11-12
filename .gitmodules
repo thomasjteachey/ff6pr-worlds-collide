@@ -1,0 +1,3 @@
+[submodule "mods/worlds-collide"]
+	path = mods/worlds-collide
+	url = https://github.com/ff6wc/WorldsCollide.git

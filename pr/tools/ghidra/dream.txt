@@ -1,0 +1,8 @@
+# Cyan's dream (Doma WoR bed, sc_e_0895): the party split and the two rejoins, and moving Cyan
+# to the reserve: what they need of the party (a WC game rests with any party)
+SystemCall\.Current\$\$SeparateCorpsAtDreamscape$
+SystemCall\.Current\$\$UndoFirstMenberAtDreamscape$
+SystemCall\.Current\$\$UndoSecondMenberAtDreamscape$
+SystemCall\.Current\$\$MoveReserveCayenne$
+SystemCall\.Current\$\$GetCharacterIdFromStatusId$
+External\.Corps\$\$CorpsController$

@@ -1,0 +1,6 @@
+# Magicite learning's row lookup (learning.csv type 2): does it check job_id? (BNW's parked esper
+# rows at esper 0 taught Biggs and Wedge 19 spells: a character without magicite has esper 0)
+Serial\.FF6\.Management\.MagicStoneData\$\$GetLearnableAbilityList$
+Serial\.FF6\.Management\.MagicStoneData\$\$IsMasterLearnableAbility$
+Serial\.FF6\.Management\.MagicStoneData\$\$GetAbilityId$
+Serial\.FF6\.Management\.MagicStoneData\$\$\.ctor$

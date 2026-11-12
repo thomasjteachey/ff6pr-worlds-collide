@@ -1,0 +1,6 @@
+# Morph: availability and the gauge
+Serial\.FF6\.Management\.CommandAvailableData\$\$IsAvailable$
+Serial\.FF6\.Management\.CommandAvailableData\$\$IsMagicLearningValue$
+TranceConditionFunction\$\$Start$
+TranceConditionFunction\$\$Update$
+TranceConditionFunction\$\$\.ctor$

@@ -1,0 +1,5 @@
+# A box's battle (Encount) reserves its after-battle script (Integrator.ReserveScript): what makes
+# it throw (the headless box check of BNW's new boxes)
+Integrator\$\$ReserveScript$
+Integrator\$\$ExistsReserveScript$
+External\.Misc\$\$Encount$

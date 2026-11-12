@@ -1,0 +1,9 @@
+# WC start / events: New Game data, SysCall dispatch, joins, vehicles, flags, map changes
+Last\.Management\.DataInitializeManager\$\$(Create|CreateUserData|CreatePlayerCharacters|CreateMapData|CreateTransportationData|CreateItems)$
+Last\.Interpreter\.Instructions\.External\$\$InitializeSystemCall$
+Last\.Interpreter\.Instructions\.External\.Misc\$\$SystemCall$
+Last\.Interpreter\.Instructions\.SystemCall\.Current\$\$(JoinTina|JoinGogo|JoinCharacter|AddMenberToCorps|CorrectLevel|SecedeCharacter|MoveReserveCommon|SaveCharacterCorpsId)$
+Last\.Interpreter\.Instructions\.External\.Vehicle\$\$(SetVehicle|SwitchVehicleActive)$
+Last\.Interpreter\.Instructions\.External\.Telepo\$\$AddTelepoCache$
+Last\.Interpreter\.Instructions\.Internal\$\$(SetFlag|ResetFlag|Branch|Calc)$
+Last\.Interpreter\.Instructions\.External\.Misc\$\$(ChangeMap|ChangeScript|AutoSave)$

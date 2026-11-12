@@ -1,0 +1,2 @@
+# Imp: which ParameterProvider getters treat an imped character differently
+Serial\.FF6\.Management\.ParameterProvider\$\$Get

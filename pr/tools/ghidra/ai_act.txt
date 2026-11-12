@@ -1,0 +1,4 @@
+# WC ability scaling at cast time (2026-11-11): how the AI's Act picks an ability and its targets,
+# and where the enemy's act is built
+Last\.Interpreter\.Instructions\.BattleAI\$\$(Act|CounterAct|FinalAttackAct|GetIndex)$
+Last\.Battle\.ActSelectEnemy\$\$(SetActData|CreateActData)$

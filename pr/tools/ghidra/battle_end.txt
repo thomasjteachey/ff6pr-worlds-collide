@@ -1,0 +1,2 @@
+# how a battle ends (2026-11-12): the end judge's force flag (EventCommand.Force / BattleForceExit)
+Last\.Battle\.BattleEndJugment\$\$(Execute|GetEndJugment|SetEnabled|RestartBattle|\.ctor)$

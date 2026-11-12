@@ -1,0 +1,7 @@
+# WC enemy AI effects (2026-11-12): how the PR's battle events bring in, hide, and remove monsters,
+# change their conditions and end a battle, so the plugin can do WC's F5/FB/F2/F7 with them
+Last\.Interpreter\.Instructions\.External\.Battle\$\$(AddEnemy|SleepEnemy|ForceExit|Condition|ATBGaugeMax|BattleEndEnabled|Animation|Action|GetEnemyMode)$
+Last\.Battle\.EventCommand\$\$(InBattleEnemy|AddConditionEnemy|AddConditionByEnemy|RecoveryConditionEnemy|Force|SetEndEnable|SetNoActEnemy|EndLoadCreateEnemy|IsEndInBattleAnimation|GetEnemyData)$
+Last\.Battle\.EventCommand\.<>c__DisplayClass\d+_\d\$\$<InBattleEnemy>b__\d$
+Last\.Battle\.EventCommand\$\$<InBattleEnemy>b__\d$
+Last\.Interpreter\.Instructions\.BattleAI\$\$(ChangeStatus|ForceExit|MonsterActRemove|SystemCallBattleAI|ModeSet)$

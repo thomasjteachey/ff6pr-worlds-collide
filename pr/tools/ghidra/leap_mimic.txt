@@ -1,0 +1,20 @@
+# Leap (ability 16, type 615 Dive: UserAddCondition 69), Mimic (ability 17, function 59
+# Impresonation) and counterattacks during X-Magic (CounterModule's per-unit count): how the PR
+# runs each, for BNW's rules (c2.asm Leap Effect C23B71, TrackMimic/ResetMimic, MayReset)
+BattleImpersonationFunctionFF6\$\$GetCopyActData$
+BattleImpersonationFunctionFF6\$\$CreateActDataFromOtherData$
+BattleImpersonationFunctionFF6\$\$\.cctor$
+BattleImpersonationFunctionFF6\$\$SetData$
+CounterModule\$\$IsCount$
+CounterModule\$\$SetCount$
+CounterModule\$\$ResetCount$
+CounterModule\$\$Clear$
+CounterModule\$\$IsCounter$
+CounterModule\$\$SetCounter$
+CounterModule\$\$IsActivateCounterOrFinalAttack$
+CounterModule\$\$InitCounterAI$
+Last\.UI\.KeyInput\.BattleCommandSelectController\$\$CommandEnableUpdate$
+AbilityUtility\$\$CanUseCommand$
+DiveConditionFunction\$\$Start$
+DiveConditionFunction\$\$ActEndUpdate$
+BattleConditionController\$\$IsDiveCondition$

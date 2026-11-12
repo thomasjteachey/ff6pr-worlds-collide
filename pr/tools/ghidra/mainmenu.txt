@@ -1,0 +1,3 @@
+# field main menu: how a command entry's confirm reaches MainMenuController (Track entry)
+Last\.UI\.CommandMenuController\$\$(Initalize|<UpdateController>b__12_0|CreateCommandMenuContent)$
+Last\.UI\.KeyInput\.MainMenuController\$\$(SetNextState|UpdateNone|InitNone|UpdateController|Show)$

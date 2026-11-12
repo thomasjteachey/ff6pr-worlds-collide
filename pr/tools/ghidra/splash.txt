@@ -1,0 +1,5 @@
+# the opening logos and the splash scene's wait for them (startup time, 2026-11-12)
+SceneSplash\$\$(Start|Update|OnSplashAnimationFinished|FadeoutFinished|CreateInstance)
+SceneSplash\.<(Load|CreateSplashScreen|GotoTitle|GotoSceneTask|ChangeToTheTitleSceneWithBlackFade|ChangeToTheTitleSceneWithWhiteFade)>d__\d+\$\$MoveNext
+SplashController\$\$(Initialize|CreateState|Update|InitializeList|IsInput|IsInputType|PlaySplash|set_EnableSkip|.*State.*)
+SplashController\.<PlaySplash>d__\d+\$\$MoveNext

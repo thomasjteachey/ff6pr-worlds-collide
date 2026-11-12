@@ -1,0 +1,3735 @@
+{
+ "flags": {
+  "-hf": {
+   "flag": "-hf",
+   "label": "Hide Flags (no log, no flags menu)",
+   "help": "Hide Flags (no log, no flags menu)",
+   "type": "bool"
+  },
+  "-open": {
+   "flag": "-open",
+   "label": "Open World",
+   "help": "Unrestricted event access",
+   "type": "bool"
+  },
+  "-cg": {
+   "flag": "-cg",
+   "label": "Character Gating",
+   "help": "Events locked until required characters recruited",
+   "type": "bool"
+  },
+  "-sl": {
+   "flag": "-sl",
+   "label": "Spoiler Log",
+   "help": "Generated log file also contains event rewards and other detailed information",
+   "type": "bool"
+  },
+  "-oa": {
+   "flag": "-oa",
+   "label": "Objective A",
+   "help": "Objective A",
+   "type": "str"
+  },
+  "-ob": {
+   "flag": "-ob",
+   "label": "Objective B",
+   "help": "Objective B",
+   "type": "str"
+  },
+  "-oc": {
+   "flag": "-oc",
+   "label": "Objective C",
+   "help": "Objective C",
+   "type": "str"
+  },
+  "-od": {
+   "flag": "-od",
+   "label": "Objective D",
+   "help": "Objective D",
+   "type": "str"
+  },
+  "-oe": {
+   "flag": "-oe",
+   "label": "Objective E",
+   "help": "Objective E",
+   "type": "str"
+  },
+  "-of": {
+   "flag": "-of",
+   "label": "Objective F",
+   "help": "Objective F",
+   "type": "str"
+  },
+  "-og": {
+   "flag": "-og",
+   "label": "Objective G",
+   "help": "Objective G",
+   "type": "str"
+  },
+  "-oh": {
+   "flag": "-oh",
+   "label": "Objective H",
+   "help": "Objective H",
+   "type": "str"
+  },
+  "-oi": {
+   "flag": "-oi",
+   "label": "Objective I",
+   "help": "Objective I",
+   "type": "str"
+  },
+  "-oj": {
+   "flag": "-oj",
+   "label": "Objective J",
+   "help": "Objective J",
+   "type": "str"
+  },
+  "-ok": {
+   "flag": "-ok",
+   "label": "Objective K",
+   "help": "Objective K",
+   "type": "str"
+  },
+  "-ol": {
+   "flag": "-ol",
+   "label": "Objective L",
+   "help": "Objective L",
+   "type": "str"
+  },
+  "-om": {
+   "flag": "-om",
+   "label": "Objective M",
+   "help": "Objective M",
+   "type": "str"
+  },
+  "-on": {
+   "flag": "-on",
+   "label": "Objective N",
+   "help": "Objective N",
+   "type": "str"
+  },
+  "-oo": {
+   "flag": "-oo",
+   "label": "Objective O",
+   "help": "Objective O",
+   "type": "str"
+  },
+  "-op": {
+   "flag": "-op",
+   "label": "Objective P",
+   "help": "Objective P",
+   "type": "str"
+  },
+  "-oq": {
+   "flag": "-oq",
+   "label": "Objective Q",
+   "help": "Objective Q",
+   "type": "str"
+  },
+  "-or": {
+   "flag": "-or",
+   "label": "Objective R",
+   "help": "Objective R",
+   "type": "str"
+  },
+  "-os": {
+   "flag": "-os",
+   "label": "Objective S",
+   "help": "Objective S",
+   "type": "str"
+  },
+  "-ot": {
+   "flag": "-ot",
+   "label": "Objective T",
+   "help": "Objective T",
+   "type": "str"
+  },
+  "-ou": {
+   "flag": "-ou",
+   "label": "Objective U",
+   "help": "Objective U",
+   "type": "str"
+  },
+  "-ov": {
+   "flag": "-ov",
+   "label": "Objective V",
+   "help": "Objective V",
+   "type": "str"
+  },
+  "-ow": {
+   "flag": "-ow",
+   "label": "Objective W",
+   "help": "Objective W",
+   "type": "str"
+  },
+  "-ox": {
+   "flag": "-ox",
+   "label": "Objective X",
+   "help": "Objective X",
+   "type": "str"
+  },
+  "-oy": {
+   "flag": "-oy",
+   "label": "Objective Y",
+   "help": "Objective Y",
+   "type": "str"
+  },
+  "-sc1": {
+   "flag": "-sc1",
+   "label": "Start Char1",
+   "help": "Starting party member",
+   "type": "str",
+   "choices": [
+    "terra",
+    "locke",
+    "cyan",
+    "shadow",
+    "edgar",
+    "sabin",
+    "celes",
+    "strago",
+    "relm",
+    "setzer",
+    "mog",
+    "gau",
+    "gogo",
+    "umaro",
+    "random",
+    "randomngu"
+   ],
+   "default": ""
+  },
+  "-sc2": {
+   "flag": "-sc2",
+   "label": "Start Char2",
+   "help": "Starting party member",
+   "type": "str",
+   "choices": [
+    "terra",
+    "locke",
+    "cyan",
+    "shadow",
+    "edgar",
+    "sabin",
+    "celes",
+    "strago",
+    "relm",
+    "setzer",
+    "mog",
+    "gau",
+    "gogo",
+    "umaro",
+    "random",
+    "randomngu"
+   ],
+   "default": ""
+  },
+  "-sc3": {
+   "flag": "-sc3",
+   "label": "Start Char3",
+   "help": "Starting party member",
+   "type": "str",
+   "choices": [
+    "terra",
+    "locke",
+    "cyan",
+    "shadow",
+    "edgar",
+    "sabin",
+    "celes",
+    "strago",
+    "relm",
+    "setzer",
+    "mog",
+    "gau",
+    "gogo",
+    "umaro",
+    "random",
+    "randomngu"
+   ],
+   "default": ""
+  },
+  "-sc4": {
+   "flag": "-sc4",
+   "label": "Start Char4",
+   "help": "Starting party member",
+   "type": "str",
+   "choices": [
+    "terra",
+    "locke",
+    "cyan",
+    "shadow",
+    "edgar",
+    "sabin",
+    "celes",
+    "strago",
+    "relm",
+    "setzer",
+    "mog",
+    "gau",
+    "gogo",
+    "umaro",
+    "random",
+    "randomngu"
+   ],
+   "default": ""
+  },
+  "-sal": {
+   "flag": "-sal",
+   "label": "Start Average Level",
+   "help": "Recruited characters start at the average character level",
+   "type": "bool"
+  },
+  "-stl": {
+   "flag": "-stl",
+   "label": "Start Level",
+   "help": "Start game at level COUNT.",
+   "type": "int",
+   "metavar": [
+    "COUNT"
+   ],
+   "min": 3,
+   "max": 99,
+   "default": 3
+  },
+  "-sn": {
+   "flag": "-sn",
+   "label": "Start Naked",
+   "help": "Recruited characters start with no equipment",
+   "type": "bool"
+  },
+  "-eu": {
+   "flag": "-eu",
+   "label": "Equipable Umaro",
+   "help": "Umaro can access equipment menu",
+   "type": "bool"
+  },
+  "-csrp": {
+   "flag": "-csrp",
+   "label": "Character Stat Random Percent",
+   "help": "Each character stat set to random percent of original within given range ",
+   "type": "int",
+   "nargs": 2,
+   "metavar": [
+    "MIN",
+    "MAX"
+   ],
+   "min": 0,
+   "max": 200,
+   "default": [
+    100,
+    100
+   ]
+  },
+  "-fst": {
+   "flag": "-fst",
+   "label": "Fast Swdtech",
+   "help": "SwdTech gauge charges four times faster",
+   "type": "bool"
+  },
+  "-sel": {
+   "flag": "-sel",
+   "label": "Swdtechs Everyone Learns",
+   "help": "SwdTechs learnable by characters without the SwdTech command",
+   "type": "bool"
+  },
+  "-brl": {
+   "flag": "-brl",
+   "label": "Bum Rush Last",
+   "help": "Bum Rush requires learning every other blitz",
+   "type": "bool"
+  },
+  "-bel": {
+   "flag": "-bel",
+   "label": "Blitzes Everyone Learns",
+   "help": "Blitzes learnable by characters without the Blitz command",
+   "type": "bool"
+  },
+  "-slr": {
+   "flag": "-slr",
+   "label": "Start Lores Random",
+   "help": "Start with random lores learned",
+   "type": "int",
+   "nargs": 2,
+   "metavar": [
+    "MIN",
+    "MAX"
+   ],
+   "min": 0,
+   "max": 24
+  },
+  "-lmps": {
+   "flag": "-lmps",
+   "label": "Lores MP Shuffle",
+   "help": "Lore MP costs shuffled",
+   "type": "bool"
+  },
+  "-lmprv": {
+   "flag": "-lmprv",
+   "label": "Lores MP Random Value",
+   "help": "Lore MP costs randomized",
+   "type": "int",
+   "nargs": 2,
+   "metavar": [
+    "MIN",
+    "MAX"
+   ],
+   "min": 0,
+   "max": 254
+  },
+  "-lmprp": {
+   "flag": "-lmprp",
+   "label": "Lores MP Random Percent",
+   "help": "Each lore's MP cost set to random percent of original within given range",
+   "type": "int",
+   "nargs": 2,
+   "metavar": [
+    "MIN",
+    "MAX"
+   ],
+   "min": 0,
+   "max": 200
+  },
+  "-lel": {
+   "flag": "-lel",
+   "label": "Lores Everyone Learns",
+   "help": "Lores learnable by characters without the Lore command",
+   "type": "bool"
+  },
+  "-llr": {
+   "flag": "-llr",
+   "label": "Lores Level Randomize",
+   "help": "Level based lores will have the level randomized (L?, L1-L5)",
+   "type": "bool"
+  },
+  "-srr": {
+   "flag": "-srr",
+   "label": "Start Rages Random",
+   "help": "Start with random rages learned",
+   "type": "int",
+   "nargs": 2,
+   "metavar": [
+    "MIN",
+    "MAX"
+   ],
+   "min": 0,
+   "max": 255
+  },
+  "-rnl": {
+   "flag": "-rnl",
+   "label": "Rages No Leap",
+   "help": "Leap not available on the Veldt. Rages learnable after every battle",
+   "type": "bool"
+  },
+  "-rnc": {
+   "flag": "-rnc",
+   "label": "Rages No Charm",
+   "help": "Charm ability not available from Nightshade rage",
+   "type": "bool"
+  },
+  "-sdr": {
+   "flag": "-sdr",
+   "label": "Start Dances Random",
+   "help": "Start with random dances learned",
+   "type": "int",
+   "nargs": 2,
+   "metavar": [
+    "MIN",
+    "MAX"
+   ],
+   "min": 0,
+   "max": 8
+  },
+  "-das": {
+   "flag": "-das",
+   "label": "Dances Shuffle",
+   "help": "Abilities shuffled between all dances",
+   "type": "bool"
+  },
+  "-dda": {
+   "flag": "-dda",
+   "label": "Dances Display Abilities",
+   "help": "Display ability names in dance skills menu",
+   "type": "bool"
+  },
+  "-dns": {
+   "flag": "-dns",
+   "label": "Dances No Stumble",
+   "help": "Disable stumbling when dancing in different terrain",
+   "type": "bool"
+  },
+  "-del": {
+   "flag": "-del",
+   "label": "Dances Everyone Learns",
+   "help": "Dances learnable by characters without the Dance command",
+   "type": "bool"
+  },
+  "-sch": {
+   "flag": "-sch",
+   "label": "Steal Chances Higher",
+   "help": "Steal Rate is improved and rare steals are more likely",
+   "type": "bool"
+  },
+  "-sca": {
+   "flag": "-sca",
+   "label": "Steal Chances Always",
+   "help": "Steal will always succeed if enemy has an item",
+   "type": "bool"
+  },
+  "-ssd": {
+   "flag": "-ssd",
+   "label": "Shuffle Steals Drops",
+   "help": "Shuffle items stolen and dropped with randomized percent",
+   "type": "int",
+   "metavar": [
+    "PERCENT"
+   ],
+   "min": 0,
+   "max": 100
+  },
+  "-ss": {
+   "flag": "-ss",
+   "label": "Shuffle Steals",
+   "help": "Shuffle items stolen with randomized percent",
+   "type": "int",
+   "metavar": [
+    "PERCENT"
+   ],
+   "min": 0,
+   "max": 100
+  },
+  "-sd": {
+   "flag": "-sd",
+   "label": "Shuffle Drops",
+   "help": "Shuffle items dropped with randomized percent",
+   "type": "int",
+   "metavar": [
+    "PERCENT"
+   ],
+   "min": 0,
+   "max": 100
+  },
+  "-scis": {
+   "flag": "-scis",
+   "label": "Sketch Control Improved Stats",
+   "help": "Sketch & Control 100% accurate and use Sketcher/Controller's stats",
+   "type": "bool"
+  },
+  "-scia": {
+   "flag": "-scia",
+   "label": "Sketch Control Improved Abilities",
+   "help": "Improves Sketch & Control abilities. Removes Battle from Sketch. Adds Rage as a Sketch/Control possibility for most monsters. Gives Sketch abilities to most bosses.",
+   "type": "bool"
+  },
+  "-com": {
+   "flag": "-com",
+   "label": "Commands",
+   "help": "Character commands",
+   "type": "str"
+  },
+  "-scc": {
+   "flag": "-scc",
+   "label": "Shuffle Commands",
+   "help": "Shuffle selected/randomized commands",
+   "type": "bool"
+  },
+  "-rec1": {
+   "flag": "-rec1",
+   "label": "Random Exclude Command1",
+   "help": "Exclude selected command from random possibilities",
+   "type": "int",
+   "metavar": [
+    "VALUE"
+   ],
+   "choices": [
+    97,
+    10,
+    6,
+    14,
+    19,
+    24,
+    26,
+    22,
+    12,
+    29,
+    3,
+    28,
+    16,
+    11,
+    27,
+    13,
+    15,
+    5,
+    7,
+    8,
+    9,
+    23
+   ],
+   "default": 97
+  },
+  "-rec2": {
+   "flag": "-rec2",
+   "label": "Random Exclude Command2",
+   "help": "Exclude selected command from random possibilities",
+   "type": "int",
+   "metavar": [
+    "VALUE"
+   ],
+   "choices": [
+    97,
+    10,
+    6,
+    14,
+    19,
+    24,
+    26,
+    22,
+    12,
+    29,
+    3,
+    28,
+    16,
+    11,
+    27,
+    13,
+    15,
+    5,
+    7,
+    8,
+    9,
+    23
+   ],
+   "default": 97
+  },
+  "-rec3": {
+   "flag": "-rec3",
+   "label": "Random Exclude Command3",
+   "help": "Exclude selected command from random possibilities",
+   "type": "int",
+   "metavar": [
+    "VALUE"
+   ],
+   "choices": [
+    97,
+    10,
+    6,
+    14,
+    19,
+    24,
+    26,
+    22,
+    12,
+    29,
+    3,
+    28,
+    16,
+    11,
+    27,
+    13,
+    15,
+    5,
+    7,
+    8,
+    9,
+    23
+   ],
+   "default": 97
+  },
+  "-rec4": {
+   "flag": "-rec4",
+   "label": "Random Exclude Command4",
+   "help": "Exclude selected command from random possibilities",
+   "type": "int",
+   "metavar": [
+    "VALUE"
+   ],
+   "choices": [
+    97,
+    10,
+    6,
+    14,
+    19,
+    24,
+    26,
+    22,
+    12,
+    29,
+    3,
+    28,
+    16,
+    11,
+    27,
+    13,
+    15,
+    5,
+    7,
+    8,
+    9,
+    23
+   ],
+   "default": 97
+  },
+  "-rec5": {
+   "flag": "-rec5",
+   "label": "Random Exclude Command5",
+   "help": "Exclude selected command from random possibilities",
+   "type": "int",
+   "metavar": [
+    "VALUE"
+   ],
+   "choices": [
+    97,
+    10,
+    6,
+    14,
+    19,
+    24,
+    26,
+    22,
+    12,
+    29,
+    3,
+    28,
+    16,
+    11,
+    27,
+    13,
+    15,
+    5,
+    7,
+    8,
+    9,
+    23
+   ],
+   "default": 97
+  },
+  "-rec6": {
+   "flag": "-rec6",
+   "label": "Random Exclude Command6",
+   "help": "Exclude selected command from random possibilities",
+   "type": "int",
+   "metavar": [
+    "VALUE"
+   ],
+   "choices": [
+    97,
+    10,
+    6,
+    14,
+    19,
+    24,
+    26,
+    22,
+    12,
+    29,
+    3,
+    28,
+    16,
+    11,
+    27,
+    13,
+    15,
+    5,
+    7,
+    8,
+    9,
+    23
+   ],
+   "default": 97
+  },
+  "-xpm": {
+   "flag": "-xpm",
+   "label": "XP Mult",
+   "help": "Multiply experience by VALUE [0-255], default 1",
+   "type": "int",
+   "metavar": [
+    "VALUE"
+   ],
+   "min": 0,
+   "max": 255,
+   "default": 1
+  },
+  "-mpm": {
+   "flag": "-mpm",
+   "label": "MP Mult",
+   "help": "Multiply magic points by VALUE [0-255], default 1",
+   "type": "int",
+   "metavar": [
+    "VALUE"
+   ],
+   "min": 0,
+   "max": 255,
+   "default": 1
+  },
+  "-gpm": {
+   "flag": "-gpm",
+   "label": "GP Mult",
+   "help": "Multiply gold by VALUE [0-255], default 1.",
+   "type": "int",
+   "metavar": [
+    "VALUE"
+   ],
+   "min": 0,
+   "max": 255,
+   "default": 1
+  },
+  "-nxppd": {
+   "flag": "-nxppd",
+   "label": "No EXP Party Divide",
+   "help": "Do not divide experience by number of surviving party members",
+   "type": "bool"
+  },
+  "-lsa": {
+   "flag": "-lsa",
+   "label": "Level Scaling Average",
+   "help": "Enemy and boss levels equal to VALUE * party average level",
+   "type": "float",
+   "metavar": [
+    "VALUE"
+   ],
+   "choices": [
+    0.5,
+    1.0,
+    1.5,
+    2.0,
+    2.5,
+    3.0,
+    3.5,
+    4.0,
+    4.5,
+    5.0
+   ]
+  },
+  "-lsh": {
+   "flag": "-lsh",
+   "label": "Level Scaling Highest",
+   "help": "Enemy and boss levels equal to VALUE * highest level in party",
+   "type": "float",
+   "metavar": [
+    "VALUE"
+   ],
+   "choices": [
+    0.5,
+    1.0,
+    1.5,
+    2.0,
+    2.5,
+    3.0,
+    3.5,
+    4.0,
+    4.5,
+    5.0
+   ]
+  },
+  "-lsce": {
+   "flag": "-lsce",
+   "label": "Level Scaling Ce",
+   "help": "Enemies and bosses gain VALUE levels for each character recruited and esper acquired",
+   "type": "float",
+   "metavar": [
+    "VALUE"
+   ],
+   "choices": [
+    0.5,
+    1.0,
+    1.5,
+    2.0,
+    2.5,
+    3.0,
+    3.5,
+    4.0,
+    4.5,
+    5.0
+   ]
+  },
+  "-lsced": {
+   "flag": "-lsced",
+   "label": "Level Scaling Ced",
+   "help": "Enemies and bosses gain VALUE levels for each character recruited, esper acquired, and dragon defeated",
+   "type": "float",
+   "metavar": [
+    "VALUE"
+   ],
+   "choices": [
+    0.5,
+    1.0,
+    1.5,
+    2.0,
+    2.5,
+    3.0,
+    3.5,
+    4.0,
+    4.5,
+    5.0
+   ]
+  },
+  "-lsc": {
+   "flag": "-lsc",
+   "label": "Level Scaling Checks",
+   "help": "Enemies and bosses gain VALUE levels for each check completed",
+   "type": "float",
+   "metavar": [
+    "VALUE"
+   ],
+   "choices": [
+    0.5,
+    1.0,
+    1.5,
+    2.0,
+    2.5,
+    3.0,
+    3.5,
+    4.0,
+    4.5,
+    5.0
+   ]
+  },
+  "-lst": {
+   "flag": "-lst",
+   "label": "Level Scaling Time",
+   "help": "Enemies and bosses gain 1 level every VALUE minutes",
+   "type": "float",
+   "metavar": [
+    "VALUE"
+   ],
+   "choices": [
+    0.5,
+    1.0,
+    1.5,
+    2.0,
+    2.5,
+    3.0,
+    3.5,
+    4.0,
+    4.5,
+    5.0
+   ]
+  },
+  "-lsbd": {
+   "flag": "-lsbd",
+   "label": "Level Scaling Bosses Dragons",
+   "help": "Enemies and bosses gain VALUE levels for each boss and dragon defeated",
+   "type": "float",
+   "metavar": [
+    "VALUE"
+   ],
+   "choices": [
+    0.5,
+    1.0,
+    1.5,
+    2.0,
+    2.5,
+    3.0,
+    3.5,
+    4.0,
+    4.5,
+    5.0,
+    5.5,
+    6.0,
+    6.5,
+    7.0,
+    7.5,
+    8.0,
+    8.5,
+    9.0,
+    9.5,
+    10.0
+   ]
+  },
+  "-hma": {
+   "flag": "-hma",
+   "label": "HP MP Scaling Average",
+   "help": "Enemy and boss hp/mp scales VALUE * party averaage level",
+   "type": "float",
+   "metavar": [
+    "VALUE"
+   ],
+   "choices": [
+    0.5,
+    1.0,
+    1.5,
+    2.0,
+    2.5,
+    3.0,
+    3.5,
+    4.0,
+    4.5,
+    5.0
+   ]
+  },
+  "-hmh": {
+   "flag": "-hmh",
+   "label": "HP MP Scaling Highest",
+   "help": "Enemy and boss hp/mp scales VALUE * highest level in party",
+   "type": "float",
+   "metavar": [
+    "VALUE"
+   ],
+   "choices": [
+    0.5,
+    1.0,
+    1.5,
+    2.0,
+    2.5,
+    3.0,
+    3.5,
+    4.0,
+    4.5,
+    5.0
+   ]
+  },
+  "-hmce": {
+   "flag": "-hmce",
+   "label": "HP MP Scaling Ce",
+   "help": "Enemy and boss hp/mp scales VALUE * each character recruited and esper acquired",
+   "type": "float",
+   "metavar": [
+    "VALUE"
+   ],
+   "choices": [
+    0.5,
+    1.0,
+    1.5,
+    2.0,
+    2.5,
+    3.0,
+    3.5,
+    4.0,
+    4.5,
+    5.0
+   ]
+  },
+  "-hmced": {
+   "flag": "-hmced",
+   "label": "HP MP Scaling Ced",
+   "help": "Enemy and boss hp/mp scales VALUE * each character recruited, esper acquired, and dragon defeated",
+   "type": "float",
+   "metavar": [
+    "VALUE"
+   ],
+   "choices": [
+    0.5,
+    1.0,
+    1.5,
+    2.0,
+    2.5,
+    3.0,
+    3.5,
+    4.0,
+    4.5,
+    5.0
+   ]
+  },
+  "-hmc": {
+   "flag": "-hmc",
+   "label": "HP MP Scaling Checks",
+   "help": "Enemy and boss hp/mp scales VALUE * each check completed",
+   "type": "float",
+   "metavar": [
+    "VALUE"
+   ],
+   "choices": [
+    0.5,
+    1.0,
+    1.5,
+    2.0,
+    2.5,
+    3.0,
+    3.5,
+    4.0,
+    4.5,
+    5.0
+   ]
+  },
+  "-hmt": {
+   "flag": "-hmt",
+   "label": "HP MP Scaling Time",
+   "help": "Enemy and boss hp/mp scales every VALUE minutes",
+   "type": "float",
+   "metavar": [
+    "VALUE"
+   ],
+   "choices": [
+    0.5,
+    1.0,
+    1.5,
+    2.0,
+    2.5,
+    3.0,
+    3.5,
+    4.0,
+    4.5,
+    5.0
+   ]
+  },
+  "-hmbd": {
+   "flag": "-hmbd",
+   "label": "HP MP Scaling Bosses Dragons",
+   "help": "Enemy and boss hp/mp scales VALUE * each boss and dragon defeated",
+   "type": "float",
+   "metavar": [
+    "VALUE"
+   ],
+   "choices": [
+    0.5,
+    1.0,
+    1.5,
+    2.0,
+    2.5,
+    3.0,
+    3.5,
+    4.0,
+    4.5,
+    5.0,
+    5.5,
+    6.0,
+    6.5,
+    7.0,
+    7.5,
+    8.0,
+    8.5,
+    9.0,
+    9.5,
+    10.0
+   ]
+  },
+  "-xga": {
+   "flag": "-xga",
+   "label": "XP GP Scaling Average",
+   "help": "Enemy and boss exp/gp scales VALUE * party averaage level",
+   "type": "float",
+   "metavar": [
+    "VALUE"
+   ],
+   "choices": [
+    0.5,
+    1.0,
+    1.5,
+    2.0,
+    2.5,
+    3.0,
+    3.5,
+    4.0,
+    4.5,
+    5.0
+   ]
+  },
+  "-xgh": {
+   "flag": "-xgh",
+   "label": "XP GP Scaling Highest",
+   "help": "Enemy and boss exp/gp scales VALUE * highest level in party",
+   "type": "float",
+   "metavar": [
+    "VALUE"
+   ],
+   "choices": [
+    0.5,
+    1.0,
+    1.5,
+    2.0,
+    2.5,
+    3.0,
+    3.5,
+    4.0,
+    4.5,
+    5.0
+   ]
+  },
+  "-xgce": {
+   "flag": "-xgce",
+   "label": "XP GP Scaling Ce",
+   "help": "Enemy and boss exp/gp scales VALUE * each character recruited and esper acquired",
+   "type": "float",
+   "metavar": [
+    "VALUE"
+   ],
+   "choices": [
+    0.5,
+    1.0,
+    1.5,
+    2.0,
+    2.5,
+    3.0,
+    3.5,
+    4.0,
+    4.5,
+    5.0
+   ]
+  },
+  "-xgced": {
+   "flag": "-xgced",
+   "label": "XP GP Scaling Ced",
+   "help": "Enemy and boss exp/gp scales VALUE * each character recruited, esper acquired, and dragon defeated",
+   "type": "float",
+   "metavar": [
+    "VALUE"
+   ],
+   "choices": [
+    0.5,
+    1.0,
+    1.5,
+    2.0,
+    2.5,
+    3.0,
+    3.5,
+    4.0,
+    4.5,
+    5.0
+   ]
+  },
+  "-xgc": {
+   "flag": "-xgc",
+   "label": "XP GP Scaling Checks",
+   "help": "Enemy and boss exp/gp scales VALUE * each check completed",
+   "type": "float",
+   "metavar": [
+    "VALUE"
+   ],
+   "choices": [
+    0.5,
+    1.0,
+    1.5,
+    2.0,
+    2.5,
+    3.0,
+    3.5,
+    4.0,
+    4.5,
+    5.0
+   ]
+  },
+  "-xgt": {
+   "flag": "-xgt",
+   "label": "XP GP Scaling Time",
+   "help": "Enemy and boss exp/gp scales every VALUE minutes",
+   "type": "float",
+   "metavar": [
+    "VALUE"
+   ],
+   "choices": [
+    0.5,
+    1.0,
+    1.5,
+    2.0,
+    2.5,
+    3.0,
+    3.5,
+    4.0,
+    4.5,
+    5.0
+   ]
+  },
+  "-xgbd": {
+   "flag": "-xgbd",
+   "label": "XP GP Scaling Bosses Dragons",
+   "help": "Enemy and boss exp/gp scales VALUE * for each boss and dragon defeated",
+   "type": "float",
+   "metavar": [
+    "VALUE"
+   ],
+   "choices": [
+    0.5,
+    1.0,
+    1.5,
+    2.0,
+    2.5,
+    3.0,
+    3.5,
+    4.0,
+    4.5,
+    5.0,
+    5.5,
+    6.0,
+    6.5,
+    7.0,
+    7.5,
+    8.0,
+    8.5,
+    9.0,
+    9.5,
+    10.0
+   ]
+  },
+  "-ase": {
+   "flag": "-ase",
+   "label": "Ability Scaling Element",
+   "help": "Enemy and boss abilities retain element and increase in tier approximately every (VALUE + 3) levels reaching max tier at level (VALUE + 3) * 8",
+   "type": "float",
+   "metavar": [
+    "VALUE"
+   ],
+   "choices": [
+    0.5,
+    1.0,
+    1.5,
+    2.0,
+    2.5,
+    3.0,
+    3.5,
+    4.0,
+    4.5,
+    5.0
+   ]
+  },
+  "-asr": {
+   "flag": "-asr",
+   "label": "Ability Scaling Random",
+   "help": "Enemy and boss abilities increase in tier approximately every (VALUE + 3) levels reaching max tier at level (VALUE + 3) * 8",
+   "type": "float",
+   "metavar": [
+    "VALUE"
+   ],
+   "choices": [
+    0.5,
+    1.0,
+    1.5,
+    2.0,
+    2.5,
+    3.0,
+    3.5,
+    4.0,
+    4.5,
+    5.0
+   ]
+  },
+  "-msl": {
+   "flag": "-msl",
+   "label": "Max Scale Level",
+   "help": "Max level enemies scaled up to. Note: distortion levels still applied",
+   "type": "int",
+   "metavar": [
+    "VALUE"
+   ],
+   "min": 3,
+   "max": 99,
+   "default": 99
+  },
+  "-sed": {
+   "flag": "-sed",
+   "label": "Scale Eight Dragons",
+   "help": "Apply scaling to the eight dragons",
+   "type": "bool"
+  },
+  "-sfb": {
+   "flag": "-sfb",
+   "label": "Scale Final Battles",
+   "help": "Apply scaling to the final battles",
+   "type": "bool"
+  },
+  "-bbs": {
+   "flag": "-bbs",
+   "label": "Boss Battles Shuffle",
+   "help": "Boss battles shuffled",
+   "type": "bool"
+  },
+  "-bbr": {
+   "flag": "-bbr",
+   "label": "Boss Battles Random",
+   "help": "Boss battles randomized",
+   "type": "bool"
+  },
+  "-drloc": {
+   "flag": "-drloc",
+   "label": "Dragon Boss Location",
+   "help": "Decides which locations the eight dragon encounters can be fought",
+   "type": "str",
+   "choices": [
+    "mix",
+    "original",
+    "shuffle"
+   ],
+   "default": "shuffle"
+  },
+  "-bmbd": {
+   "flag": "-bmbd",
+   "label": "Mix Bosses Dragons",
+   "help": "Shuffle/randomize bosses and dragons together",
+   "type": "bool"
+  },
+  "-stloc": {
+   "flag": "-stloc",
+   "label": "Statue Boss Location",
+   "help": "Decides which locations the three statue encounters can be fought",
+   "type": "str",
+   "choices": [
+    "mix",
+    "original",
+    "shuffle"
+   ],
+   "default": "mix"
+  },
+  "-srp3": {
+   "flag": "-srp3",
+   "label": "Shuffle Random Phunbaba3",
+   "help": "Apply Shuffle/Random to Phunbaba 3 (otherwise he will only appear in Mobliz WOR)",
+   "type": "bool"
+  },
+  "-bnds": {
+   "flag": "-bnds",
+   "label": "Boss Normalize Distort Stats",
+   "help": "Normalize lower boss stats and apply random distortion",
+   "type": "bool"
+  },
+  "-be": {
+   "flag": "-be",
+   "label": "Boss Experience",
+   "help": "Boss battles award experience",
+   "type": "bool"
+  },
+  "-bnu": {
+   "flag": "-bnu",
+   "label": "Boss No Undead",
+   "help": "Undead status removed from bosses",
+   "type": "bool"
+  },
+  "-bmkl": {
+   "flag": "-bmkl",
+   "label": "Boss Marshal Keep Lobos",
+   "help": "Don't replace the Marshal's Lobos with randomized enemies",
+   "type": "bool"
+  },
+  "-res": {
+   "flag": "-res",
+   "label": "Random Encounters Shuffle",
+   "help": "Random encounters are shuffled",
+   "type": "bool"
+  },
+  "-rer": {
+   "flag": "-rer",
+   "label": "Random Encounters Random",
+   "help": "Random encounters are randomized",
+   "type": "int",
+   "metavar": [
+    "PERCENT"
+   ],
+   "min": 0,
+   "max": 100
+  },
+  "-rechu": {
+   "flag": "-rechu",
+   "label": "Random Encounters Chupon",
+   "help": "All Random Encounters are replaced with Chupon (Coliseum)",
+   "type": "bool"
+  },
+  "-fer": {
+   "flag": "-fer",
+   "label": "Fixed Encounters Random",
+   "help": "Fixed encounters are randomized. Lete River, Serpent Trench, Mine Cart, Imperial Camp, ...",
+   "type": "int",
+   "metavar": [
+    "PERCENT"
+   ],
+   "min": 0,
+   "max": 100
+  },
+  "-escr": {
+   "flag": "-escr",
+   "label": "Encounters Escapable Random",
+   "help": "Percent of random encounters escapable including with warp or smoke bombs",
+   "type": "int",
+   "metavar": [
+    "PERCENT"
+   ],
+   "min": 0,
+   "max": 100
+  },
+  "-dgne": {
+   "flag": "-dgne",
+   "label": "Doom Gaze No Escape",
+   "help": "Doom Gaze does not escape and cannot be escaped from",
+   "type": "bool"
+  },
+  "-wnz": {
+   "flag": "-wnz",
+   "label": "Wrexsoul No Zinger",
+   "help": "Wrexsoul does not use Zinger to possess a character until they expire",
+   "type": "bool"
+  },
+  "-mmnu": {
+   "flag": "-mmnu",
+   "label": "Magimaster No Ultima",
+   "help": "MagiMaster does not cast Ultima before death",
+   "type": "bool"
+  },
+  "-cmd": {
+   "flag": "-cmd",
+   "label": "Chadarnook More Demon",
+   "help": "Chadarnook demon form appears for longer and does not immediately switch back to painting",
+   "type": "bool"
+  },
+  "-stesp": {
+   "flag": "-stesp",
+   "label": "Starting Espers",
+   "help": "Party starts with 'MIN MAX'andom espers",
+   "type": "int",
+   "nargs": 2,
+   "metavar": [
+    "MIN",
+    "MAX"
+   ],
+   "min": 0,
+   "max": 21,
+   "default": [
+    0,
+    0
+   ]
+  },
+  "-esrr": {
+   "flag": "-esrr",
+   "label": "Esper Spells Random Rates",
+   "help": "(DEPRECATED) Original esper spells with random learn rates",
+   "type": "bool"
+  },
+  "-ess": {
+   "flag": "-ess",
+   "label": "Esper Spells Shuffle",
+   "help": "Esper spells shuffled",
+   "type": "bool"
+  },
+  "-essrr": {
+   "flag": "-essrr",
+   "label": "Esper Spells Shuffle Random Rates",
+   "help": "(DEPRECATED) Esper spells shuffled with random learn rates",
+   "type": "bool"
+  },
+  "-esr": {
+   "flag": "-esr",
+   "label": "Esper Spells Random",
+   "help": "Esper spells randomized",
+   "type": "int",
+   "nargs": 2,
+   "metavar": [
+    "MIN",
+    "MAX"
+   ],
+   "min": 0,
+   "max": 5
+  },
+  "-esrt": {
+   "flag": "-esrt",
+   "label": "Esper Spells Random Tiered",
+   "help": "Esper spells randomized by tier",
+   "type": "bool"
+  },
+  "-elr": {
+   "flag": "-elr",
+   "label": "Esper Learnrates Random",
+   "help": "Esper learn rates randomized",
+   "type": "bool"
+  },
+  "-elrt": {
+   "flag": "-elrt",
+   "label": "Esper Learnrates Random Tiered",
+   "help": "Esper learn rates randomized by tier",
+   "type": "bool"
+  },
+  "-ebs": {
+   "flag": "-ebs",
+   "label": "Esper Bonuses Shuffle",
+   "help": "Esper bonuses shuffled",
+   "type": "bool"
+  },
+  "-ebr": {
+   "flag": "-ebr",
+   "label": "Esper Bonuses Random",
+   "help": "Esper bonuses randomized",
+   "type": "int",
+   "metavar": [
+    "PERCENT"
+   ],
+   "min": 0,
+   "max": 100
+  },
+  "-emps": {
+   "flag": "-emps",
+   "label": "Esper MP Shuffle",
+   "help": "Esper MP costs shuffled",
+   "type": "bool"
+  },
+  "-emprv": {
+   "flag": "-emprv",
+   "label": "Esper MP Random Value",
+   "help": "Each esper's MP cost set to random value within given range",
+   "type": "int",
+   "nargs": 2,
+   "metavar": [
+    "MIN",
+    "MAX"
+   ],
+   "min": 0,
+   "max": 254
+  },
+  "-emprp": {
+   "flag": "-emprp",
+   "label": "Esper MP Random Percent",
+   "help": "Each esper's MP cost set to random percent of original within given range",
+   "type": "int",
+   "nargs": 2,
+   "metavar": [
+    "MIN",
+    "MAX"
+   ],
+   "min": 0,
+   "max": 200
+  },
+  "-eer": {
+   "flag": "-eer",
+   "label": "Esper Equipable Random",
+   "help": "Each esper equipable by between MIN MAX random characters",
+   "type": "int",
+   "nargs": 2,
+   "metavar": [
+    "MIN",
+    "MAX"
+   ],
+   "min": 0,
+   "max": 12
+  },
+  "-eebr": {
+   "flag": "-eebr",
+   "label": "Esper Equipable Balanced Random",
+   "help": "Each esper equipable by VALUE random characters. Total number of espers equipable by each character is balanced",
+   "type": "int",
+   "metavar": [
+    "VALUE"
+   ],
+   "min": 0,
+   "max": 12
+  },
+  "-ems": {
+   "flag": "-ems",
+   "label": "Esper Multi Summon",
+   "help": "Espers can be summoned multiple times in battle",
+   "type": "bool"
+  },
+  "-emi": {
+   "flag": "-emi",
+   "label": "Esper Mastered Icon",
+   "help": "Add an icon to show when all spells have been learned from an esper",
+   "type": "bool"
+  },
+  "-nm1": {
+   "flag": "-nm1",
+   "label": "Natural Magic1",
+   "help": "Character to learn Terra's natural magic",
+   "type": "str",
+   "choices": [
+    "random",
+    "",
+    "terra",
+    "locke",
+    "cyan",
+    "shadow",
+    "edgar",
+    "sabin",
+    "celes",
+    "strago",
+    "relm",
+    "setzer",
+    "mog",
+    "gau"
+   ],
+   "default": ""
+  },
+  "-rnl1": {
+   "flag": "-rnl1",
+   "label": "Random Natural Levels1",
+   "help": "Randomize levels Terra learns natural spells",
+   "type": "bool"
+  },
+  "-rns1": {
+   "flag": "-rns1",
+   "label": "Random Natural Spells1",
+   "help": "Randomize Terra's natural spells",
+   "type": "bool"
+  },
+  "-nm2": {
+   "flag": "-nm2",
+   "label": "Natural Magic2",
+   "help": "Character to learn Celes' natural magic",
+   "type": "str",
+   "choices": [
+    "random",
+    "",
+    "terra",
+    "locke",
+    "cyan",
+    "shadow",
+    "edgar",
+    "sabin",
+    "celes",
+    "strago",
+    "relm",
+    "setzer",
+    "mog",
+    "gau"
+   ],
+   "default": ""
+  },
+  "-rnl2": {
+   "flag": "-rnl2",
+   "label": "Random Natural Levels2",
+   "help": "Randomize levels Celes learns natural spells",
+   "type": "bool"
+  },
+  "-rns2": {
+   "flag": "-rns2",
+   "label": "Random Natural Spells2",
+   "help": "Randomize Celes' natural spells",
+   "type": "bool"
+  },
+  "-nmmi": {
+   "flag": "-nmmi",
+   "label": "Natural Magic Menu Indicator",
+   "help": "Add indicator to status menu for characters with natural magic",
+   "type": "bool"
+  },
+  "-mmps": {
+   "flag": "-mmps",
+   "label": "Magic MP Shuffle",
+   "help": "Magic spells' MP costs shuffled",
+   "type": "bool"
+  },
+  "-mmprv": {
+   "flag": "-mmprv",
+   "label": "Magic MP Random Value",
+   "help": "Magic spells' MP costs randomized",
+   "type": "int",
+   "nargs": 2,
+   "metavar": [
+    "MIN",
+    "MAX"
+   ],
+   "min": 0,
+   "max": 254
+  },
+  "-mmprp": {
+   "flag": "-mmprp",
+   "label": "Magic MP Random Percent",
+   "help": "Each Magic spell's MP cost set to random percent of original within given range",
+   "type": "int",
+   "nargs": 2,
+   "metavar": [
+    "MIN",
+    "MAX"
+   ],
+   "min": 0,
+   "max": 200
+  },
+  "-gp": {
+   "flag": "-gp",
+   "label": "Gold",
+   "help": "Start game with COUNT gold [0-999999], default 0",
+   "type": "int",
+   "metavar": [
+    "COUNT"
+   ],
+   "min": 0,
+   "max": 999999
+  },
+  "-smc": {
+   "flag": "-smc",
+   "label": "Start Moogle Charms",
+   "help": "Start game with COUNT Moogle Charms. Overrides No Moogle Charms option",
+   "type": "int",
+   "metavar": [
+    "COUNT"
+   ],
+   "min": 0,
+   "max": 3
+  },
+  "-sshoes": {
+   "flag": "-sshoes",
+   "label": "Start Sprint Shoes",
+   "help": "Start game with COUNT Sprint Shoes. Overrides No Sprint Shoes option",
+   "type": "int",
+   "metavar": [
+    "COUNT"
+   ],
+   "min": 0,
+   "max": 3
+  },
+  "-sws": {
+   "flag": "-sws",
+   "label": "Start Warp Stones",
+   "help": "Start game with COUNT Warp Stones",
+   "type": "int",
+   "metavar": [
+    "COUNT"
+   ],
+   "min": 0,
+   "max": 10
+  },
+  "-sfd": {
+   "flag": "-sfd",
+   "label": "Start Fenix Downs",
+   "help": "Start game with COUNT Fenix Downs",
+   "type": "int",
+   "metavar": [
+    "COUNT"
+   ],
+   "min": 0,
+   "max": 10
+  },
+  "-sto": {
+   "flag": "-sto",
+   "label": "Start Tools",
+   "help": "Start game with COUNT different random tools",
+   "type": "int",
+   "metavar": [
+    "COUNT"
+   ],
+   "min": 0,
+   "max": 8
+  },
+  "-sj": {
+   "flag": "-sj",
+   "label": "Start Junk",
+   "help": "Start game with COUNT unique low tier items. Includes weapons, armors, helmets, shields, and relics",
+   "type": "int",
+   "metavar": [
+    "COUNT"
+   ],
+   "min": 0,
+   "max": 24
+  },
+  "-si": {
+   "flag": "-si",
+   "label": "Start Items",
+   "help": "Start the game with items.",
+   "type": "str"
+  },
+  "-ier": {
+   "flag": "-ier",
+   "label": "Item Equipable Random",
+   "help": "Each item equipable by between MIN MAX random characters",
+   "type": "int",
+   "nargs": 2,
+   "metavar": [
+    "MIN",
+    "MAX"
+   ],
+   "min": 0,
+   "max": 14
+  },
+  "-iebr": {
+   "flag": "-iebr",
+   "label": "Item Equipable Balanced Random",
+   "help": "Each item equipable by VALUE random characters. Total number of items equipable by each character is balanced",
+   "type": "int",
+   "metavar": [
+    "VALUE"
+   ],
+   "min": 0,
+   "max": 14
+  },
+  "-ietr": {
+   "flag": "-ietr",
+   "label": "Item Equipable Tiered Random",
+   "help": "Equipment is categorized by tier and chance of being equipable by a character is chosen at random. Higher tier equipment is less likely to be equipable.",
+   "type": "bool"
+  },
+  "-ieor": {
+   "flag": "-ieor",
+   "label": "Item Equipable Original Random",
+   "help": "Characters have a PERCENT chance of being able to equip each item they could not previously equip. If PERCENT negative, characters have a -PERCENT chance of not being able to equip each item they could previously equip",
+   "type": "int",
+   "metavar": [
+    "PERCENT"
+   ],
+   "min": -100,
+   "max": 100
+  },
+  "-iesr": {
+   "flag": "-iesr",
+   "label": "Item Equipable Shuffle Random",
+   "help": "Shuffle character equipment. After randomization, characters have a PERCENT chance of being able to equip each item they could not previously equip. If PERCENT negative, characters have a -PERCENT chance of not being able to equip each item they could previously equip",
+   "type": "int",
+   "metavar": [
+    "PERCENT"
+   ],
+   "min": -100,
+   "max": 100
+  },
+  "-ierr": {
+   "flag": "-ierr",
+   "label": "Item Equipable Relic Random",
+   "help": "Each relic equipable by between MIN MAX random characters",
+   "type": "int",
+   "nargs": 2,
+   "metavar": [
+    "MIN",
+    "MAX"
+   ],
+   "min": 0,
+   "max": 14
+  },
+  "-ierbr": {
+   "flag": "-ierbr",
+   "label": "Item Equipable Relic Balanced Random",
+   "help": "Each relic equipable by VALUE random characters. Total number of relics equipable by each character is balanced",
+   "type": "int",
+   "metavar": [
+    "VALUE"
+   ],
+   "min": 0,
+   "max": 14
+  },
+  "-iertr": {
+   "flag": "-iertr",
+   "label": "Item Equipable Relic Tiered Random",
+   "help": "Relics are categorized by tier and chance of being equipable by a character is chosen at random. Higher tier relics are less likely to be equipable.",
+   "type": "bool"
+  },
+  "-ieror": {
+   "flag": "-ieror",
+   "label": "Item Equipable Relic Original Random",
+   "help": "Characters have a PERCENT chance of being able to equip each relic they could not previously equip. If PERCENT negative, characters have a -PERCENT chance of not being able to equip each relic they could previously equip",
+   "type": "int",
+   "metavar": [
+    "PERCENT"
+   ],
+   "min": -100,
+   "max": 100
+  },
+  "-iersr": {
+   "flag": "-iersr",
+   "label": "Item Equipable Relic Shuffle Random",
+   "help": "Shuffle character relics. After randomization, characters have a PERCENT chance of being able to equip each item they could not previously equip. If PERCENT negative, characters have a -PERCENT chance of not being able to equip each item they could previously equip",
+   "type": "int",
+   "metavar": [
+    "PERCENT"
+   ],
+   "min": -100,
+   "max": 100
+  },
+  "-ir": {
+   "flag": "-ir",
+   "label": "Item Rewards",
+   "help": "Choose which items will be received as check rewards",
+   "type": "str"
+  },
+  "-csb": {
+   "flag": "-csb",
+   "label": "Cursed Shield Battles",
+   "help": "Number of battles required to uncurse the cursed shield",
+   "type": "int",
+   "nargs": 2,
+   "metavar": [
+    "MIN",
+    "MAX"
+   ],
+   "min": 0,
+   "max": 256,
+   "default": [
+    256,
+    256
+   ]
+  },
+  "-mca": {
+   "flag": "-mca",
+   "label": "Moogle Charm All",
+   "help": "All characters can wear Moogle Charm relics which prevent random battles. Overrides Equipable option",
+   "type": "bool"
+  },
+  "-stra": {
+   "flag": "-stra",
+   "label": "Swdtech Runic All",
+   "help": "All weapons enable swdtech and runic",
+   "type": "bool"
+  },
+  "-saw": {
+   "flag": "-saw",
+   "label": "Stronger Atma Weapon",
+   "help": "Atma Weapon moved to higher tier and divisor reduced from 64 to 32",
+   "type": "bool"
+  },
+  "-sisr": {
+   "flag": "-sisr",
+   "label": "Shop Inventory Shuffle Random",
+   "help": "Shop inventories randomized based on type. All weapon shops randomized, all armor shops, etc...",
+   "type": "int",
+   "metavar": [
+    "PERCENT"
+   ],
+   "min": 0,
+   "max": 100
+  },
+  "-sirt": {
+   "flag": "-sirt",
+   "label": "Shop Inventory Random Tiered",
+   "help": "Shop inventories randomized based on type and tier. All weapon shops randomized, all armor shops, etc...",
+   "type": "bool"
+  },
+  "-sie": {
+   "flag": "-sie",
+   "label": "Shop Inventory Empty",
+   "help": "Shop inventories empty",
+   "type": "bool"
+  },
+  "-sprv": {
+   "flag": "-sprv",
+   "label": "Shop Prices Random Value",
+   "help": "Each item cost set to random value within given range",
+   "type": "int",
+   "nargs": 2,
+   "metavar": [
+    "MIN",
+    "MAX"
+   ],
+   "min": 0,
+   "max": 65535
+  },
+  "-sprp": {
+   "flag": "-sprp",
+   "label": "Shop Prices Random Percent",
+   "help": "Each item cost set to random percent of original within given range",
+   "type": "int",
+   "nargs": 2,
+   "metavar": [
+    "MIN",
+    "MAX"
+   ],
+   "min": 0,
+   "max": 200
+  },
+  "-ssf4": {
+   "flag": "-ssf4",
+   "label": "Shop Sell Fraction4",
+   "help": "Items sell for 1/4 their price",
+   "type": "bool"
+  },
+  "-ssf8": {
+   "flag": "-ssf8",
+   "label": "Shop Sell Fraction8",
+   "help": "Items sell for 1/8 their price",
+   "type": "bool"
+  },
+  "-ssf0": {
+   "flag": "-ssf0",
+   "label": "Shop Sell Fraction0",
+   "help": "Items sell for zero",
+   "type": "bool"
+  },
+  "-sdm": {
+   "flag": "-sdm",
+   "label": "Shop Dried Meat",
+   "help": "COUNT shops will contain dried meat",
+   "type": "int",
+   "metavar": [
+    "COUNT"
+   ],
+   "min": 0,
+   "max": 10,
+   "default": 1
+  },
+  "-npi": {
+   "flag": "-npi",
+   "label": "No Priceless Items",
+   "help": "Assign values to items which normally sell for 1 gold. Recommended with random inventory",
+   "type": "bool"
+  },
+  "-snbr": {
+   "flag": "-snbr",
+   "label": "Shops No Breakable Rods",
+   "help": "Poison, Fire, Ice, Thunder, Gravity, and Pearl Rods not sold in shops",
+   "type": "bool"
+  },
+  "-sebr": {
+   "flag": "-sebr",
+   "label": "Shops Expensive Breakable Rods",
+   "help": "Poison, Fire, Ice, Thunder, Gravity, and Pearl Rods base price increased",
+   "type": "bool"
+  },
+  "-snes": {
+   "flag": "-snes",
+   "label": "Shops No Elemental Shields",
+   "help": "Flame, Ice, and Thunder Shields not sold in shops",
+   "type": "bool"
+  },
+  "-snsb": {
+   "flag": "-snsb",
+   "label": "Shops No Super Balls",
+   "help": "Super Balls not sold in shops",
+   "type": "bool"
+  },
+  "-sesb": {
+   "flag": "-sesb",
+   "label": "Shops Expensive Super Balls",
+   "help": "Super Balls base price increase",
+   "type": "bool"
+  },
+  "-snee": {
+   "flag": "-snee",
+   "label": "Shops No EXP Eggs",
+   "help": "Exp. Eggs not sold in shops",
+   "type": "bool"
+  },
+  "-snil": {
+   "flag": "-snil",
+   "label": "Shops No Illuminas",
+   "help": "Illuminas not sold in shops",
+   "type": "bool"
+  },
+  "-ccsr": {
+   "flag": "-ccsr",
+   "label": "Chest Contents Shuffle Random",
+   "help": "Chest contents shuffled and given percent randomized",
+   "type": "int",
+   "metavar": [
+    "PERCENT"
+   ],
+   "min": 0,
+   "max": 100
+  },
+  "-ccrt": {
+   "flag": "-ccrt",
+   "label": "Chest Contents Random Tiered",
+   "help": "Chest contents randomized by tier",
+   "type": "bool"
+  },
+  "-ccrs": {
+   "flag": "-ccrs",
+   "label": "Chest Contents Random Scaled",
+   "help": "Chest contents randomized by tier. Probability of higher tiers begins low and increases as more chests are opened",
+   "type": "bool"
+  },
+  "-cce": {
+   "flag": "-cce",
+   "label": "Chest Contents Empty",
+   "help": "Chest contents empty",
+   "type": "bool"
+  },
+  "-chrm": {
+   "flag": "-chrm",
+   "label": "Chest Random Monsters",
+   "help": "Chest contents will contain given percent enemies and, of those, given percent bosses",
+   "type": "int",
+   "nargs": 2,
+   "metavar": [
+    "ENEMY",
+    "BOSS"
+   ],
+   "min": 0,
+   "max": 100,
+   "default": [
+    0,
+    0
+   ]
+  },
+  "-cms": {
+   "flag": "-cms",
+   "label": "Chest Monsters Shuffle",
+   "help": "Monsters-in-a-box shuffled but locations unchanged",
+   "type": "bool"
+  },
+  "-name": {
+   "flag": "-name",
+   "label": "Character Names",
+   "help": "Character names",
+   "type": "str"
+  },
+  "-cpor": {
+   "flag": "-cpor",
+   "label": "Character Portraits",
+   "help": "Character portrait indices",
+   "type": "str"
+  },
+  "-cspr": {
+   "flag": "-cspr",
+   "label": "Character Sprites",
+   "help": "Character sprite indices",
+   "type": "str"
+  },
+  "-frw": {
+   "flag": "-frw",
+   "label": "Flashes Remove Worst",
+   "help": "Removes the worst flashes from story scenes (the Pixel Remaster's battle effects are its own).",
+   "type": "bool"
+  },
+  "-frm": {
+   "flag": "-frm",
+   "label": "Flashes Remove Most",
+   "help": "Removes most flashes from story scenes (the Pixel Remaster's battle effects are its own).",
+   "type": "bool"
+  },
+  "-cor": {
+   "flag": "-cor",
+   "label": "Coliseum Opponents Random",
+   "help": "Coliseum opponents original with a given percent randomized",
+   "type": "int",
+   "nargs": "?",
+   "metavar": [
+    "PERCENT"
+   ],
+   "min": 0,
+   "max": 100,
+   "const": 100
+  },
+  "-cosr": {
+   "flag": "-cosr",
+   "label": "Coliseum Opponents Shuffle Random",
+   "help": "Coliseum opponents shuffled and then given percent randomized",
+   "type": "int",
+   "metavar": [
+    "PERCENT"
+   ],
+   "min": 0,
+   "max": 100
+  },
+  "-crr": {
+   "flag": "-crr",
+   "label": "Coliseum Rewards Random",
+   "help": "Coliseum rewards original with a given percent randomized",
+   "type": "int",
+   "nargs": "?",
+   "metavar": [
+    "PERCENT"
+   ],
+   "min": 0,
+   "max": 100,
+   "const": 100
+  },
+  "-crsr": {
+   "flag": "-crsr",
+   "label": "Coliseum Rewards Shuffle Random",
+   "help": "Coliseum rewards shuffled and then a given percent randomized",
+   "type": "int",
+   "metavar": [
+    "PERCENT"
+   ],
+   "min": 0,
+   "max": 100
+  },
+  "-crvr": {
+   "flag": "-crvr",
+   "label": "Coliseum Rewards Visible Random",
+   "help": "Random number of rewards within given range visible before beginning the match. Remaining rewards will display as question marks",
+   "type": "int",
+   "nargs": 2,
+   "metavar": [
+    "MIN",
+    "MAX"
+   ],
+   "min": 0,
+   "max": 255
+  },
+  "-crm": {
+   "flag": "-crm",
+   "label": "Coliseum Rewards Menu",
+   "help": "Display rewards in item selection menu. Hidden rewards will display as question marks",
+   "type": "bool"
+  },
+  "-cnee": {
+   "flag": "-cnee",
+   "label": "Coliseum No EXP Eggs",
+   "help": "Exp. Eggs will not appear in coliseum",
+   "type": "bool"
+  },
+  "-cnil": {
+   "flag": "-cnil",
+   "label": "Coliseum No Illuminas",
+   "help": "Illuminas will not appear in coliseum",
+   "type": "bool"
+  },
+  "-ari": {
+   "flag": "-ari",
+   "label": "Auction Random Items",
+   "help": "Normal items randomized. Does not affect unbuyable items or Golem/Zoneseek slots",
+   "type": "bool"
+  },
+  "-anca": {
+   "flag": "-anca",
+   "label": "Auction No Chocobo Airship",
+   "help": "Unbuyable talking chocobo and 1/1200 airship not offered to increase odds of items/espers",
+   "type": "bool"
+  },
+  "-adeh": {
+   "flag": "-adeh",
+   "label": "Auction Door Esper Hint",
+   "help": "Door NPC indicates whether espers are still available",
+   "type": "bool"
+  },
+  "-ame": {
+   "flag": "-ame",
+   "label": "Auction Max Espers",
+   "help": "Auction House has max COUNT espers (can be less)",
+   "type": "int",
+   "metavar": [
+    "COUNT"
+   ],
+   "min": 0,
+   "max": 2,
+   "default": 2
+  },
+  "-nmc": {
+   "flag": "-nmc",
+   "label": "No Moogle Charms",
+   "help": "Moogle Charms will not appear in coliseum/auction/shops/chests/events",
+   "type": "bool"
+  },
+  "-nee": {
+   "flag": "-nee",
+   "label": "No EXP Eggs",
+   "help": "Exp. Eggs will not appear in coliseum/auction/shops/chests/events",
+   "type": "bool"
+  },
+  "-nil": {
+   "flag": "-nil",
+   "label": "No Illuminas",
+   "help": "Illuminas will not appear in coliseum/auction/shops/chests/events",
+   "type": "bool"
+  },
+  "-noshoes": {
+   "flag": "-noshoes",
+   "label": "No Sprint Shoes",
+   "help": "Sprint Shoes will not appear in coliseum/auction/shops/chests",
+   "type": "bool"
+  },
+  "-nu": {
+   "flag": "-nu",
+   "label": "No Ultima",
+   "help": "Ultima cannot be learned from espers/items/natural magic",
+   "type": "bool"
+  },
+  "-u254": {
+   "flag": "-u254",
+   "label": "Ultima 254 MP",
+   "help": "Ultima costs 254 MP",
+   "type": "bool"
+  },
+  "-nfps": {
+   "flag": "-nfps",
+   "label": "No Free Paladin Shields",
+   "help": "Paladin/Cursed Shields will not appear in coliseum/auction/shops/chests/events (Narshe WOR exclusive)",
+   "type": "bool"
+  },
+  "-nfce": {
+   "flag": "-nfce",
+   "label": "No Free Characters Espers",
+   "help": "Remove character/esper rewards from: Auction House, Collapsing House, Figaro Castle Throne, Gau's Father's House, Kohlingen Inn, Narshe Weapon Shop, Sealed Gate, South Figaro Basement",
+   "type": "bool"
+  },
+  "-pd": {
+   "flag": "-pd",
+   "label": "Permadeath",
+   "help": "Life spells cannot be learned. Fenix Downs unavailable (except from starting items). Buckets/inns/tents/events do not revive characters. Phoenix casts Life 3 on party instead of Life",
+   "type": "bool"
+  },
+  "-rls": {
+   "flag": "-rls",
+   "label": "Remove Learnable Spells",
+   "help": "Remove spells from learnable sources: Items, Espers, Natural Magic, and Objectives",
+   "type": "str"
+  },
+  "-nosaves": {
+   "flag": "-nosaves",
+   "label": "No Saves",
+   "help": "Ironmog Mode: You cannot save (but save points still work for Tents/Sleeping Bags)",
+   "type": "bool"
+  },
+  "-fs": {
+   "flag": "-fs",
+   "label": "Fix Sketch",
+   "help": "Sketch missing will not cause various major glitches",
+   "type": "bool"
+  },
+  "-fe": {
+   "flag": "-fe",
+   "label": "Fix Evade",
+   "help": "Evade used for physical attacks instead of mblock. Fixes Beads, Blind, and other status effect influences",
+   "type": "bool"
+  },
+  "-fvd": {
+   "flag": "-fvd",
+   "label": "Fix Vanish Doom",
+   "help": "Vanish does not override instant death immunity",
+   "type": "bool"
+  },
+  "-fr": {
+   "flag": "-fr",
+   "label": "Fix Retort",
+   "help": "Retort will not counter various actions infinitely with Imp status",
+   "type": "bool"
+  },
+  "-fj": {
+   "flag": "-fj",
+   "label": "Fix Jump",
+   "help": "Fix characters disappearing as a result of jump/super ball/launcher interactions",
+   "type": "bool"
+  },
+  "-fbs": {
+   "flag": "-fbs",
+   "label": "Fix Boss Skip",
+   "help": "Poltergeist and Inferno in Kefka's Tower cannot be skipped",
+   "type": "bool"
+  },
+  "-fedc": {
+   "flag": "-fedc",
+   "label": "Fix Enemy Damage Counter",
+   "help": "Enemy damage counters only trigger if HP is reduced",
+   "type": "bool"
+  },
+  "-fc": {
+   "flag": "-fc",
+   "label": "Fix Capture",
+   "help": "Fix Capture such that Weapon Special Effects are applied and Multi-Steals work",
+   "type": "bool"
+  },
+  "-ond": {
+   "flag": "-ond",
+   "label": "Original Name Display",
+   "help": "Display original character names in party and party select menus",
+   "type": "bool"
+  },
+  "-rr": {
+   "flag": "-rr",
+   "label": "Random Rng",
+   "help": "(DEPRECATED -- Always On) Randomize in-game RNG table. Affects Setzer's Slots, Auction House, Ebot's Rock, ...",
+   "type": "bool"
+  },
+  "-rc": {
+   "flag": "-rc",
+   "label": "Random Clock",
+   "help": "(DEPRECATED -- Always On) Randomize clock's correct time and NPC clues in Zozo",
+   "type": "bool"
+  },
+  "-scan": {
+   "flag": "-scan",
+   "label": "Scan All",
+   "help": "All enemies scannable. All characters start with scan learned. Scan costs 0 MP. Useful for testing/debugging",
+   "type": "bool"
+  },
+  "-warp": {
+   "flag": "-warp",
+   "label": "Warp All",
+   "help": "All characters start with Warp learned. Warp costs 0 MP. Useful for seeds that limit Warp Stone access",
+   "type": "bool"
+  },
+  "-move": {
+   "flag": "-move",
+   "label": "Movement",
+   "help": "Player movement options",
+   "type": "str",
+   "choices": [
+    "og",
+    "as",
+    "bd",
+    "ssbd"
+   ]
+  },
+  "-as": {
+   "flag": "-as",
+   "label": "Auto Sprint",
+   "help": "DEPRECATED - Use `-move as` instead. Player always sprints. Sprint Shoes have no effect",
+   "type": "bool"
+  },
+  "-etr": {
+   "flag": "-etr",
+   "label": "Event Timers Random",
+   "help": "Collapsing House, Opera House, and Floating Continent timers randomized",
+   "type": "bool"
+  },
+  "-etn": {
+   "flag": "-etn",
+   "label": "Event Timers None",
+   "help": "Collapsing House, Opera House, and Floating Continent timers removed",
+   "type": "bool"
+  }
+ },
+ "sections": [
+  {
+   "title": "Settings",
+   "rows": [
+    {
+     "kind": "flag",
+     "flag": "-hf"
+    },
+    {
+     "kind": "choice",
+     "label": "Game Mode",
+     "options": [
+      {
+       "flag": "-open",
+       "label": "Open World"
+      },
+      {
+       "flag": "-cg",
+       "label": "Character Gating"
+      }
+     ]
+    },
+    {
+     "kind": "flag",
+     "flag": "-sl"
+    }
+   ],
+   "port": "yes"
+  },
+  {
+   "title": "Objectives",
+   "rows": [
+    {
+     "kind": "flag",
+     "flag": "-oa"
+    },
+    {
+     "kind": "flag",
+     "flag": "-ob"
+    },
+    {
+     "kind": "flag",
+     "flag": "-oc"
+    },
+    {
+     "kind": "flag",
+     "flag": "-od"
+    },
+    {
+     "kind": "flag",
+     "flag": "-oe"
+    },
+    {
+     "kind": "flag",
+     "flag": "-of"
+    },
+    {
+     "kind": "flag",
+     "flag": "-og"
+    },
+    {
+     "kind": "flag",
+     "flag": "-oh"
+    },
+    {
+     "kind": "flag",
+     "flag": "-oi"
+    },
+    {
+     "kind": "flag",
+     "flag": "-oj"
+    },
+    {
+     "kind": "flag",
+     "flag": "-ok"
+    },
+    {
+     "kind": "flag",
+     "flag": "-ol"
+    },
+    {
+     "kind": "flag",
+     "flag": "-om"
+    },
+    {
+     "kind": "flag",
+     "flag": "-on"
+    },
+    {
+     "kind": "flag",
+     "flag": "-oo"
+    },
+    {
+     "kind": "flag",
+     "flag": "-op"
+    },
+    {
+     "kind": "flag",
+     "flag": "-oq"
+    },
+    {
+     "kind": "flag",
+     "flag": "-or"
+    },
+    {
+     "kind": "flag",
+     "flag": "-os"
+    },
+    {
+     "kind": "flag",
+     "flag": "-ot"
+    },
+    {
+     "kind": "flag",
+     "flag": "-ou"
+    },
+    {
+     "kind": "flag",
+     "flag": "-ov"
+    },
+    {
+     "kind": "flag",
+     "flag": "-ow"
+    },
+    {
+     "kind": "flag",
+     "flag": "-ox"
+    },
+    {
+     "kind": "flag",
+     "flag": "-oy"
+    }
+   ],
+   "port": "yes"
+  },
+  {
+   "title": "Starting Party",
+   "rows": [
+    {
+     "kind": "flag",
+     "flag": "-sc1"
+    },
+    {
+     "kind": "flag",
+     "flag": "-sc2"
+    },
+    {
+     "kind": "flag",
+     "flag": "-sc3"
+    },
+    {
+     "kind": "flag",
+     "flag": "-sc4"
+    }
+   ],
+   "port": "yes"
+  },
+  {
+   "title": "Characters",
+   "rows": [
+    {
+     "kind": "flag",
+     "flag": "-sal"
+    },
+    {
+     "kind": "flag",
+     "flag": "-stl"
+    },
+    {
+     "kind": "flag",
+     "flag": "-sn"
+    },
+    {
+     "kind": "flag",
+     "flag": "-eu"
+    },
+    {
+     "kind": "flag",
+     "flag": "-csrp"
+    }
+   ],
+   "port": "yes"
+  },
+  {
+   "title": "SwdTechs",
+   "rows": [
+    {
+     "kind": "flag",
+     "flag": "-fst"
+    },
+    {
+     "kind": "flag",
+     "flag": "-sel"
+    }
+   ],
+   "port": "yes"
+  },
+  {
+   "title": "Blitzes",
+   "rows": [
+    {
+     "kind": "flag",
+     "flag": "-brl"
+    },
+    {
+     "kind": "flag",
+     "flag": "-bel"
+    }
+   ],
+   "port": "yes"
+  },
+  {
+   "title": "Lores",
+   "rows": [
+    {
+     "kind": "flag",
+     "flag": "-slr"
+    },
+    {
+     "kind": "choice",
+     "label": "Lores MP",
+     "options": [
+      {
+       "flag": "-lmps",
+       "label": "Shuffle"
+      },
+      {
+       "flag": "-lmprv",
+       "label": "Random Value"
+      },
+      {
+       "flag": "-lmprp",
+       "label": "Random Percent"
+      }
+     ]
+    },
+    {
+     "kind": "flag",
+     "flag": "-lel"
+    },
+    {
+     "kind": "flag",
+     "flag": "-llr"
+    }
+   ],
+   "port": "yes"
+  },
+  {
+   "title": "Rages",
+   "rows": [
+    {
+     "kind": "flag",
+     "flag": "-srr"
+    },
+    {
+     "kind": "flag",
+     "flag": "-rnl"
+    },
+    {
+     "kind": "flag",
+     "flag": "-rnc"
+    }
+   ],
+   "port": "yes"
+  },
+  {
+   "title": "Dances",
+   "rows": [
+    {
+     "kind": "flag",
+     "flag": "-sdr"
+    },
+    {
+     "kind": "flag",
+     "flag": "-das"
+    },
+    {
+     "kind": "flag",
+     "flag": "-dda"
+    },
+    {
+     "kind": "flag",
+     "flag": "-dns"
+    },
+    {
+     "kind": "flag",
+     "flag": "-del"
+    }
+   ],
+   "port": "yes"
+  },
+  {
+   "title": "Steal",
+   "rows": [
+    {
+     "kind": "choice",
+     "label": "Steal Chances",
+     "options": [
+      {
+       "flag": "-sch",
+       "label": "Higher"
+      },
+      {
+       "flag": "-sca",
+       "label": "Always"
+      }
+     ]
+    },
+    {
+     "kind": "flag",
+     "flag": "-ssd"
+    },
+    {
+     "kind": "flag",
+     "flag": "-ss"
+    },
+    {
+     "kind": "flag",
+     "flag": "-sd"
+    }
+   ],
+   "port": "yes"
+  },
+  {
+   "title": "Sketch/Control",
+   "rows": [
+    {
+     "kind": "flag",
+     "flag": "-scis"
+    },
+    {
+     "kind": "flag",
+     "flag": "-scia"
+    }
+   ],
+   "port": "yes"
+  },
+  {
+   "title": "Commands",
+   "rows": [
+    {
+     "kind": "flag",
+     "flag": "-com"
+    },
+    {
+     "kind": "flag",
+     "flag": "-scc"
+    },
+    {
+     "kind": "flag",
+     "flag": "-rec1"
+    },
+    {
+     "kind": "flag",
+     "flag": "-rec2"
+    },
+    {
+     "kind": "flag",
+     "flag": "-rec3"
+    },
+    {
+     "kind": "flag",
+     "flag": "-rec4"
+    },
+    {
+     "kind": "flag",
+     "flag": "-rec5"
+    },
+    {
+     "kind": "flag",
+     "flag": "-rec6"
+    }
+   ],
+   "port": "yes"
+  },
+  {
+   "title": "Experience, Magic Points, Gold",
+   "rows": [
+    {
+     "kind": "flag",
+     "flag": "-xpm"
+    },
+    {
+     "kind": "flag",
+     "flag": "-mpm"
+    },
+    {
+     "kind": "flag",
+     "flag": "-gpm"
+    },
+    {
+     "kind": "flag",
+     "flag": "-nxppd"
+    }
+   ],
+   "port": "yes"
+  },
+  {
+   "title": "Scaling",
+   "rows": [
+    {
+     "kind": "choice",
+     "label": "Level Scaling",
+     "options": [
+      {
+       "flag": "-lsa",
+       "label": "Average"
+      },
+      {
+       "flag": "-lsh",
+       "label": "Highest"
+      },
+      {
+       "flag": "-lsce",
+       "label": "Characters + Espers"
+      },
+      {
+       "flag": "-lsced",
+       "label": "Characters + Espers + Dragons"
+      },
+      {
+       "flag": "-lsc",
+       "label": "Checks"
+      },
+      {
+       "flag": "-lst",
+       "label": "Time"
+      },
+      {
+       "flag": "-lsbd",
+       "label": "Bosses Dragons"
+      }
+     ]
+    },
+    {
+     "kind": "choice",
+     "label": "HP MP Scaling",
+     "options": [
+      {
+       "flag": "-hma",
+       "label": "Average"
+      },
+      {
+       "flag": "-hmh",
+       "label": "Highest"
+      },
+      {
+       "flag": "-hmce",
+       "label": "Characters + Espers"
+      },
+      {
+       "flag": "-hmced",
+       "label": "Characters + Espers + Dragons"
+      },
+      {
+       "flag": "-hmc",
+       "label": "Checks"
+      },
+      {
+       "flag": "-hmt",
+       "label": "Time"
+      },
+      {
+       "flag": "-hmbd",
+       "label": "Bosses Dragons"
+      }
+     ]
+    },
+    {
+     "kind": "choice",
+     "label": "XP GP Scaling",
+     "options": [
+      {
+       "flag": "-xga",
+       "label": "Average"
+      },
+      {
+       "flag": "-xgh",
+       "label": "Highest"
+      },
+      {
+       "flag": "-xgce",
+       "label": "Characters + Espers"
+      },
+      {
+       "flag": "-xgced",
+       "label": "Characters + Espers + Dragons"
+      },
+      {
+       "flag": "-xgc",
+       "label": "Checks"
+      },
+      {
+       "flag": "-xgt",
+       "label": "Time"
+      },
+      {
+       "flag": "-xgbd",
+       "label": "Bosses Dragons"
+      }
+     ]
+    },
+    {
+     "kind": "choice",
+     "label": "Ability Scaling",
+     "options": [
+      {
+       "flag": "-ase",
+       "label": "Element"
+      },
+      {
+       "flag": "-asr",
+       "label": "Random"
+      }
+     ]
+    },
+    {
+     "kind": "flag",
+     "flag": "-msl"
+    },
+    {
+     "kind": "flag",
+     "flag": "-sed"
+    },
+    {
+     "kind": "flag",
+     "flag": "-sfb"
+    }
+   ],
+   "port": "yes"
+  },
+  {
+   "title": "Bosses",
+   "rows": [
+    {
+     "kind": "choice",
+     "label": "Boss Battles",
+     "options": [
+      {
+       "flag": "-bbs",
+       "label": "Shuffle"
+      },
+      {
+       "flag": "-bbr",
+       "label": "Random"
+      }
+     ]
+    },
+    {
+     "kind": "choice",
+     "label": "Dragon Boss Location / Mix Bosses Dragons",
+     "options": [
+      {
+       "flag": "-drloc",
+       "label": "Dragon Boss Location"
+      },
+      {
+       "flag": "-bmbd",
+       "label": "Mix Bosses Dragons"
+      }
+     ]
+    },
+    {
+     "kind": "flag",
+     "flag": "-stloc"
+    },
+    {
+     "kind": "flag",
+     "flag": "-srp3"
+    },
+    {
+     "kind": "flag",
+     "flag": "-bnds"
+    },
+    {
+     "kind": "flag",
+     "flag": "-be"
+    },
+    {
+     "kind": "flag",
+     "flag": "-bnu"
+    },
+    {
+     "kind": "flag",
+     "flag": "-bmkl"
+    },
+    {
+     "kind": "flag",
+     "flag": "-dgne"
+    },
+    {
+     "kind": "flag",
+     "flag": "-wnz"
+    },
+    {
+     "kind": "flag",
+     "flag": "-mmnu"
+    },
+    {
+     "kind": "flag",
+     "flag": "-cmd"
+    }
+   ],
+   "port": "yes"
+  },
+  {
+   "title": "Encounters",
+   "rows": [
+    {
+     "kind": "choice",
+     "label": "Random Encounters",
+     "options": [
+      {
+       "flag": "-res",
+       "label": "Shuffle"
+      },
+      {
+       "flag": "-rer",
+       "label": "Random"
+      },
+      {
+       "flag": "-rechu",
+       "label": "Chupon"
+      }
+     ]
+    },
+    {
+     "kind": "flag",
+     "flag": "-fer"
+    },
+    {
+     "kind": "flag",
+     "flag": "-escr"
+    }
+   ],
+   "port": "yes"
+  },
+  {
+   "title": "Espers",
+   "rows": [
+    {
+     "kind": "flag",
+     "flag": "-stesp"
+    },
+    {
+     "kind": "choice",
+     "label": "Esper Spells",
+     "options": [
+      {
+       "flag": "-esrr",
+       "label": "Random Rates"
+      },
+      {
+       "flag": "-ess",
+       "label": "Shuffle"
+      },
+      {
+       "flag": "-essrr",
+       "label": "Shuffle Random Rates"
+      },
+      {
+       "flag": "-esr",
+       "label": "Random"
+      },
+      {
+       "flag": "-esrt",
+       "label": "Random Tiered"
+      }
+     ]
+    },
+    {
+     "kind": "choice",
+     "label": "Esper Learnrates Random",
+     "options": [
+      {
+       "flag": "-elr",
+       "label": "Random"
+      },
+      {
+       "flag": "-elrt",
+       "label": "Tiered"
+      }
+     ]
+    },
+    {
+     "kind": "choice",
+     "label": "Esper Bonuses",
+     "options": [
+      {
+       "flag": "-ebs",
+       "label": "Shuffle"
+      },
+      {
+       "flag": "-ebr",
+       "label": "Random"
+      }
+     ]
+    },
+    {
+     "kind": "choice",
+     "label": "Esper MP",
+     "options": [
+      {
+       "flag": "-emps",
+       "label": "Shuffle"
+      },
+      {
+       "flag": "-emprv",
+       "label": "Random Value"
+      },
+      {
+       "flag": "-emprp",
+       "label": "Random Percent"
+      }
+     ]
+    },
+    {
+     "kind": "choice",
+     "label": "Esper Equipable",
+     "options": [
+      {
+       "flag": "-eer",
+       "label": "Random"
+      },
+      {
+       "flag": "-eebr",
+       "label": "Balanced Random"
+      }
+     ]
+    },
+    {
+     "kind": "flag",
+     "flag": "-ems"
+    },
+    {
+     "kind": "flag",
+     "flag": "-emi"
+    }
+   ],
+   "port": "yes"
+  },
+  {
+   "title": "Natural Magic",
+   "rows": [
+    {
+     "kind": "flag",
+     "flag": "-nm1"
+    },
+    {
+     "kind": "flag",
+     "flag": "-rnl1"
+    },
+    {
+     "kind": "flag",
+     "flag": "-rns1"
+    },
+    {
+     "kind": "flag",
+     "flag": "-nm2"
+    },
+    {
+     "kind": "flag",
+     "flag": "-rnl2"
+    },
+    {
+     "kind": "flag",
+     "flag": "-rns2"
+    },
+    {
+     "kind": "flag",
+     "flag": "-nmmi"
+    }
+   ],
+   "port": "yes"
+  },
+  {
+   "title": "Misc. Magic",
+   "rows": [
+    {
+     "kind": "choice",
+     "label": "Magic MP",
+     "options": [
+      {
+       "flag": "-mmps",
+       "label": "Shuffle"
+      },
+      {
+       "flag": "-mmprv",
+       "label": "Random Value"
+      },
+      {
+       "flag": "-mmprp",
+       "label": "Random Percent"
+      }
+     ]
+    }
+   ],
+   "port": "yes"
+  },
+  {
+   "title": "Starting Gold/Items",
+   "rows": [
+    {
+     "kind": "flag",
+     "flag": "-gp"
+    },
+    {
+     "kind": "flag",
+     "flag": "-smc"
+    },
+    {
+     "kind": "flag",
+     "flag": "-sshoes"
+    },
+    {
+     "kind": "flag",
+     "flag": "-sws"
+    },
+    {
+     "kind": "flag",
+     "flag": "-sfd"
+    },
+    {
+     "kind": "flag",
+     "flag": "-sto"
+    },
+    {
+     "kind": "flag",
+     "flag": "-sj"
+    },
+    {
+     "kind": "flag",
+     "flag": "-si"
+    }
+   ],
+   "port": "yes"
+  },
+  {
+   "title": "Items",
+   "rows": [
+    {
+     "kind": "choice",
+     "label": "Item Equipable",
+     "options": [
+      {
+       "flag": "-ier",
+       "label": "Random"
+      },
+      {
+       "flag": "-iebr",
+       "label": "Balanced Random"
+      },
+      {
+       "flag": "-ietr",
+       "label": "Tiered Random"
+      },
+      {
+       "flag": "-ieor",
+       "label": "Original Random"
+      },
+      {
+       "flag": "-iesr",
+       "label": "Shuffle Random"
+      }
+     ]
+    },
+    {
+     "kind": "choice",
+     "label": "Item Equipable Relic",
+     "options": [
+      {
+       "flag": "-ierr",
+       "label": "Random"
+      },
+      {
+       "flag": "-ierbr",
+       "label": "Balanced Random"
+      },
+      {
+       "flag": "-iertr",
+       "label": "Tiered Random"
+      },
+      {
+       "flag": "-ieror",
+       "label": "Original Random"
+      },
+      {
+       "flag": "-iersr",
+       "label": "Shuffle Random"
+      }
+     ]
+    },
+    {
+     "kind": "flag",
+     "flag": "-ir"
+    },
+    {
+     "kind": "flag",
+     "flag": "-csb"
+    },
+    {
+     "kind": "flag",
+     "flag": "-mca"
+    },
+    {
+     "kind": "flag",
+     "flag": "-stra"
+    },
+    {
+     "kind": "flag",
+     "flag": "-saw"
+    }
+   ],
+   "port": "yes"
+  },
+  {
+   "title": "Shops",
+   "rows": [
+    {
+     "kind": "choice",
+     "label": "Shop Inventory",
+     "options": [
+      {
+       "flag": "-sisr",
+       "label": "Shuffle Random"
+      },
+      {
+       "flag": "-sirt",
+       "label": "Random Tiered"
+      },
+      {
+       "flag": "-sie",
+       "label": "Empty"
+      }
+     ]
+    },
+    {
+     "kind": "choice",
+     "label": "Shop Prices Random",
+     "options": [
+      {
+       "flag": "-sprv",
+       "label": "Value"
+      },
+      {
+       "flag": "-sprp",
+       "label": "Percent"
+      }
+     ]
+    },
+    {
+     "kind": "choice",
+     "label": "Shop Sell",
+     "options": [
+      {
+       "flag": "-ssf4",
+       "label": "Fraction4"
+      },
+      {
+       "flag": "-ssf8",
+       "label": "Fraction8"
+      },
+      {
+       "flag": "-ssf0",
+       "label": "Fraction0"
+      }
+     ]
+    },
+    {
+     "kind": "flag",
+     "flag": "-sdm"
+    },
+    {
+     "kind": "flag",
+     "flag": "-npi"
+    },
+    {
+     "kind": "flag",
+     "flag": "-snbr"
+    },
+    {
+     "kind": "flag",
+     "flag": "-sebr"
+    },
+    {
+     "kind": "flag",
+     "flag": "-snes"
+    },
+    {
+     "kind": "flag",
+     "flag": "-snsb"
+    },
+    {
+     "kind": "flag",
+     "flag": "-sesb"
+    },
+    {
+     "kind": "flag",
+     "flag": "-snee"
+    },
+    {
+     "kind": "flag",
+     "flag": "-snil"
+    }
+   ],
+   "port": "yes"
+  },
+  {
+   "title": "Chests",
+   "rows": [
+    {
+     "kind": "choice",
+     "label": "Chest Contents",
+     "options": [
+      {
+       "flag": "-ccsr",
+       "label": "Shuffle Random"
+      },
+      {
+       "flag": "-ccrt",
+       "label": "Random Tiered"
+      },
+      {
+       "flag": "-ccrs",
+       "label": "Random Scaled"
+      },
+      {
+       "flag": "-cce",
+       "label": "Empty"
+      }
+     ]
+    },
+    {
+     "kind": "flag",
+     "flag": "-chrm"
+    },
+    {
+     "kind": "flag",
+     "flag": "-cms"
+    }
+   ],
+   "port": "yes"
+  },
+  {
+   "title": "Graphics",
+   "rows": [
+    {
+     "kind": "flag",
+     "flag": "-name"
+    },
+    {
+     "kind": "flag",
+     "flag": "-cpor"
+    },
+    {
+     "kind": "flag",
+     "flag": "-cspr"
+    },
+    {
+     "kind": "choice",
+     "label": "Flashes Remove",
+     "options": [
+      {
+       "flag": "-frw",
+       "label": "Worst"
+      },
+      {
+       "flag": "-frm",
+       "label": "Most"
+      }
+     ]
+    }
+   ],
+   "port": "partly"
+  },
+  {
+   "title": "Coliseum",
+   "rows": [
+    {
+     "kind": "choice",
+     "label": "Coliseum Opponents",
+     "options": [
+      {
+       "flag": "-cor",
+       "label": "Random"
+      },
+      {
+       "flag": "-cosr",
+       "label": "Shuffle Random"
+      }
+     ]
+    },
+    {
+     "kind": "choice",
+     "label": "Coliseum Rewards",
+     "options": [
+      {
+       "flag": "-crr",
+       "label": "Random"
+      },
+      {
+       "flag": "-crsr",
+       "label": "Shuffle Random"
+      }
+     ]
+    },
+    {
+     "kind": "flag",
+     "flag": "-crvr"
+    },
+    {
+     "kind": "flag",
+     "flag": "-crm"
+    },
+    {
+     "kind": "flag",
+     "flag": "-cnee"
+    },
+    {
+     "kind": "flag",
+     "flag": "-cnil"
+    }
+   ],
+   "port": "yes"
+  },
+  {
+   "title": "Auction House",
+   "rows": [
+    {
+     "kind": "flag",
+     "flag": "-ari"
+    },
+    {
+     "kind": "flag",
+     "flag": "-anca"
+    },
+    {
+     "kind": "flag",
+     "flag": "-adeh"
+    },
+    {
+     "kind": "flag",
+     "flag": "-ame"
+    }
+   ],
+   "port": "yes"
+  },
+  {
+   "title": "Challenges",
+   "rows": [
+    {
+     "kind": "flag",
+     "flag": "-nmc"
+    },
+    {
+     "kind": "flag",
+     "flag": "-nee"
+    },
+    {
+     "kind": "flag",
+     "flag": "-nil"
+    },
+    {
+     "kind": "flag",
+     "flag": "-noshoes"
+    },
+    {
+     "kind": "choice",
+     "label": "No Ultima / Ultima 254 MP",
+     "options": [
+      {
+       "flag": "-nu",
+       "label": "No Ultima"
+      },
+      {
+       "flag": "-u254",
+       "label": "Ultima 254 MP"
+      }
+     ]
+    },
+    {
+     "kind": "flag",
+     "flag": "-nfps"
+    },
+    {
+     "kind": "flag",
+     "flag": "-nfce"
+    },
+    {
+     "kind": "flag",
+     "flag": "-pd"
+    },
+    {
+     "kind": "flag",
+     "flag": "-rls"
+    },
+    {
+     "kind": "flag",
+     "flag": "-nosaves"
+    }
+   ],
+   "port": "yes"
+  },
+  {
+   "title": "Bug Fixes",
+   "rows": [
+    {
+     "kind": "flag",
+     "flag": "-fs"
+    },
+    {
+     "kind": "flag",
+     "flag": "-fe"
+    },
+    {
+     "kind": "flag",
+     "flag": "-fvd"
+    },
+    {
+     "kind": "flag",
+     "flag": "-fr"
+    },
+    {
+     "kind": "flag",
+     "flag": "-fj"
+    },
+    {
+     "kind": "flag",
+     "flag": "-fbs"
+    },
+    {
+     "kind": "flag",
+     "flag": "-fedc"
+    },
+    {
+     "kind": "flag",
+     "flag": "-fc"
+    }
+   ],
+   "port": "pr"
+  },
+  {
+   "title": "Misc.",
+   "rows": [
+    {
+     "kind": "flag",
+     "flag": "-ond"
+    },
+    {
+     "kind": "flag",
+     "flag": "-rr"
+    },
+    {
+     "kind": "flag",
+     "flag": "-rc"
+    },
+    {
+     "kind": "flag",
+     "flag": "-scan"
+    },
+    {
+     "kind": "flag",
+     "flag": "-warp"
+    },
+    {
+     "kind": "flag",
+     "flag": "-move"
+    },
+    {
+     "kind": "flag",
+     "flag": "-as"
+    },
+    {
+     "kind": "choice",
+     "label": "Event Timers",
+     "options": [
+      {
+       "flag": "-etr",
+       "label": "Random"
+      },
+      {
+       "flag": "-etn",
+       "label": "None"
+      }
+     ]
+    }
+   ],
+   "port": "yes"
+  }
+ ],
+ "presets": {
+  "atma series s1": "-cg -oa 2.2.2.2.6.6.4.9.9 -ob 3.1.1.2.9.9.4.12.12.10.22.22 -oc 30.8.8.1.1.11.8 -od 59.1.1.11.31 -oe 37.1.1.3.11 -sc1 random -sc2 random -sc3 random -sal -eu -csrp 80 125 -fst -brl -slr 7 11 -lmprp 75 125 -lel -srr 25 35 -rnl -rnc -sdr 4 4 -das -dda -dns -sch -scis -com 98989898989898989898989898 -rec1 28 -rec2 27 -rec3 5 -xpm 3 -mpm 5 -gpm 5 -nxppd -lsced 2 -hmced 2 -xgced 2 -ase 2 -msl 40 -sed -bbs -drloc shuffle -stloc mix -be -bnu -res -fer 0 -escr 100 -dgne -wnz -mmnu -cmd -esr 2 5 -elrt -ebr 82 -emprp 75 125 -emi -nm1 random -rnl1 -rns1 -nm2 random -rnl2 -rns2 -nmmi -mmprp 75 125 -gp 5000 -smc 3 -sfd 0 -sto 2 -si 253.1.2.240.1.4.246.3.6.233.3.3.222.3.3.241.1.1 -ieor 33 -ieror 33 -ir 9,26,27,28,35,82,96,97,98,128,156,161,162,206,209,211,217,228 -csb 7 15 -mca -stra -saw -sisr 20 -sprp 75 125 -sdm 5 -npi -sebr -snsb -snee -ccsr 20 -chrm 0 0 -cms -frw -wmhc -cor 100 -crr 100 -crvr 100 120 -crm -ari -anca -adeh -ame 1 -nmc -noshoes -u254 -nfps -fs -fe -fvd -fr -fj -fbs -fedc -fc -ond -rr -etn",
+  "moogle cup": "-cg -oa 2.2.2.2.6.6.4.9.9 -ob 3.1.1.2.9.9.4.12.12.10.21.21 -oc 30.8.8.1.1.11.8 -od 59.1.1.11.31 -oe 26.8.8.1.1.12.7 -sc1 random -sc2 random -sc3 random -sal -eu -csrp 100 125 -fst -brl -slr 6 10 -lmprp 75 115 -lel -srr 25 35 -rnl -sdr 3 4 -das -dda -dns -sch -scis -com 98989898989898989898989898 -rec1 28 -xpm 3 -mpm 5 -gpm 5 -nxppd -lsced 2 -hmce 2 -xgced 2.5 -ase 2 -msl 40 -sed -bbs -drloc shuffle -stloc mix -be -bnu -res -fer 0 -escr 100 -dgne -wnz -mmnu -cmd -esr 2 5 -elr -ebr 100 -emprp 75 115 -ems -emi -nm1 random -rnl1 -rns1 -nm2 random -rnl2 -rns2 -nmmi -mmprp 75 115 -gp 5000 -smc 3 -sws 3 -sfd 3 -sto 1 -ieor 45 -ieror 45 -ir premium -csb 2 16 -mca -stra -saw -sisr 35 -sprp 75 115 -sdm 5 -npi -ccsr 35 -chrm 0 0 -cms -frw -wmhc -cor 100 -crr 100 -crvr 255 255 -crm -ari -anca -adeh -ame 1 -nmc -noshoes -nfps -fs -fe -fvd -fr -fj -fbs -fedc -ond -etn"
+ },
+ "wc_version": "1.4.3"
+}

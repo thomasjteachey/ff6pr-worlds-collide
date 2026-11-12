@@ -1,0 +1,2 @@
+# The game's key checks (InputListener) and what gates them
+System\.Input\.InputListener\$\$(GetKeyDown|GetKey|GetLastInputDeviceType)$

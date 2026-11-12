@@ -1,0 +1,5 @@
+# Shops opened from scripts: SysCall "ショップを開く:..." -> Current.<per-shop method>(MainCore) ->
+# OpenShopCommon(groupId, isFirstClock) (for BNW's new Doma Castle merchant, a plugin SysCall)
+SystemCall\.Current\$\$OpenShopCommon$
+SystemCall\.Current\$\$OpenToolShopInFigaroRightWhenFirst$
+SystemCall\.Current\$\$OrganizeOneParty$

@@ -1,0 +1,4 @@
+# WC random battles (2026-11-11): the PR's pre-rolled encounter (PreEncountData) that CheckEncount
+# needs, and the set's party pick (EncountTable: fractions out of 1000)
+Last\.Map\.Attribute\.PreEncountData\$\$
+Last\.Map\.EncountTable\$\$

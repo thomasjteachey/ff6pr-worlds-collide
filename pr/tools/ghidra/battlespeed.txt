@@ -1,0 +1,3 @@
+# WC ATB parity (2026-11-11): the battle speed setting's value, and who reads it
+Last\.Battle\.BattleUtility\$\$GetBattleSpeedByConfigValue$
+Last\.Battle\.BattleProgressATBFF6\$\$ATBCalc$

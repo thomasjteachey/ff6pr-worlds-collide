@@ -1,0 +1,6 @@
+# True Knight cover: the PR's guard choice (TargetFunction.ProtectTarget and its <>c lambdas,
+# unreadable before the script wrote <>c classes on Windows) and the initial-dying check
+TargetFunction\.<>c\$\$<ProtectTarget>b__15_
+TargetFunction\$\$IsInitialProtectDying$
+TargetFunction\$\$ProtectTarget$
+BattleActData\$\$SetProtectData$

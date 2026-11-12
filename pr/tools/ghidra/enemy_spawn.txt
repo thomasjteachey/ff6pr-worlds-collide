@@ -1,0 +1,9 @@
+# WC enemy AI entries/exits (2026-11-12): which party members a battle spawns at its start, how the
+# PR's AddEnemy ability (BattleFunction20) brings one in, and how Escape (16) takes one out
+Last\.Battle\.BattleEnemyInstanceData\$\$(CreateMonsterData|GetEnemyPos|GetMonsterLength|GetMonsterData|\.ctor)$
+Last\.Battle\.BattleFunction20\$\$(CreateEnemy|GetUniqueId|PrevCalc|FixedTarget|HitCalc|UpdateParameter)$
+Last\.Battle\.BattleFunction70\$\$(CreateEnemy|GetUniqueId|PrevCalc)$
+Last\.Battle\.BattleController\$\$(InitEnemyStatus|InitUnitStatus)$
+Last\.Battle\.InstantiateManager\$\$(SetMonstarParty|LoadEnemyAssets|\.ctor)$
+Last\.Battle\.BattleFucntion16FF6\$\$(ExecuteEscape|HitCalc|FixedTarget|UpdateParameter|IsEscape)$
+Last\.Battle\.BattlePlugManager\$\$(Init|GetEnemyUnits|GetDustEnemyUnits)$

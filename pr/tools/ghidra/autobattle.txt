@@ -1,0 +1,1 @@
+Last\.Battle\.ActSelectAuto\$\$(ActSelectNormal|CheckRemoveActData|CreateActDataAuto|IsPrevBattle|IsUseCommand|IsUseAbility|AbilitySubstitutionConfirmation|GetChangedCommnad|GetAbilitySystemType|IsNotTargetALL|CheckAndForceChangeActData|\.ctor|\.cctor)$

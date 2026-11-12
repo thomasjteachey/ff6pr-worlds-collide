@@ -1,0 +1,8 @@
+# title menu: how entries are built, filtered and selected (keyboard/gamepad UI)
+Last\.UI\.KeyInput\.TitleMenuCommandController\$\$Initialize$
+Last\.UI\.KeyInput\.TitleMenuCommandController\$\$CreateTitleCommandContent$
+Last\.UI\.KeyInput\.TitleMenuCommandController\$\$SetActiveCommandList$
+Last\.UI\.KeyInput\.TitleWindowController\$\$SetCommand$
+Last\.UI\.KeyInput\.TitleWindowController\$\$InitSelect$
+Last\.UI\.KeyInput\.TitleWindowController\$\$<InitSelect>b__40_0$
+Last\.Data\.TitleCommandData\$\$CreateContents$

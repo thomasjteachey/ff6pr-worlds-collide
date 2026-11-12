@@ -1,0 +1,3 @@
+# OwnedCharacterClient.UpdateOwnedMagicFromHisotry adds abilities to characters (Biggs and Wedge
+# learned every spell after BNW's first battle): what "history" it reads
+Last\.Management\.OwnedCharacterClient\$\$UpdateOwnedMagicFromHisotry$

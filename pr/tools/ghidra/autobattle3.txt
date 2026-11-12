@@ -1,0 +1,4 @@
+Last\.Battle\.BattleProgressATB\$\$(SetActData|IsActSelectCheck|IsStack|ActFailEndDelegate|RemoveReadyAct)$
+Last\.Battle\.BattleProgressATB\.<>c\$\$<SetActData>b__
+Last\.Battle\.BattleProgress\$\$SetHistoryActData$
+Last\.Battle\.BattleUtility\$\$IsPlayAct$

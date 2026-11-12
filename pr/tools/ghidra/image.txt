@@ -1,0 +1,5 @@
+# Image (Blink): where the PR dodges an attack and breaks the status (BNW: 1 in 3, c2.asm C2232C;
+# vanilla 1 in 4)
+BlinkConditionFunction\$\$IsInvalid$
+BlinkConditionFunction\$\$Update$
+BlinkConditionFunction\$\$Remove$

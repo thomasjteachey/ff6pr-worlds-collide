@@ -1,0 +1,4 @@
+# How the field finds a map's event scripts by name (BNW's added Doma merchant: is a new
+# script asset loaded with the map, or only the ones the map's script list names?)
+FieldController\$\$GetScriptData$
+MapManager\$\$GetScriptData$

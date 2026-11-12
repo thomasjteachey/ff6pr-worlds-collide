@@ -1,0 +1,16 @@
+# Battle commands (BNW command rules): Dance, Rage, Sketch, Control, Bushido, Runic, X-Magic, Throw, Jump, Mug
+Last\.Battle\.ActSelect(Dance|Rampage|Sketch|Manipulate|WildFang|AutoCayenne|Bersak)\$\$
+Last\.Battle\.DanceActFunction\$\$
+Last\.Battle\.DanceConditionFuntion\$\$
+Last\.Battle\.RampageConditionFunction\$\$
+Last\.Battle\.Sketch(EffectActFunction|ConditionFunction)\$\$
+Last\.Battle\.(Enemy)?ManipulateConditionFunction\$\$
+Last\.Battle\.SpecialSwordActFunction\$\$
+Last\.Battle\.SpSwordSkyConditionFunction\$\$
+Last\.Battle\.MagicSealSwordConditionFunction\$\$
+Last\.Battle\.Function\.BattleFunctionMagicDuplation\$\$
+Last\.Battle\.Function\.ThrowItemFunction\$\$
+Last\.Battle\.Jump(EffectActFunction|ConditionFunction|UpEffectActFunction)\$\$
+Last\.Battle\.StealAttackActFunction\$\$
+\$\$GetSpecialAbilityCommandList
+Last\.Battle\.ActSelect\$\$

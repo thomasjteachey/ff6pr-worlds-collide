@@ -1,0 +1,5 @@
+# GetLearnableAbilityList's filters (MagicStoneData): which learning rows a magicite teaches
+Serial\.FF6\.Management\.MagicStoneData\.<>c\$\$<GetLearnableAbilityList>b__13_0$
+Serial\.FF6\.Management\.MagicStoneData\.<>c\$\$<GetLearnableAbilityList>b__13_1$
+Serial\.FF6\.Management\.MagicStoneData\.<>c__DisplayClass13_0\$\$<GetLearnableAbilityList>b__2$
+Serial\.FF6\.Management\.MagicStoneData\.<>c__DisplayClass12_0\$\$<IsMasterLearnableAbility>b__0$

@@ -1,0 +1,14 @@
+# World-map transport creation, activation, interaction and boarding.
+Last\.Map\.TransportationController\$\$(OverrideData|SwitchActiveToAllExistingTransportation|ChangeTransportation|ChangeAcceptActionDirection|Last_Map_ITransportation_GetTransportation)$
+Last\.Map\.TransportationController\$\$SetTransportOffset$
+MapUtility\$\$(GetLayerByInt|GetLayerByZOrder|GetOnLayerZOrderByLayer)$
+Last\.Map\.TransportationController\$\$NeedInteractiveList$
+Last\.Map\.InteractiveTargetObserver\$\$(Setup|AddEventGroup|SwitchTransportationTargetList|TrasnsportationEntityInsert|SearchInteractiveArea|CanPlayerInteractToEntityPosition|IsMovingDestPositionSymbol|IsAcceptActionDirection|IsFront)$
+Last\.Map\.EventActionTransportation\$\$TransportationTalk$
+Last\.Map\.Event\.Transportation\$\$EventTransportationTalk$
+Serial\.FF6\.Map\.TransportationEvent\$\$(IsRideOnTransportation|OnStartMove|OnMoveFinished)$
+Serial\.Template\.Map\.TransportationEvent\$\$(UpdateTransportationKeyHelp|OnTransportationEnabled|IsRideOnTransportation)$
+FieldMap\$\$(InitTransport|UpdateTransport|RequestTransitionInboard|InvokeTransitionInboard)$
+Last\.Map\.FieldController\$\$(WorldActionCommand|BoardingTransportationAction|Last\.Map\.IEntityAccessor\.RideOnTransportation)$
+Last\.Map\.FieldController\$\$(TransportationDownloadData|SetupTransportationMapObject|TransportationEnabled)$
+Last\.Interpreter\.Instructions\.External\.Vehicle\$\$SetVehicle$

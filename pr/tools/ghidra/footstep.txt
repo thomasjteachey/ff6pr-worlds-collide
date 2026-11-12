@@ -1,0 +1,4 @@
+# WC random battles (2026-11-11): the per-step caller of EncounterLot.CheckEncount (whose "in List"
+# parameter breaks Harmony's wrapper), and EncounterLot.IsReady
+Last\.Map\.FootMonitoring\$\$ImmediatelyBeforeMoveingAction$
+Last\.Map\.EncounterLot\$\$IsReady$

@@ -1,0 +1,10 @@
+# dual wield, Offering ("disorderly shoot"), two-handed grip: how the PR decides and applies them
+SerialBattleUtility\$\$IsSecondlyAttack$
+SerialBattleUtility\$\$IsDisorderlyShootAttack$
+SerialBattleUtility\$\$CreateContinuousActData$
+EquipmentAbilityData\$\$IsTwoHanded$
+EquipmentAbilityData\$\$IsHaveBothHandsAbility$
+EquipmentAbilityData\$\$IsBothHandsWeaponByWeaponId$
+EquipmentAbilityData\$\$GetTwoHandedMagnification$
+EquipmentAbilityData\$\$AddAbility$
+CalcExecuteCorrection\$\$GetEquipAccessoryNum$

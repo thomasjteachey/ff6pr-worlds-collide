@@ -1,0 +1,7 @@
+# two-handed grip: where the PR applies it (callers of EquipmentAbilityProvider.GetTwoHandedMagnification
+# and IsHaveBothHandsAbility, found by scanning GameAssembly.dll's il2cpp section for direct calls)
+Last\.Data\.PlayerCharacterParameter\$\$ConfirmedAttack$
+Last\.Data\.PlayerCharacterParameter\$\$GetArmConfirmedAttack$
+Last\.Data\.User\.OwnedCharacterData\$\$get_HasTwohand$
+Serial\.FF6\.Management\.EquipmentAbilityData\$\$\.ctor$
+Serial\.FF6\.Management\.EquipmentAbilityData\$\$<IsHaveBothHandsAbility>b__10_0$

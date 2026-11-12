@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Offline tests for the plugin's FF6 AI interpreter (WcPlugin/SnesAi.cs) on WC's real monster
+       scripts. No game. Run from this folder: dotnet run -c Release [wc_ai_bytes.json] -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net6.0</TargetFramework>
+    <RollForward>Major</RollForward>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="..\WcPlugin\SnesAi.cs" />
+  </ItemGroup>
+</Project>

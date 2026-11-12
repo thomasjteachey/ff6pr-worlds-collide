@@ -1,0 +1,4 @@
+# The game's debug "win battle" (BattleDebugController.BattleEndWin): what ends a battle in a
+# win, so a headless check can reach the result (BNW: what Biggs and Wedge learn after a battle)
+BattleDebugController\$\$BattleEndWin$
+BattleEndJugment\$\$Force$

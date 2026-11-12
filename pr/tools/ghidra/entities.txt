@@ -1,0 +1,9 @@
+# SetEntities: how a map script's entity group (ev_e_*) becomes the map's live entities and touch events
+# (the WoR Narshe mines' east tunnel: four GotoMaps with entity_id 0 in one group, 2026-11-12)
+^Last\.Map\.MapModel\$\$SetEntities$
+^Last\.Map\.MapModel\$\$SetupCurrentPropertyList$
+^Last\.Map\.MapModel\$\$SetEntitiesEnable$
+^Last\.Interpreter\.Instructions\.External\.Entity\$\$SetEntities$
+^Last\.Map\.FieldController\$\$SetEventEntityGroup$
+^Last\.Map\.FieldController\$\$SetupEntities$
+^Last\.Map\.FieldController\$\$EntitiesSetup$

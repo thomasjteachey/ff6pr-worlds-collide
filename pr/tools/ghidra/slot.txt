@@ -1,0 +1,4 @@
+# Slot: reels, rigging and results (FF6 SlotInfomationData), and the battle slot UI
+Serial\.FF6\.Management\.SlotInfomationData\$\$
+Last\.UI\.KeyInput\.BattleSlotController\$\$
+Last\.UI\.KeyInput\.BattleSlotReelController\$\$

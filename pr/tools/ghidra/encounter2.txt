@@ -1,0 +1,2 @@
+# FF6's relic effect on the PR's encounter steps (Charm Bangle / Moogle Charm)
+Serial\.FF6\.Management\.SpcialFlagData\$\$(GetEncountValue|IsEncount)$

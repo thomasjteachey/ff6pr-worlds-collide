@@ -1,0 +1,3 @@
+# why Integrator.Execute refuses a second script started from a test
+Last\.Interpreter\.Integrator\$\$Execute$
+Last\.Interpreter\.Integrator\$\$IsMainCoreAlive$

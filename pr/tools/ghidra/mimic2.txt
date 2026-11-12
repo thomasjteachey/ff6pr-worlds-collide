@@ -1,0 +1,7 @@
+# Mimic's act filters (BattleImpersonationFunctionFF6.<>c lambdas), the act finishing that
+# resets counter counts (BattleActExection.InitFinishingState), and the X-Magic act types
+BattleImpersonationFunctionFF6\.<>c\$\$<GetCopyActData>b__5_0$
+BattleImpersonationFunctionFF6\.<>c\$\$<GetCopyActData>b__5_1$
+BattleActExection\$\$InitFinishingState$
+CounterModule\$\$SetCount$
+CounterModule\$\$InitCounterAI$

@@ -1,0 +1,3 @@
+# Boss fight routines the PR calls from battle event scripts (SystemCall.Current), see
+# PORTING.md "Enemy AI": which battle variables / AI state each one reads or writes
+SystemCall\.Current\$\$(IfritMoveCheck|HiddenEnemyCheck|ChadarnookSwich|No128RebornCheck|AirForceDeadCheck|TentacleBattle|CurlaxsBattle|InfernoEnemyCheck|OrthrusMove|CheckSoulSaver|AnglerWhelk|Deathgaze|DeathGaze|Whelk|Hidon|Dadaluma|Guardian|Kefka|Phunbaba|Ultros|Vargas|Nerapa|Intangir|Myria|Rizopas|Chupon|Dream|Shiva|Asura|Isis|Hell|Soul)

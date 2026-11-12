@@ -1,0 +1,3 @@
+Last\.Interpreter\.Instructions\.SystemCall\.Current\$\$(SetGauMode|ReserveScriptGauFirstJoin|JoinGauInBattle)$
+Last\.Interpreter\.Instructions\.SystemCall\.Current\.<>c\$\$<SetGauMode>b__1167_0$
+Last\.Interpreter\.Instructions\.SystemCall\.Current\.<>c__DisplayClass1167_0\$\$<SetGauMode>b__1$

@@ -1,0 +1,4 @@
+# Life / Phoenix: function 34 ResultValueFixedHPRecovery and its base Calc
+Last\.Battle\.Function\.ResultValueFixedHPRecoveryFunction\$\$
+Last\.Battle\.Function\.BaseValueFixedHPFunction\$\$Calc$
+Last\.Battle\.Function\.RecoveryConditionMultiFunction\$\$(Calc|UpdateParameter)$

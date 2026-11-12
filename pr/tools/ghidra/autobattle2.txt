@@ -1,0 +1,4 @@
+Last\.Battle\.ActSelectAuto\$\$(CreateActDataAuto|IsCheckTakeOverCommand|GetDefaultTarget|IsHaveMagic|GetNowItemData)$
+Last\.Battle\.ActSelectAuto\.<>c\$\$<(IsNotTargetALL|IsPrevBattle|IsUseAbility)>b__
+Last\.Battle\.BattleStatusControlInfo\$\$ActDecision$
+Last\.Battle\.ActSelect\$\$

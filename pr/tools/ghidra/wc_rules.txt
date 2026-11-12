@@ -1,0 +1,3 @@
+# WC options in PR code: Sketch/Control hits (-scis), the cursed shield's count (-csb)
+Serial\.FF6\.Calc\.UniqueUpdateParameterProvider\$\$(HitCalc|IsResistanceSketch|UpdateParameter|GetMonsterData)
+Last\.Interpreter\.Instructions\.SystemCall\.Current\$\$CursedShield

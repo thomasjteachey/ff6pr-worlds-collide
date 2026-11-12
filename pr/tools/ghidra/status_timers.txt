@@ -1,0 +1,22 @@
+# WC status timer parity (2026-11-12): how the PR counts timed statuses down (Stop, Sleep,
+# Freeze, Reflect, Doom), Jump's air time, and Haste/Slow's effect on them
+Last\.Battle\.BattleConditionFunction\$\$Init$
+Last\.Battle\.BattleConditionFunction\$\$UpdateCondtitonRecovery$
+Last\.Battle\.BattleConditionFunction\$\$UpdateCondition$
+Last\.Battle\.BattleConditionFunction\$\$ForceUpdateCondition$
+Last\.Battle\.BattleConditionFunction\$\$EntityUpdateBase$
+Last\.Battle\.BattleConditionFunction\$\$NaturalRemove$
+Last\.Battle\.BattleConditionFunction\$\$Recovery$
+Last\.Battle\.BattleConditionFunction\$\$IsEnd$
+Last\.Battle\.BattleConditionController\$\$Update$
+Last\.Battle\.StopConditionFunction\$\$
+Last\.Battle\.SleepConditionFunction\$\$
+Last\.Battle\.FreezeConditionFunction\$\$
+Last\.Battle\.ReflexConditionFunction\$\$
+Last\.Battle\.DoomConditionFunction\$\$
+Last\.Battle\.DoomExConditionFunction\$\$
+Last\.Battle\.DoomZonbieConditionFunction\$\$
+Last\.Battle\.DoomEquipmentConditionFunction\$\$
+Last\.Battle\.JumpConditionFunction\$\$
+Last\.Battle\.HeistConditionFunction\$\$
+Last\.Battle\.SlowConditionFunction\$\$

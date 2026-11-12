@@ -1,0 +1,5 @@
+Last\.Battle\.ActUtility\$\$GetDefaultTarget$
+Last\.Battle\.ActUtility\.<>c[^$]*\$\$<GetDefaultTarget>
+Last\.Battle\.BattleActExection\$\$StagingActChangeTarget$
+Last\.Battle\.BattleActExection\.<>c[^$]*\$\$<StagingActChangeTarget>
+Last\.Battle\.BattleUtility\$\$(StagingActChangeTargetReady|RandomEnemyTarget|IsNotTargeting)$

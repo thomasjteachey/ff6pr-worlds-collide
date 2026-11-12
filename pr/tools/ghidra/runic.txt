@@ -1,0 +1,5 @@
+# Runic (magic seal sword): the weapons that allow it, which acts it absorbs, what it gives
+Serial\.FF6\.Management\.BlockMagicSwordData\$\$(IsValidBlockMagicSword|\.ctor)$
+Last\.Battle\.MagicSealSwordConditionFunction\$\$
+Serial\.FF6\.Calc\.FunctionProvider\$\$IsMagicSealSwordTargetAct$
+Last\.Battle\.BattleBaseFunction\$\$OverrideMagicSealSwordAct$

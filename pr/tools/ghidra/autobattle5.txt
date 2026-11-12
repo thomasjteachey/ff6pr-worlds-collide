@@ -1,0 +1,2 @@
+Last\.Battle\.BattleActExection\$\$(UpdateTargetedUnitDatas|InitPrepareState|UpdatePrepareState|IfNeededRemoveStackNotAct|ReverseTarget)$
+Last\.Battle\.BattleActExection\.<>c[^$]*\$\$<(UpdateTargetedUnitDatas|InitPrepareState|UpdatePrepareState|IfNeededRemoveStackNotAct)>

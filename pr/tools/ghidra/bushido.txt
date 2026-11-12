@@ -1,0 +1,2 @@
+# Bushido (killing sword): the weapons that allow it
+Serial\.FF6\.Management\.KillingSwordData\$\$

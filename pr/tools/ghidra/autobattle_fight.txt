@@ -1,0 +1,3 @@
+# auto-battle's default act with no history and its equipment substitutions (WC's first-slot Mug:
+# the user's Gau mugged himself, 2026-11-11)
+Last\.Battle\.ActSelectAuto\$\$(CreateFightActData|CheckAndReplaceFightActData|PrevTargetChange)$

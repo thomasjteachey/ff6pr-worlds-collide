@@ -1,0 +1,71 @@
+{
+  "_doc": [
+    "Every mod this project ships, for tools/kit.py (package, deploy, check) and pr/MODDING.md.",
+    "Paths are relative to pr/. A mod is a BepInEx plugin, a Magicite data folder, or both:",
+    "  name          folder name: BepInEx/plugins/<name> and Magicite/<name>",
+    "  game          ff1..ff6 (the plugin is built against that game's code)",
+    "  plugin        project: the plugin's folder (dotnet build -c Release); files/dirs: [source, name in the plugin folder]",
+    "  magicite      the built Magicite folder; magicite_skip: file names left out of it",
+    "  build         commands run from pr/ before the plugin is built (data scripts); {python} = the venv's",
+    "  exclusive     mods sharing this tag are never installed together (deploy shelves the others)",
+    "  keep          plugin sub-folders a reinstall leaves in place (player data, e.g. WC's seeds)",
+    "  deploy        a mod's own deploy command, used instead of the generic one",
+    "  version / version_file + version_key: the package's version suffix",
+    "  package_leave_out  plugin-folder paths the zip leaves out (made on the player's machine from their game);",
+    "                     package_magicite false: the Magicite folder too; player_setup: the script the plugin",
+    "                     runs to make them (the packager checks the plugin's DLL names it)",
+    "  readme_note   extra paragraph in the package README"
+  ],
+  "mods": {
+    "bnw": {
+      "name": "BraveNewWorld",
+      "game": "ff6",
+      "title": "Brave New World 3.0 for FINAL FANTASY VI Pixel Remaster",
+      "plugin": {
+        "project": "plugin/BnwPlugin",
+        "files": [["plugin/BnwPlugin/bin/Release/net6.0/BraveNewWorld.PR.dll", "BraveNewWorld.PR.dll"],
+                  ["mods/BraveNewWorld/bnw_data.json", "bnw_data.json"]]
+      },
+      "magicite": "mods/BraveNewWorld",
+      "magicite_skip": ["bnw_data.json"],
+      "exclusive": "ff6-game-data",
+      "deploy": ["bash", "tools/deploy.sh", "--bnw"],
+      "version_file": "mods/BraveNewWorld/bnw_data.json",
+      "version_key": "version",
+      "readme_note": "This is a mod of its own: don't install it beside the project's other mod (Brave New World and\nWorlds Collide each change the same game data). Start a new game after installing."
+    },
+    "wc": {
+      "name": "WorldsCollide",
+      "game": "ff6",
+      "title": "Worlds Collide 1.4.3 for FINAL FANTASY VI Pixel Remaster",
+      "plugin": {
+        "project": "plugin/WcPlugin",
+        "files": [["plugin/WcPlugin/bin/Release/net6.0/WorldsCollide.PR.dll", "WorldsCollide.PR.dll"],
+                  ["plugin/WcPlugin/wc_flags.json", "wc_flags.json"]],
+        "dirs": [["build/WorldsCollide/plugin/generator", "generator"],
+                 ["build/WorldsCollide/plugin/baseline", "baseline"]]
+      },
+      "magicite": "build/WorldsCollide/magicite/WorldsCollide",
+      "exclusive": "ff6-game-data",
+      "keep": ["seeds"],
+      "package_leave_out": ["generator/vanilla", "generator/cache", "baseline/files", "baseline/vanilla_data"],
+      "package_magicite": false,
+      "player_setup": "wc_gamedata.py",
+      "build": [["{python}", "tools/wc_flags_export.py"]],
+      "post_plugin_build": [["{python}", "tools/wc_bundle.py"]],
+      "deploy": ["bash", "tools/deploy.sh", "--wc"],
+      "readme_note": "Playing: on the title screen, choose \"Worlds Collide\". Pick a preset or paste flags from the\nwebsite (Ctrl+V), type a seed or leave a random one, then \"Generate and play this seed\" and start a\nNew Game. Saves remember their seed. Seeds match the Worlds Collide website's for the same seed and\nflags. Worlds Collide is by AtmaTek and its contributors (MIT license:\nBepInEx/plugins/WorldsCollide/generator/wc/LICENSE.txt).\n\nThis is a mod of its own: don't install it beside the project's other mod (Brave New World and\nWorlds Collide each change the same game data). Start a new game after installing."
+    },
+    "hd2d": {
+      "name": "HD2D",
+      "game": "ff6",
+      "title": "HD-2D look for the Pixel Remaster",
+      "plugin": {
+        "project": "plugin/Hd2dPlugin",
+        "files": [["plugin/Hd2dPlugin/bin/Release/net6.0/HD2D.PR.dll", "HD2D.PR.dll"],
+                  ["hd2d/out/hd2d.bundle", "hd2d.bundle"]]
+      },
+      "readme_note": "Works beside any other mod (it only changes how the picture is drawn). Shaders: pr/hd2d/build_bundle.sh."
+    }
+  }
+}

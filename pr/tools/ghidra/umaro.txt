@@ -1,0 +1,3 @@
+# Umaro: attack choice (Rage Ring / Blizzard Orb odds) and abilities
+Last\.Battle\.ActSelectUmalo\$\$(Init|SetActDataUmalo|ActSelectNormal|GetUnitDatas)$
+Last\.Battle\.ActSelectUmalo\.<>c\$\$

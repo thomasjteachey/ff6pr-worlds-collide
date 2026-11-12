@@ -1,0 +1,8 @@
+# What a character's job teaches (Biggs and Wedge, job 18, learned every spell after the first
+# battle in BNW): the FF6 provider's learned-ability lists, and the template's level/job lookups
+Serial\.FF6\.Management\.JobInfomationData\$\$GetLearnedJobAbilitys$
+Serial\.FF6\.Management\.JobInfomationData\$\$GetLearnedAbilityAllIds$
+Serial\.Template\.Management\.JobInfomationData\$\$GetLearnedJobAbilitys$
+Serial\.Template\.Management\.JobInfomationData\$\$GetAbilityLearningJob$
+Serial\.Template\.Management\.JobInfomationData\$\$GetAbilityLearningLevel$
+Serial\.Template\.Management\.JobInfomationData\$\$UpdateAbilityParameter$

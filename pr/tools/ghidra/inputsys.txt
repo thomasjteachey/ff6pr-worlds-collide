@@ -1,0 +1,3 @@
+# The game's gamepad layer: per-frame button states from Input System actions
+System\.Input\.InputSystemManager\$\$(Update|GetKeyDown|GetKey|Start)$
+System\.Input\.InputObserver\$\$Update$

@@ -1,0 +1,11 @@
+# WC enemy AI parity (2026-11-12): how the PR runs a monster's AI script: the core's execution,
+# the selection phases (normal turn, being hit, dying), tables, jumps, variables, LoopAct
+Last\.Interpreter\.BattleAICore\$\$(Execute|Ready|Reset|get_turnCounter|set_turnCounter|get_tableId|set_tableId|get_extraCounter|set_extraCounter)$
+Last\.Interpreter\.Instructions\.BattleAI\$\$(SyncAI|StartTable|EndTable|JumpBattleAI|VariableAssign|VariableCalc|IsVariableComparison|LoopAct|IsEnemyAttackJump|DamagedJump|IsDamaged|ExecMsg|ViewMes|SetMesId|Polling|ActForTarget|TimerAttackAct|FirstAttackAct|MonsterActRemove)$
+Last\.Interpreter\.Instructions\.BattleAI\.<>c__DisplayClass14_0\$\$<SyncAI>b__0$
+Last\.Interpreter\.Instructions\.BattleAI\.<>c\$\$<SyncAI>b__14_(1|2)$
+Last\.Interpreter\.Instructions\.External\.BattleAI\$\$(ExecBattleAI|Polling|SyncBattleAI)$
+Last\.Interpreter\.Integrator\$\$(ExecuteBattleAICores|BattleAICoreEntry|IsBattleAICoreAlive)$
+Last\.Battle\.ActSelectEnemy\$\$(ActSelectNormal|ActSelectReceivedDamage|ActSelectFinalAttack|ActSelectFirstAttack|ActReceivedAbility|ActDamaged|IsReadyActNormal|IsReadyActCounter|IsReadyFinalAttack|ResetReadyFlag|IsDamaged)$
+Last\.Battle\.ActSelectEnemyController\$\$(ActSelectNormal|ActSelectReceivedDamage|ActSelectFinalAttack|ActReceivedAbility|SetActAbilityNormal|SetActAbilityLoopAttack|SetActAbilityCounter|SetActAbilityFinalAttack|SetActTurn|GetActTurn|IsReadyActNormal|IsReadyActCounter|ResetFlag|SetDamaged|IsDamaged|GetCounterCount|ResetCounterCount)$
+Last\.Battle\.AI\.BattleAiSelectController\$\$GetBattleAI$

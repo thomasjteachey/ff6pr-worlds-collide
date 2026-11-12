@@ -1,0 +1,416 @@
+preset atma series s1	-cg -oa 2.2.2.2.6.6.4.9.9 -ob 3.1.1.2.9.9.4.12.12.10.22.22 -oc 30.8.8.1.1.11.8 -od 59.1.1.11.31 -oe 37.1.1.3.11 -sc1 random -sc2 random -sc3 random -sal -eu -csrp 80 125 -fst -brl -slr 7 11 -lmprp 75 125 -lel -srr 25 35 -rnl -rnc -sdr 4 4 -das -dda -dns -sch -scis -com 98989898989898989898989898 -rec1 28 -rec2 27 -rec3 5 -xpm 3 -mpm 5 -gpm 5 -nxppd -lsced 2 -hmced 2 -xgced 2 -ase 2 -msl 40 -sed -bbs -drloc shuffle -stloc mix -be -bnu -dgne -wnz -mmnu -cmd -res -fer 0 -escr 100 -esr 2 5 -elrt -ebr 82 -emprp 75 125 -emi -nm1 random -rnl1 -rns1 -nm2 random -rnl2 -rns2 -nmmi -mmprp 75 125 -gp 5000 -smc 3 -sfd 0 -sto 2 -si 253.1.2.240.1.4.246.3.6.233.3.3.222.3.3.241.1.1 -ieor 33 -ieror 33 -ir 9,26,27,28,35,82,96,97,98,128,156,161,162,206,209,211,217,228 -csb 7 15 -mca -stra -saw -sisr 20 -sprp 75 125 -sdm 5 -npi -sebr -snsb -snee -ccsr 20 -chrm 0 0 -cms -frw -cor 100 -crr 100 -crvr 100 120 -crm -ari -anca -adeh -ame 1 -nmc -noshoes -u254 -nfps -fs -fe -fvd -fr -fj -fbs -fedc -fc -ond -rr -etn -wmhc
+preset-original atma series s1	-cg -oa 2.2.2.2.6.6.4.9.9 -ob 3.1.1.2.9.9.4.12.12.10.22.22 -oc 30.8.8.1.1.11.8 -od 59.1.1.11.31 -oe 37.1.1.3.11 -sc1 random -sc2 random -sc3 random -sal -eu -csrp 80 125 -fst -brl -slr 7 11 -lmprp 75 125 -lel -srr 25 35 -rnl -rnc -sdr 4 4 -das -dda -dns -sch -scis -com 98989898989898989898989898 -rec1 28 -rec2 27 -rec3 5 -xpm 3 -mpm 5 -gpm 5 -nxppd -lsced 2 -hmced 2 -xgced 2 -ase 2 -msl 40 -sed -bbs -drloc shuffle -stloc mix -be -bnu -res -fer 0 -escr 100 -dgne -wnz -mmnu -cmd -esr 2 5 -elrt -ebr 82 -emprp 75 125 -emi -nm1 random -rnl1 -rns1 -nm2 random -rnl2 -rns2 -nmmi -mmprp 75 125 -gp 5000 -smc 3 -sfd 0 -sto 2 -si 253.1.2.240.1.4.246.3.6.233.3.3.222.3.3.241.1.1 -ieor 33 -ieror 33 -ir 9,26,27,28,35,82,96,97,98,128,156,161,162,206,209,211,217,228 -csb 7 15 -mca -stra -saw -sisr 20 -sprp 75 125 -sdm 5 -npi -sebr -snsb -snee -ccsr 20 -chrm 0 0 -cms -frw -wmhc -cor 100 -crr 100 -crvr 100 120 -crm -ari -anca -adeh -ame 1 -nmc -noshoes -u254 -nfps -fs -fe -fvd -fr -fj -fbs -fedc -fc -ond -rr -etn
+preset moogle cup	-cg -oa 2.2.2.2.6.6.4.9.9 -ob 3.1.1.2.9.9.4.12.12.10.21.21 -oc 30.8.8.1.1.11.8 -od 59.1.1.11.31 -oe 26.8.8.1.1.12.7 -sc1 random -sc2 random -sc3 random -sal -eu -csrp 100 125 -fst -brl -slr 6 10 -lmprp 75 115 -lel -srr 25 35 -rnl -sdr 3 4 -das -dda -dns -sch -scis -com 98989898989898989898989898 -rec1 28 -xpm 3 -mpm 5 -gpm 5 -nxppd -lsced 2 -hmce 2 -xgced 2.5 -ase 2 -msl 40 -sed -bbs -drloc shuffle -stloc mix -be -bnu -dgne -wnz -mmnu -cmd -res -fer 0 -escr 100 -esr 2 5 -elr -ebr 100 -emprp 75 115 -ems -emi -nm1 random -rnl1 -rns1 -nm2 random -rnl2 -rns2 -nmmi -mmprp 75 115 -gp 5000 -smc 3 -sws 3 -sfd 3 -sto 1 -ieor 45 -ieror 45 -ir premium -csb 2 16 -mca -stra -saw -sisr 35 -sprp 75 115 -sdm 5 -npi -ccsr 35 -chrm 0 0 -cms -frw -cor 100 -crr 100 -crvr 255 255 -crm -ari -anca -adeh -ame 1 -nmc -noshoes -nfps -fs -fe -fvd -fr -fj -fbs -fedc -ond -etn -wmhc
+preset-original moogle cup	-cg -oa 2.2.2.2.6.6.4.9.9 -ob 3.1.1.2.9.9.4.12.12.10.21.21 -oc 30.8.8.1.1.11.8 -od 59.1.1.11.31 -oe 26.8.8.1.1.12.7 -sc1 random -sc2 random -sc3 random -sal -eu -csrp 100 125 -fst -brl -slr 6 10 -lmprp 75 115 -lel -srr 25 35 -rnl -sdr 3 4 -das -dda -dns -sch -scis -com 98989898989898989898989898 -rec1 28 -xpm 3 -mpm 5 -gpm 5 -nxppd -lsced 2 -hmce 2 -xgced 2.5 -ase 2 -msl 40 -sed -bbs -drloc shuffle -stloc mix -be -bnu -res -fer 0 -escr 100 -dgne -wnz -mmnu -cmd -esr 2 5 -elr -ebr 100 -emprp 75 115 -ems -emi -nm1 random -rnl1 -rns1 -nm2 random -rnl2 -rns2 -nmmi -mmprp 75 115 -gp 5000 -smc 3 -sws 3 -sfd 3 -sto 1 -ieor 45 -ieror 45 -ir premium -csb 2 16 -mca -stra -saw -sisr 35 -sprp 75 115 -sdm 5 -npi -ccsr 35 -chrm 0 0 -cms -frw -wmhc -cor 100 -crr 100 -crvr 255 255 -crm -ari -anca -adeh -ame 1 -nmc -noshoes -nfps -fs -fe -fvd -fr -fj -fbs -fedc -ond -etn
+on -hf	-hf
+stepped -hf	
+on -open	-open
+stepped -open	
+on -cg	-cg
+stepped -cg	
+on -sl	-sl
+stepped -sl	
+on -sc1	-sc1 terra
+stepped -sc1	-sc1 shadow
+on -sc2	-sc2 terra
+stepped -sc2	-sc2 shadow
+on -sc3	-sc3 terra
+stepped -sc3	-sc3 shadow
+on -sc4	-sc4 terra
+stepped -sc4	-sc4 shadow
+on -sal	-sal
+stepped -sal	
+on -stl	-stl 3
+stepped -stl	-stl 6
+on -sn	-sn
+stepped -sn	
+on -eu	-eu
+stepped -eu	
+on -csrp	-csrp 0 200
+stepped -csrp	-csrp 3 200
+on -fst	-fst
+stepped -fst	
+on -sel	-sel
+stepped -sel	
+on -brl	-brl
+stepped -brl	
+on -bel	-bel
+stepped -bel	
+on -slr	-slr 0 24
+stepped -slr	-slr 3 24
+on -lmps	-lmps
+stepped -lmps	
+on -lmprv	-lmprv 0 254
+stepped -lmprv	-lmprv 3 254
+on -lmprp	-lmprp 0 200
+stepped -lmprp	-lmprp 3 200
+on -lel	-lel
+stepped -lel	
+on -llr	-llr
+stepped -llr	
+on -srr	-srr 0 255
+stepped -srr	-srr 3 255
+on -rnl	-rnl
+stepped -rnl	
+on -rnc	-rnc
+stepped -rnc	
+on -sdr	-sdr 0 8
+stepped -sdr	-sdr 3 8
+on -das	-das
+stepped -das	
+on -dda	-dda
+stepped -dda	
+on -dns	-dns
+stepped -dns	
+on -del	-del
+stepped -del	
+on -sch	-sch
+stepped -sch	
+on -sca	-sca
+stepped -sca	
+on -ssd	-ssd 0
+stepped -ssd	-ssd 3
+on -ss	-ss 0
+stepped -ss	-ss 3
+on -sd	-sd 0
+stepped -sd	-sd 3
+on -scis	-scis
+stepped -scis	
+on -scia	-scia
+stepped -scia	
+on -scc	-scc
+stepped -scc	
+on -rec1	-rec1 97
+stepped -rec1	-rec1 14
+on -rec2	-rec2 97
+stepped -rec2	-rec2 14
+on -rec3	-rec3 97
+stepped -rec3	-rec3 14
+on -rec4	-rec4 97
+stepped -rec4	-rec4 14
+on -rec5	-rec5 97
+stepped -rec5	-rec5 14
+on -rec6	-rec6 97
+stepped -rec6	-rec6 14
+on -xpm	-xpm 1
+stepped -xpm	-xpm 4
+on -mpm	-mpm 1
+stepped -mpm	-mpm 4
+on -gpm	-gpm 1
+stepped -gpm	-gpm 4
+on -nxppd	-nxppd
+stepped -nxppd	
+on -lsa	-lsa 0.5
+stepped -lsa	-lsa 2.0
+on -lsh	-lsh 0.5
+stepped -lsh	-lsh 2.0
+on -lsce	-lsce 0.5
+stepped -lsce	-lsce 2.0
+on -lsced	-lsced 0.5
+stepped -lsced	-lsced 2.0
+on -lsc	-lsc 0.5
+stepped -lsc	-lsc 2.0
+on -lst	-lst 0.5
+stepped -lst	-lst 2.0
+on -lsbd	-lsbd 0.5
+stepped -lsbd	-lsbd 2.0
+on -hma	-hma 0.5
+stepped -hma	-hma 2.0
+on -hmh	-hmh 0.5
+stepped -hmh	-hmh 2.0
+on -hmce	-hmce 0.5
+stepped -hmce	-hmce 2.0
+on -hmced	-hmced 0.5
+stepped -hmced	-hmced 2.0
+on -hmc	-hmc 0.5
+stepped -hmc	-hmc 2.0
+on -hmt	-hmt 0.5
+stepped -hmt	-hmt 2.0
+on -hmbd	-hmbd 0.5
+stepped -hmbd	-hmbd 2.0
+on -xga	-xga 0.5
+stepped -xga	-xga 2.0
+on -xgh	-xgh 0.5
+stepped -xgh	-xgh 2.0
+on -xgce	-xgce 0.5
+stepped -xgce	-xgce 2.0
+on -xgced	-xgced 0.5
+stepped -xgced	-xgced 2.0
+on -xgc	-xgc 0.5
+stepped -xgc	-xgc 2.0
+on -xgt	-xgt 0.5
+stepped -xgt	-xgt 2.0
+on -xgbd	-xgbd 0.5
+stepped -xgbd	-xgbd 2.0
+on -ase	-ase 0.5
+stepped -ase	-ase 2.0
+on -asr	-asr 0.5
+stepped -asr	-asr 2.0
+on -msl	-msl 99
+stepped -msl	-msl 99
+on -sed	-sed
+stepped -sed	
+on -sfb	-sfb
+stepped -sfb	
+on -bbs	-bbs
+stepped -bbs	
+on -bbr	-bbr
+stepped -bbr	
+on -drloc	-drloc shuffle
+stepped -drloc	-drloc shuffle
+on -bmbd	-bmbd
+stepped -bmbd	
+on -stloc	-stloc mix
+stepped -stloc	-stloc shuffle
+on -srp3	-srp3
+stepped -srp3	
+on -bnds	-bnds
+stepped -bnds	
+on -be	-be
+stepped -be	
+on -bnu	-bnu
+stepped -bnu	
+on -bmkl	-bmkl
+stepped -bmkl	
+on -res	-res
+stepped -res	
+on -rer	-rer 0
+stepped -rer	-rer 3
+on -rechu	-rechu
+stepped -rechu	
+on -fer	-fer 0
+stepped -fer	-fer 3
+on -escr	-escr 0
+stepped -escr	-escr 3
+on -dgne	-dgne
+stepped -dgne	
+on -wnz	-wnz
+stepped -wnz	
+on -mmnu	-mmnu
+stepped -mmnu	
+on -cmd	-cmd
+stepped -cmd	
+on -stesp	-stesp 0 21
+stepped -stesp	-stesp 3 21
+on -esrr	-esrr
+stepped -esrr	
+on -ess	-ess
+stepped -ess	
+on -essrr	-essrr
+stepped -essrr	
+on -esr	-esr 0 5
+stepped -esr	-esr 3 5
+on -esrt	-esrt
+stepped -esrt	
+on -elr	-elr
+stepped -elr	
+on -elrt	-elrt
+stepped -elrt	
+on -ebs	-ebs
+stepped -ebs	
+on -ebr	-ebr 0
+stepped -ebr	-ebr 3
+on -emps	-emps
+stepped -emps	
+on -emprv	-emprv 0 254
+stepped -emprv	-emprv 3 254
+on -emprp	-emprp 0 200
+stepped -emprp	-emprp 3 200
+on -eer	-eer 0 12
+stepped -eer	-eer 3 12
+on -eebr	-eebr 0
+stepped -eebr	-eebr 3
+on -ems	-ems
+stepped -ems	
+on -emi	-emi
+stepped -emi	
+on -nm1	-nm1 random
+stepped -nm1	-nm1 locke
+on -rnl1	-rnl1
+stepped -rnl1	
+on -rns1	-rns1
+stepped -rns1	
+on -nm2	-nm2 random
+stepped -nm2	-nm2 locke
+on -rnl2	-rnl2
+stepped -rnl2	
+on -rns2	-rns2
+stepped -rns2	
+on -nmmi	-nmmi
+stepped -nmmi	
+on -mmps	-mmps
+stepped -mmps	
+on -mmprv	-mmprv 0 254
+stepped -mmprv	-mmprv 3 254
+on -mmprp	-mmprp 0 200
+stepped -mmprp	-mmprp 3 200
+on -gp	-gp 0
+stepped -gp	-gp 3
+on -smc	-smc 0
+stepped -smc	-smc 3
+on -sshoes	-sshoes 0
+stepped -sshoes	-sshoes 3
+on -sws	-sws 0
+stepped -sws	-sws 3
+on -sfd	-sfd 0
+stepped -sfd	-sfd 3
+on -sto	-sto 0
+stepped -sto	-sto 3
+on -sj	-sj 0
+stepped -sj	-sj 3
+on -ier	-ier 0 14
+stepped -ier	-ier 3 14
+on -iebr	-iebr 0
+stepped -iebr	-iebr 3
+on -ietr	-ietr
+stepped -ietr	
+on -ieor	-ieor -100
+stepped -ieor	-ieor -97
+on -iesr	-iesr -100
+stepped -iesr	-iesr -97
+on -ierr	-ierr 0 14
+stepped -ierr	-ierr 3 14
+on -ierbr	-ierbr 0
+stepped -ierbr	-ierbr 3
+on -iertr	-iertr
+stepped -iertr	
+on -ieror	-ieror -100
+stepped -ieror	-ieror -97
+on -iersr	-iersr -100
+stepped -iersr	-iersr -97
+on -csb	-csb 0 256
+stepped -csb	-csb 3 256
+on -mca	-mca
+stepped -mca	
+on -stra	-stra
+stepped -stra	
+on -saw	-saw
+stepped -saw	
+on -sisr	-sisr 0
+stepped -sisr	-sisr 3
+on -sirt	-sirt
+stepped -sirt	
+on -sie	-sie
+stepped -sie	
+on -sprv	-sprv 0 65535
+stepped -sprv	-sprv 3 65535
+on -sprp	-sprp 0 200
+stepped -sprp	-sprp 3 200
+on -ssf4	-ssf4
+stepped -ssf4	
+on -ssf8	-ssf8
+stepped -ssf8	
+on -ssf0	-ssf0
+stepped -ssf0	
+on -sdm	-sdm 1
+stepped -sdm	-sdm 4
+on -npi	-npi
+stepped -npi	
+on -snbr	-snbr
+stepped -snbr	
+on -sebr	-sebr
+stepped -sebr	
+on -snes	-snes
+stepped -snes	
+on -snsb	-snsb
+stepped -snsb	
+on -sesb	-sesb
+stepped -sesb	
+on -snee	-snee
+stepped -snee	
+on -snil	-snil
+stepped -snil	
+on -ccsr	-ccsr 0
+stepped -ccsr	-ccsr 3
+on -ccrt	-ccrt
+stepped -ccrt	
+on -ccrs	-ccrs
+stepped -ccrs	
+on -cce	-cce
+stepped -cce	
+on -chrm	-chrm 0 100
+stepped -chrm	-chrm 3 100
+on -cms	-cms
+stepped -cms	
+on -frw	-frw
+stepped -frw	
+on -frm	-frm
+stepped -frm	
+on -cor	-cor
+stepped -cor	-cor 2
+on -cosr	-cosr 0
+stepped -cosr	-cosr 3
+on -crr	-crr
+stepped -crr	-crr 2
+on -crsr	-crsr 0
+stepped -crsr	-crsr 3
+on -crvr	-crvr 0 255
+stepped -crvr	-crvr 3 255
+on -crm	-crm
+stepped -crm	
+on -cnee	-cnee
+stepped -cnee	
+on -cnil	-cnil
+stepped -cnil	
+on -ari	-ari
+stepped -ari	
+on -anca	-anca
+stepped -anca	
+on -adeh	-adeh
+stepped -adeh	
+on -ame	-ame 2
+stepped -ame	-ame 2
+on -nmc	-nmc
+stepped -nmc	
+on -nee	-nee
+stepped -nee	
+on -nil	-nil
+stepped -nil	
+on -noshoes	-noshoes
+stepped -noshoes	
+on -nu	-nu
+stepped -nu	
+on -u254	-u254
+stepped -u254	
+on -nfps	-nfps
+stepped -nfps	
+on -nfce	-nfce
+stepped -nfce	
+on -pd	-pd
+stepped -pd	
+on -nosaves	-nosaves
+stepped -nosaves	
+on -fs	-fs
+stepped -fs	
+on -fe	-fe
+stepped -fe	
+on -fvd	-fvd
+stepped -fvd	
+on -fr	-fr
+stepped -fr	
+on -fj	-fj
+stepped -fj	
+on -fbs	-fbs
+stepped -fbs	
+on -fedc	-fedc
+stepped -fedc	
+on -fc	-fc
+stepped -fc	
+on -ond	-ond
+stepped -ond	
+on -rr	-rr
+stepped -rr	
+on -rc	-rc
+stepped -rc	
+on -scan	-scan
+stepped -scan	
+on -warp	-warp
+stepped -warp	
+on -move	-move og
+stepped -move	-move ssbd
+on -as	-as
+stepped -as	
+on -etr	-etr
+stepped -etr	
+on -etn	-etn
+stepped -etn	

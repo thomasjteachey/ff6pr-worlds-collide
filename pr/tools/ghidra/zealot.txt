@@ -1,0 +1,6 @@
+# The Cultists' Tower's magic-only status (the PR's sc_b_2024 SysCall "狂信者の塔状態異常付与"):
+# what it needs from its MainCore, for WC bosses fought at the tower top (2026-11-12)
+^Last\.Interpreter\.Instructions\.SystemCall\.Current\$\$ZealotTowerConditionStart$
+^Last\.Interpreter\.Instructions\.SystemCall\.Current\$\$<ZealotTowerConditionStart>b__1082_0$
+^Last\.Battle\.TowerOfZealotsConditionFunction\$\$
+^Last\.Interpreter\.Instructions\.External\.Battle\$\$WaitToBattleStart$

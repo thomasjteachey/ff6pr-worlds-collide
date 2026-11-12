@@ -1,0 +1,18 @@
+# Methods to decompile for the BNW battle-engine work (regex on "Namespace.Class$$Method")
+Last\.Battle\.CalcExecuteFF6\$\$
+Last\.Systems\.CalcControllerProvider\$\$
+BattleFunction52FF6\$\$
+BattleStealItemPlug\$\$
+RegenerationConditionFunction\$\$
+PoisonConditionFunction\$\$
+SlipConditionFunction\$\$
+\.BattleConditionFunction\$\$GetRateValue
+BattleUtility\$\$(CalcATBProgressCycleForVital|GetProgressCycleCoefficient|RemoveActReady)
+TargetFunction\$\$(CheckToReflectAct|OverrideToReflectAct|CheckAndOverrideToReflectAct)
+AddConditionFunctionSerial\$\$
+Last\.Battle\.BattleProgressATB\$\$
+Last\.Battle\.BattleProgressATBFF6\$\$
+Last\.Battle\.Function\.MagicFunction\$\$
+Last\.Battle\.Function\.FuncitonNormalAttack\$\$
+Last\.Battle\.Function\.UniqueFunction\$\$
+CalcExecuteCorrection\$\$

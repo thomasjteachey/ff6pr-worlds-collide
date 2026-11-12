@@ -1,0 +1,4 @@
+# WC Doma siege entry (2026-11-11): how the interpreter's ChangeMap hands the arrival script and the
+# fade to the map change, to run the same from a world map exit
+Last\.Interpreter\.Instructions\.External\.Misc\$\$ChangeMap$
+Last\.Interpreter\.Integrator\$\$ReserveScript$

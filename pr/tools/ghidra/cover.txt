@@ -1,0 +1,4 @@
+# Cover (True Knight / Love Token): who jumps in front of a target
+Last\.Battle\.Function\.TargetFunction\$\$(ProtectTarget|ProtectExtractTarget)$
+Last\.Battle\.Function\.TargetFunction\.<>c\$\$
+Last\.Battle\.TipsForKnightsConditionFunction\$\$

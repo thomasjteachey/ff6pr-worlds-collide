@@ -1,0 +1,2 @@
+UnityPy>=1.20  # tools/extract.py (pr/vanilla from the game's bundles)
+Pillow  # tools/snes_harness.py

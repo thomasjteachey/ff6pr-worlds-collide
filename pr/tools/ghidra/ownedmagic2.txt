@@ -1,0 +1,5 @@
+# What fills UserDataManager.OwnedMagicList (each spell in it goes to every character after a won
+# battle: OwnedCharacterClient.UpdateOwnedMagicFromHisotry)
+Last\.Management\.OwnedItemClient\$\$AddOwnedItem$
+Last\.Management\.OwnedItemClient\$\$AddAbility$
+Serial\.FF6\.Management\.AbilitySerialDataFF6\$\$CorrectBlueMagicAbility$

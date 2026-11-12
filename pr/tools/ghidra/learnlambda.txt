@@ -1,0 +1,7 @@
+# The after-battle learning's filters (StatusUpProvider.GetLearningAbility's lambdas) and the
+# provider's constants (its constructor): who learns what from a battle's log
+Last\.Systems\.StatusUpProvider\$\$\.ctor$
+Last\.Systems\.StatusUpProvider\$\$<GetLearningAbility>b__8_0$
+Last\.Systems\.StatusUpProvider\$\$<GetLearningAbility>b__8_2$
+Last\.Systems\.StatusUpProvider\.<>c\$\$<GetLearningAbility>b__8_1$
+Last\.Systems\.StatusUpProvider\.<>c__DisplayClass8_0\$\$<GetLearningAbility>b__3$

@@ -1,0 +1,5 @@
+# loading a save: what the title's Load window calls with the chosen slot (the harness's "load <slot>")
+Last\.Management\.SaveSlotManager\.<GotoLoadSaveData>d__50\$\$MoveNext$
+Last\.Management\.SaveSlotManager\$\$GetTargetSaveSlotData$
+Last\.Management\.SaveSlotManager\$\$GetLatestSaveSlotData$
+Last\.UI\.KeyInput\.LoadGameWindowController\$\$

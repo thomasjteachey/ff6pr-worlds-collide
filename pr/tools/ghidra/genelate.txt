@@ -1,0 +1,3 @@
+# The battle result (BattleResultProvider.Genelate): what it runs per character (level-ups,
+# magicite learning?) for the Biggs/Wedge every-spell bug
+Last\.Systems\.BattleResultProvider\$\$Genelate$
