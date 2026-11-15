@@ -3718,6 +3718,135 @@ if (name == "enemy_ai")
                     (2, Run("sc_e_0128_1")), (2, Expect(true)), (5, NotBlack()), (1, entrance), (0, Warp(350, 1)), (4, plain),
                 };
             }
+            if (name == "narshe_moogle_defense" && req.ContainsKey("play"))
+            {
+                // the moogle defense played from the door (the user's Deck, 2026-11-14: "i went in
+                // on my current save and i was able to move through the cutscene"): Mog joined
+                // (the gate), the WoB, into the mines (map 318) as a warp does it (its map script
+                // runs: the defense's question), (Yes.), then a look every second: map, script,
+                // the game's main state (Player = the party walks, Event = a scene has it), where
+                // the party is, the defense's flags; a scene's script while the state is Player
+                // is the user's report. Fights are ended by force a few seconds in.
+                int F1(int i) => WcEvents.Flag(DataStorage.Category.kScenarioFlag1, i);
+                string Main()
+                {
+                    try
+                    {
+                        var ssm = SceneManager.Instance?.GetCurrentSubSceneManager()?.TryCast<SubSceneManagerMainGame>();
+                        return ssm == null ? "?" : ssm.GetCurrentState().ToString();
+                    }
+                    catch (Exception e) { return "? " + e.Message; }
+                }
+                var seen = new List<string>();
+                int walkable = 0, looks = 0, fightsSeen = 0;
+                bool inFight = false, marshalTalked = false, rewardSeen = false, knockedOut = false;
+                int afterReward = 0;
+                float fightAt = -1;
+                string last = "";
+                var steps = new List<(float, Func<bool>)>
+                {
+                    (0, () =>
+                    {
+                        if (c.Gate > 0 && !WcEvents.IsRecruited(c.Gate)) Recruit(c.Gate)();
+                        DataStorage.Instance.Set(DataStorage.Category.kScenarioFlag2, 41, 0);
+                        DataStorage.Instance.Set(DataStorage.Category.kScenarioFlag2, 97, 0);
+                        var lead = UserDataManager.Instance()?.GetPartyMemberData();
+                        WcEvents.PickRecruit = lead != null && lead.Count > 0 ? lead[0].characterStatusId : 1;
+                        WcEvents.TestAnswers.Clear();
+                        WcEvents.TestAnswers.Enqueue(0);                       // (Yes.)
+                        Plugin.L.LogInfo($"[wc test] moogles: party [{string.Join(" ", lead?.ToArray().Select(p => p.characterStatusId) ?? new int[0])}], gate {c.Gate} recruited {WcEvents.IsRecruited(c.Gate)}");
+                        return true;
+                    }),
+                    (0, Warp(318, 1)),
+                };
+                for (int k = 0; k < 720; k++)
+                {
+                    bool last419 = k == 719;
+                    steps.Add((1f, () =>
+                    {
+                        bool end = last419;
+                        looks++;
+                        var b = BattlePlugManager.Instance();
+                        float now = Time.realtimeSinceStartup;
+                        if (b != null && b.IsBattle())
+                        {
+                            if (!inFight) { inFight = true; knockedOut = false; fightAt = now; fightsSeen++; Plugin.L.LogInfo($"[wc test] moogles: fight {fightsSeen}: party {b.MonsterParty?.Id} ({WcBattles.LastSwap})"); }
+                            else if (now - fightAt > 4)
+                            {
+                                var j = b.BattleEndJugment;
+                                if (j != null && !j.isForce)
+                                {
+                                    j.SetEnabled(true);
+                                    j.CurrentEndJugmentType = BattleEndJugment.EndJugmentType.Normal;
+                                    j.isForce = true;
+                                    Plugin.L.LogInfo($"[wc test] moogles: fight {fightsSeen} ended by force");
+                                }
+                                else if (now - fightAt > 10 && !knockedOut)
+                                {
+                                    // a boss whose own script keeps the fight (the seed's Marshal: sc_b_2018's
+                                    // counter loop) ignores the forced end: its monsters knocked out, a won fight
+                                    knockedOut = true;
+                                    var foes = b.GetEnemyUnits();
+                                    int n = 0;
+                                    if (foes != null)
+                                        foreach (var e in foes)
+                                        {
+                                            var ep = e?.BattleUnitDataInfo?.Parameter;
+                                            if (ep == null || ep.CurrentHP <= 0) continue;
+                                            ep.CurrentHP = 0;
+                                            BattleUtility.AddCondition(e, (Last.Defaine.ConditionType)5);
+                                            n++;
+                                        }
+                                    Plugin.L.LogInfo($"[wc test] moogles: fight {fightsSeen} still on: {n} monsters knocked out");
+                                }
+                            }
+                        }
+                        else inFight = false;
+                        var integ = Integrator.Instance;
+                        string script = integ?.scriptName ?? "";
+                        bool busy = WcEvents.EventBusy();
+                        string main = Main();
+                        string at;
+                        try { at = $"{WcEvents.PlayerCell()}"; } catch (Exception) { at = "?"; }
+                        var state = $"map {UserDataManager.Instance()?.CurrentMapId}, main {main}, script '{script}' busy {busy}, at {at}, " +
+                                    $"ScenarioFlag1 13/14 {F1(13)}/{F1(14)}, offered {F4(130)}, done {F4(flag)}, battle {(inFight ? "on" : "off")}, black {ScreenBlack().Item1}";
+                        if (state != last) { Plugin.L.LogInfo($"[wc test] moogles: {state}"); last = state; }
+                        if (script.StartsWith("sc_e_0017") || script.StartsWith("sc_e_0018"))
+                        {
+                            if (!seen.Contains(script)) seen.Add(script);
+                            if (busy && main == "Player") walkable++;
+                        }
+                        // the six soldiers fought (sc_e_1081-1086 hide each): talk to the Marshal (entity 9 at
+                        // (15, 41), sc_e_0018), as a party walked down to him does; after the reward the
+                        // check flag ends the look (the one-party pick: its screen stood in for)
+                        bool soldiersGone = fightsSeen >= 6 && !inFight;          // (a beaten soldier is hidden: its entity stays)
+                        if (UserDataManager.Instance()?.CurrentMapId == 318 && F1(13) == 1 && !marshalTalked && !busy && main == "Player" && soldiersGone)
+                        {
+                            marshalTalked = true;
+                            Plugin.L.LogInfo($"[wc test] moogles: soldiers gone after {fightsSeen} fights; the Marshal there: {FieldEntity(9)}; talking to him");
+                            Check(WcEvents.RunScript("sc_e_0018"), "moogles: the Marshal's talk (sc_e_0018) started");
+                        }
+                        if (F4(flag) == 1 && !rewardSeen)
+                        {
+                            rewardSeen = true;
+                            Plugin.L.LogInfo($"[wc test] moogles: rewarded after {fightsSeen} fights ({WcEvents.LastReward})");
+                        }
+                        if (rewardSeen && ++afterReward > 15) end = true;
+                        if (end)
+                        {
+                            Plugin.L.LogInfo($"[wc test] moogles: scripts seen [{string.Join(" ", seen)}], {fightsSeen} fights, {walkable} looks walkable during a scene");
+                            Check(seen.Contains("sc_e_0017_6"), $"moogles: the defense's opening ran ([{string.Join(" ", seen)}])");
+                            Check(walkable == 0, $"moogles: no scene ran while the party could walk ({walkable} of {looks} looks)");
+                            Check(marshalTalked && fightsSeen >= 7, $"moogles: the Marshal talked to and his fight started ({fightsSeen} fights)");
+                            if (inFight) Plugin.L.LogInfo("[wc test] moogles: the Marshal's fight still on at the end (a boss with its own battle script: headless can't finish it; moogles-end runs the reward)");
+                            else Check(F4(flag) == 1 && F1(13) == 0 && UserDataManager.Instance()?.CurrentMapId == 318 && !ScreenBlack().Item1, $"moogles: rewarded, then the mines as usual (check flag {F4(flag)}, ScenarioFlag1 13 {F1(13)}, map {UserDataManager.Instance()?.CurrentMapId}, black {ScreenBlack().Item1})");
+                            return false;
+                        }
+                        return true;
+                    }));
+                }
+                return steps;
+            }
             if (SimpleChecks.TryGetValue(name, out var simple))
             {
                 // warp to the check's map, gate closed until its character has joined, then the scene

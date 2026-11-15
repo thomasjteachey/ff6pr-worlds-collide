@@ -606,6 +606,26 @@ def tritoch():
     return sc
 
 
+def tritoch_map():
+    """Narshe's cliffs (sc_map_20040, map 20) hold both Tritoch (WoR) and the Lone Wolf chase (WoB:
+    ev_e_0436-0438, WC event/lone_wolf.py). The map script asks "Tritoch done" (ScenarioFlag2 139)
+    first and then places only the jump to Umaro's cave (ev_e_0781), in either world: vanilla never
+    comes back to the WoB. WC does, so a beaten Tritoch closed the Lone Wolf check (the user's
+    Deck, 2026-11-14: "killing tritech blocks me from doing the moogle lone wolf check"). In a WC
+    game the question is the WoR's only (GOT_FALCON: set in the WoR, cleared in the WoB)."""
+    sc = S.load("sc_map_20040")
+    ms = sc["Mnemonics"]
+    assert ms[17]["label"] and ms[18]["mnemonic"] == "Branch" and ms[18]["operands"]["iValues"][:3] == [139, 1, 51] \
+        and ms[19]["label"] and ms[24]["operands"]["iValues"][:3] == [97, 1, 45] \
+        and ms[52]["operands"]["sValues"][0] == "ev_e_0781", "Narshe cliffs changed"
+    S.hook(sc, 18, "wc_wob_cliffs", [
+        if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
+        if_flag(*GOT_FALCON, 1, "@vanilla"),
+        S.op("Jump", i=[19]),                                  # the WoB: on at 20, Tritoch's or not
+    ])
+    return sc
+
+
 def zozo_map():
     """The top of Zozo (Map_30511_12 = PR map 395; WC event/zozo.py, gate Terra): in a WC game
     only Ramuh is there (WC clears ESPER_TERRA_ZOZO and gives no extra magicite), until the check
@@ -948,6 +968,13 @@ def wor_scenes():
     assert ms[2]["mnemonic"] == "BranchByCharacter" and ms[2]["operands"]["iValues"][3] == 22 and \
         ms[35]["operands"]["sValues"][0] == "sc_e_0959_1", "Gau's father WoR changed"
     wc_jump(sc, 2, 3, "wc_no_scene")       # as without Sabin: his lines
+    # and as without Gau: vanilla shows Gau in the leader's place for his "Uwao...ooo..." and
+    # puts the leader back; the line is skipped in a WC game, so all that showed was the leader
+    # turning into Gau and back (the user's Deck, 2026-11-14, Shadow leading). WC's check is the
+    # WoB house (map 73); this one is only the old man
+    assert ms[5]["mnemonic"] == "BranchByCharacter" and ms[5]["operands"]["iValues"][:2] == [12, 1] and \
+        ms[13]["operands"]["iValues"][0] == 59 and ms[19]["label"], "Gau's father WoR's Gau changed"
+    wc_jump(sc, 5, 19, "wc_no_gau")
     out.append((sc, S.path("sc_e_0959")))
     return out
 
@@ -1262,6 +1289,11 @@ def daryl_tomb():
     normal WoR exit; it does not run the vanilla Falcon-acquisition scene."""
     sc = S.load("sc_e_0703")
     assert sc["Mnemonics"][8]["operands"]["sValues"][0].endswith("セッツァー"), "Daryl's tomb changed"
+    assert sc["Mnemonics"][1]["mnemonic"] == "RemoveTelepoCache", "Daryl's tomb's warp reset moved"
+    # vanilla clears the Warp record before flying off in the Falcon; WC stays in the tomb, so it
+    # keeps the record (cleared, a Warp Stone there went to a black screen). skip_at first: the
+    # gate's hook then carries the skip's jump as its vanilla instruction
+    skip_at(sc, 1)
     gate_at(sc, 1, "daryl_tomb")
     S.hook(sc, 8, "wc_reward", [
         if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
@@ -1843,6 +1875,12 @@ def veldt_cave_start():
     sc = S.load("sc_e_0744")
     ms = sc["Mnemonics"]
     assert ms[2]["mnemonic"] == "Branch" and ms[13]["label"] and ms[14]["mnemonic"] == "ChangeMap", "Veldt cave changed"
+    assert ms[5]["mnemonic"] == ms[10]["mnemonic"] == "RemoveTelepoCache", "Veldt cave's warp reset moved"
+    # vanilla clears the Warp record before the Shadow/Relm scene (it then flies to Thamasa); WC
+    # leaves the party in the cave after the reward, so it keeps the record (the user's game,
+    # 2026-11-14: a Warp Stone after the Shadow check went to a black screen)
+    skip_at(sc, 5)
+    skip_at(sc, 10)
     S.hook(sc, 2, "wc_gate", [
         if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
     ] + gate("veldt_cave_wor", "@closed") + [
@@ -2223,7 +2261,25 @@ def narshe_battle_map():
         S.label("wor"),
         S.op("Jump", i=[229]),                                 # on at 230: save point, Ice Dragon
     ])
+    # ev_e_0250 also holds the scenario lineup: six invisible swap spots with collision across
+    # the plaza's south side (entities 50-55, (18-23, 12)) and the characters the script then
+    # stands on them (57-63, by MapLocalVariable). WC has no lineup (narshe_battle.py clears
+    # CHAR_LINEUP_BATTLE_NARSHE_WOB): the row blocked both ways in, from the south (23, 13) and
+    # the east (24-29, 12) (the user's Deck, 2026-11-14: "all the characters are lined up and i
+    # can't actually move past them"). A WC game: Banon and the save point only. (WC also moves
+    # Banon off the way north; in the PR's plaza the way round him at (21, 7) is open.)
+    assert ms[27]["label"] and ms[28]["mnemonic"] == "Branch" and ms[235]["label"] and ms[236]["mnemonic"] == "Exit", \
+        "Narshe lineup placement changed"
+    S.hook(sc, 28, "wc_no_lineup", [
+        if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
+        S.op("Call", i=["@wc_hide_lineup"]),
+        S.op("Jump", i=[235]),                                 # on at 236: done
+    ] + puppets("wc_hide_lineup", NARSHE_LINEUP, lambda k: [S.op("Hide", kind=2)]))
     return sc
+
+
+# the snowfield's lineup (ev_e_0250): the swap spots, then the characters standing on them
+NARSHE_LINEUP = (50, 51, 52, 53, 54, 55, 57, 58, 59, 60, 61, 62, 63)
 
 
 def narshe_lineup(name):
@@ -2457,7 +2513,12 @@ def moogle_defense_map():
     sc_map_30011_2, map 318). WC asks at Arvis'; the PR has no free trigger there, so entering
     these mines in the WoB with the gate met (check not done, defense not running) starts the
     defense's opening scene (sc_e_0017_6), which asks first. ScenarioFlag4 130 keeps the map's
-    reload from asking again."""
+    reload from asking again.
+    Started by a timer, not a map change: a ChangeMap from this map script (the map still
+    loading) ran the scene while the game handed the party back to the player halfway into it
+    (the user's Deck, 2026-11-14: "i was able to move through the cutscene"; headless: the main
+    state Player under sc_e_0017_6 for ~30 s). A timer's script starts as an event once the map
+    is up, as the map scripts of Zone Eater's belly and the Falcon's deck start theirs."""
     sc = S.load("sc_map_30011_2")
     ms = sc["Mnemonics"]
     assert ms[22]["operands"]["iValues"][:3] == [13, 0, 26] and ms[24]["operands"]["sValues"][0] == "ev_e_0018", "mines changed"
@@ -2469,15 +2530,17 @@ def moogle_defense_map():
         if_flag("ScenarioFlag1", 13, 1, "@vanilla"),
     ] + gate("narshe_moogle_defense", "@vanilla") + [
         flag(WC_FLAGS, MOOGLE_OFFERED),
-        S.op("ChangeMap", i=[318, 1, 0, 0, 1], s=["sc_e_0017_6"]),
-        S.op("Exit"),
+        S.op("SetTimer", i=[1, 1], s=["sc_e_0017_6"], r=[0.5]),
+        S.op("Jump", i=["@vanilla"]),                          # the mines as usual meanwhile
     ])
     return sc
 
 
 def moogle_defense_ask():
-    """The defense's opening (sc_e_0017_6): in a WC game it asks first; (Not now.) leaves the
-    party in the mines (asked again next time they're entered)."""
+    """The defense's opening (sc_e_0017_6): in a WC game it asks first, on the mines as they are
+    (the map's timer starts it); (Yes.) fades out into vanilla's scene, which sets its entities
+    on black and fades in; (Not now.) leaves the party where it stands (asked again next time
+    the mines are entered)."""
     sc = S.load("sc_e_0017_6")
     ms = sc["Mnemonics"]
     assert ms[1]["operands"]["sValues"][0] == "ev_e_0017" and ms[3]["mnemonic"] == "FadeIn", "moogle opening changed"
@@ -2485,10 +2548,12 @@ def moogle_defense_ask():
         if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
         S.op("Msg", s=["WC_MOOGLE_ASK"]),
         S.op("Select", s=["WC_MOOGLE_YES", "WC_MOOGLE_NO"]),
-        selection(0, "@vanilla"),
+        selection(0, "@yes"),
         reset(WC_FLAGS, MOOGLE_OFFERED),
-        S.op("FadeIn", i=[0, 0, 0, 255], r=[0.7]),
         S.op("Exit"),
+        S.label("yes"),
+        S.op("FadeOut", i=[0, 0, 0, 255], r=[0.7]),
+        S.op("Jump", i=["@vanilla"]),
     ])
     return sc
 
@@ -3659,7 +3724,7 @@ def kt_demon_drop():
 
 
 SCRIPTS = [opening, blackjack_helm, falcon_helm, tzen_wob, tzen_wor, tzen_map, ancient_castle, ancient_castle_room,
-           gau_father_house_map, gau_father_house, kohlingen_map, kohlingen, tritoch, zozo_map, zozo,
+           gau_father_house_map, gau_father_house, kohlingen_map, kohlingen, tritoch, tritoch_map, zozo_map, zozo,
            owzer_mansion, zone_eater, mt_zozo, umaro_cliff, umaro_cave, umaro_carving_line, umaro_carving_item,
            esper_mountain_start, esper_mountain, figaro_castle_wor_start, figaro_castle_wor,
            collapsing_house_map, collapsing_house, narshe_wor, magitek_ifrit, magitek_shiva,

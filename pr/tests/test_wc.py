@@ -928,6 +928,102 @@ class WcScripts(unittest.TestCase):
         self.assertFalse(r.black, "the field is visible when control returns in the tomb")
         self.assertEqual(r.black_lines, [])
 
+    def test_moogle_defense_opening_starts_as_an_event(self):
+        # The user's Deck, 2026-11-14: "i was able to move through the cutscene". The mines' map
+        # script changed map into the opening while the map was still loading, and the game handed
+        # the party back halfway into the scene; it starts it by a timer now (an event), asks on
+        # the mines as they are, and fades out only on (Yes.)
+        st, _ = self.new_game()
+        mines = Run(self.script("sc_map_30011_2"), st, syscalls={"WC:gate narshe_moogle_defense": gate(True)})
+        self.assertEqual([t[3][0] for t in mines.did("SetTimer")], ["sc_e_0017_6"])
+        self.assertEqual(mines.did("ChangeMap"), [])
+        self.assertFalse(mines.black)
+        self.assertEqual(st.get(E.WC_FLAGS, E.MOOGLE_OFFERED), 1)
+        again = Run(self.script("sc_map_30011_2"), st, syscalls={"WC:gate narshe_moogle_defense": gate(True)})
+        self.assertEqual(again.did("SetTimer"), [], "asked once per visit")
+        yes = Run(self.script("sc_e_0017_6"), st, answers=[0])
+        self.assertEqual(yes.end, ("ChangeMap", 584, 1, "sc_e_0017_7"))
+        first = [t[1] for t in yes.trace if t[1] in ("FadeOut", "SetEntities", "FadeIn")][:3]
+        self.assertEqual(first, ["FadeOut", "SetEntities", "FadeIn"], "on black before the scene's entities")
+        no = Run(self.script("sc_e_0017_6"), st, answers=[1])
+        self.assertEqual((no.end, no.did("FadeOut"), no.did("SetEntities")), (("Exit",), [], []))
+        self.assertEqual(st.get(E.WC_FLAGS, E.MOOGLE_OFFERED), 0, "asked again next time")
+
+    def test_tritoch_beaten_leaves_the_lone_wolf_chase_in_the_wob(self):
+        # The user's Deck, 2026-11-14: "killing tritech blocks me from doing the moogle lone wolf
+        # check". Narshe's cliffs (sc_map_20040) asked "Tritoch done" first, in either world.
+        st, _ = self.new_game()
+        st.set("ScenarioFlag2", 139, 1)                  # Tritoch beaten (in the WoR)
+        st.set("ScenarioFlag1", 212, 1)                  # the chase is on (WC's start sets it)
+        layers = lambda r: [t[3][0] for t in r.did("SetEntities")]
+        sc = self.script("sc_map_20040")
+        self.assertIn("ev_e_0436", layers(Run(sc, st)), "the WoB: the Lone Wolf chase")
+        st.set("ScenarioFlag2", 97, 1)
+        st.set("ScenarioFlag2", 41, 1)
+        self.assertEqual(layers(Run(sc, st)), ["ev_e_0781"], "the WoR: the way down to Umaro's cave")
+        vanilla = State()
+        vanilla.set("ScenarioFlag2", 139, 1)
+        vanilla.set("ScenarioFlag1", 212, 1)
+        self.assertEqual(layers(Run(sc, vanilla)), ["ev_e_0609", "ev_e_0781"], "vanilla unchanged")
+
+    def test_narshe_snowfield_has_no_character_lineup(self):
+        # The user's Deck, 2026-11-14: "the narshe defense, all the characters are lined up and i
+        # can't actually move past them". WC has no lineup: Banon and the save point (ev_e_0250)
+        # with the six swap spots and the characters on them hidden, none placed.
+        st, _ = self.new_game()
+        sc = self.script("sc_map_20030")
+        r = Run(sc, st)
+        self.assertEqual(r.end, ("Exit",))
+        self.assertEqual(len(r.did("SetEntities", "ev_e_0250")), 1, "Banon is there")
+        hidden = [t[2][1] for t in r.did("SetPuppet")]
+        self.assertEqual(sorted(hidden), sorted(E.NARSHE_LINEUP))
+        labels = {m["label"] for m in sc["Mnemonics"] if m["label"]}
+        called = {sc["Mnemonics"][t[2][0]]["label"] for t in r.did("Call")}
+        self.assertFalse({c for c in called if c.startswith("position_")}, "nobody stood in the row")
+        self.assertIn("position_tena1", labels)
+        # vanilla, between the scenarios' end and the battle: the lineup stands
+        vanilla = State()
+        vanilla.set("ScenarioFlag1", 136, 1)
+        vanilla.set("MapLocalVariable", 0, 1)          # Terra's slot in the row: first from the left
+        rv = Run(sc, vanilla)
+        self.assertIn("position_tena1", {sc["Mnemonics"][t[2][0]]["label"] for t in rv.did("Call")},
+                      "vanilla places the lineup")
+        self.assertFalse([t for t in rv.did("Call") if sc["Mnemonics"][t[2][0]]["label"] == "wc_hide_lineup"])
+
+    def test_gau_father_wor_old_man_without_gau_flicker(self):
+        # The WoR house (sc_e_0959, map 314) isn't WC's check (that's the WoB house, map 73). With
+        # Gau in the party but not leading, vanilla shows Gau in the leader's place for a line
+        # the WC game skips, then the leader again: the user saw Shadow turn into Gau and back
+        # (2026-11-14). A WC game: the old man's lines only.
+        st, _ = self.new_game()
+        st.party = [3, 12]
+        r = Run(self.script("sc_e_0959"), st)
+        self.assertEqual(r.did("Call"), [], "no Gau shown or hidden")
+        self.assertEqual([t[3][0] for t in r.did("Msg")], ["E0959_00_314_a_05", "E0959_00_314_a_04"])
+        vanilla = State()
+        vanilla.party = [3, 12]
+        self.assertEqual(len(Run(self.script("sc_e_0959"), vanilla).did("Call")), 2, "vanilla shows Gau")
+
+    def test_checks_that_stay_in_the_dungeon_keep_the_warp_record(self):
+        # Vanilla clears the Warp record (RemoveTelepoCache) before scenes that fly the party
+        # away (the Veldt cave's Shadow/Relm scene to Thamasa, Daryl's tomb's Falcon). WC leaves
+        # the party in the dungeon after the reward, so a Warp Stone there had nowhere to go: a
+        # black screen (the user's game, 2026-11-14, the Veldt cave after the Shadow check).
+        for shadow, scene in ((1, "sc_e_0744_1"), (0, "sc_e_0745_1")):
+            st, _ = self.new_game()
+            st.set("ScenarioFlag2", 42, shadow)
+            r = Run(self.script("sc_e_0744"), st, syscalls={"WC:gate veldt_cave_wor": gate(True)})
+            self.assertEqual(r.end, ("ChangeMap", 491, 3, scene))
+            self.assertEqual(r.did("RemoveTelepoCache"), [], scene)
+            vanilla = State()
+            vanilla.set("ScenarioFlag2", 42, shadow)
+            self.assertEqual(len(Run(self.script("sc_e_0744"), vanilla).did("RemoveTelepoCache")), 1, f"vanilla {scene}")
+        st, _ = self.new_game()
+        r = Run(self.script("sc_e_0703"), st, syscalls={"WC:gate daryl_tomb": gate(True)})
+        self.assertEqual(len(r.did("SysCall", "WC:reward daryl_tomb 0")), 1)
+        self.assertEqual(r.did("RemoveTelepoCache"), [])
+        self.assertEqual(len(Run(self.script("sc_e_0703"), State()).did("RemoveTelepoCache")), 1, "vanilla Daryl's tomb")
+
     def test_queen_room_cues_stone_only_on_the_queens_art(self):
         # The queen's room (sc_map_30811_7) cues its own 'stone' (one frame, Stone_00 of the
         # queen's sheet) on the statue. A seed whose reward here is a character shows the statue
@@ -1825,6 +1921,39 @@ class WcPort(unittest.TestCase):
 
 
 class EventLooks(unittest.TestCase):
+    def test_ifrit_shiva_is_the_real_fight(self):
+        # The user's Deck, seed gaadl68ix7j4, 2026-11-14: Kefka at Narshe swapped for Ifrit/Shiva
+        # "fought ifrit ... and the fight immediately ended". SNES formation 439 starts with Ifrit
+        # alone (Shiva a hidden slot); matched by name it went to party 392, the Magitek Factory's
+        # esper scene (Ifrit shown, a forced exit). The PR's fight is 440 (Ifrit and Shiva).
+        import idmap
+        self.assertEqual(idmap.party(439), 440)
+
+    def test_seed_upgrade_moves_stale_ifrit_parties(self):
+        # wc_seed_upgrade.party_fixes: a seed made with 439 -> 392 gets the factory event keyed as
+        # 440, its copy on 440's background, Narshe's copy rebuilt from 440, the boss list fixed
+        import wc_seed_upgrade as U
+        head = ["id", "battle_background_asset_id", "battle_bgm_asset_id", "script_name", "monster1"]
+        rows = [["392", "31", "0", "8017", "552"], ["440", "30", "25", "9009", "266"], ["485", "12", "25", "9021", "323"],
+                ["506", "19", "25", "0", "331"], ["20033", "31", "25", "9021", "323"], ["20076", "19", "0", "8017", "552"]]
+        tmp = tempfile.mkdtemp(prefix="wc_upgrade_test_")
+        try:
+            os.makedirs(os.path.join(tmp, os.path.dirname(U.MONSTER_PARTY)))
+            with open(os.path.join(tmp, U.MONSTER_PARTY), "w", encoding="utf-8", newline="") as f:
+                f.write("\r\n".join(",".join(r) for r in [head] + rows) + "\r\n")
+            with open(os.path.join(tmp, "wc_seed.json"), "w", encoding="utf-8") as f:
+                json.dump({"battles": {"392": [20033], "506": [20076]}, "look_sources": {"20033": 485, "20076": 392},
+                           "bosses": [{"name": "Ifrit/Shiva", "party": 392}]}, f)
+            battles, sources, bosses, copies = U.party_fixes(tmp)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+        self.assertEqual(battles, {"440": [20033], "506": [20076]})
+        self.assertEqual(sources, {"20033": 485, "20076": 440})
+        self.assertEqual(bosses, [{"name": "Ifrit/Shiva", "party": 440}])
+        self.assertEqual(copies["20076"], {"id": "20076", "battle_background_asset_id": "19", "battle_bgm_asset_id": "25",
+                                           "script_name": "9009", "monster1": "266"})
+        self.assertEqual(copies["20033"]["battle_background_asset_id"], "30")
+
     def test_event_battles_take_free_ids_and_the_events_background(self):
         # wc_seed.event_looks: a swapped event battle fights a copy of its target on the event's
         # background, at an id nothing else holds (the objectives test seed, 2026-11-06: a

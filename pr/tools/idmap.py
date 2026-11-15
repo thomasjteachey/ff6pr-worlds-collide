@@ -174,6 +174,16 @@ def _formation_parties():
         if f + 1 in mp.rows and E.party_members(mp[f + 1]) == mem:
             out[f] = f + 1
             continue
+        # a formation with monsters that join later (hidden slots: Ifrit/Shiva, 439, starts with
+        # Ifrit and Shiva comes in): the PR's party lists them all. Matched by name alone, Ifrit
+        # alone went to party 392, the Magitek Factory's esper scene (a "battle" that shows Ifrit
+        # and force-exits): the user's Deck, seed gaadl68ix7j4, 2026-11-14, Kefka at Narshe
+        # swapped for Ifrit/Shiva ended at once
+        r = van.data[E.FORMATIONS + 15 * f:E.FORMATIONS + 15 * f + 15]
+        every = {(r[2 + s] | ((r[14] >> s & 1) << 8)) + 1 for s in range(6)} - {512}
+        if f + 1 in mp.rows and set(mem) < every and set(E.party_members(mp[f + 1])) == every:
+            out[f] = f + 1
+            continue
         cands = set(by_ids.get(mem, [])) | set(by_names.get(tuple(sorted(mname.get(m, "") for m in mem)), []))
         if cands:
             # the one an event script starts (the White Dragon is 482, its line-up's twin 521 unused)

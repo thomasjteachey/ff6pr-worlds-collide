@@ -171,6 +171,92 @@ def upgrade_tower(seed_dir, deck, dry_run):
     return push_deck(deck, seed_dir, [MONSTER_PARTY], False) if deck else 0
 
 
+# formation -> PR party matches idmap.party got wrong for seeds made before the fix: {party then:
+# party now}. Ifrit/Shiva (formation 439, Shiva a hidden slot) went to 392, the Magitek Factory's
+# esper scene (Ifrit shown, then a forced exit): the user's Deck, seed gaadl68ix7j4, 2026-11-14,
+# Kefka at Narshe swapped for Ifrit/Shiva ended at once (and the factory's own fight, party 440,
+# was never swapped: the seed keyed it as 392, so the scene was).
+STALE_PARTIES = {392: 440}
+
+
+def party_fixes(seed_dir):
+    """What a seed made with STALE_PARTIES needs: (battles, look_sources, bosses, {copy id: row});
+    None when nothing to do. The copies are rebuilt as wc_seed.event_looks builds them: the target's
+    row with the event's background and wc_seed.place_script's script."""
+    sys.path.insert(0, HERE)
+    import wc_seed
+    info = json.load(open(os.path.join(seed_dir, "wc_seed.json"), encoding="utf-8"))
+    mp = rows(os.path.join(seed_dir, MONSTER_PARTY))
+    battles = {k: list(v) for k, v in (info.get("battles") or {}).items()}
+    sources = dict(info.get("look_sources") or {})
+    bosses = [dict(b) for b in info.get("bosses") or []]
+    copies = {}
+    for was, now in STALE_PARTIES.items():
+        w, n = str(was), str(now)
+        if w in battles and n not in battles:
+            battles[n] = battles.pop(w)
+        for k, ts in battles.items():
+            battles[k] = sorted({now if t == was else t for t in ts})
+        for b in bosses:
+            if b.get("party") == was:
+                b["party"] = now
+        for cid, t in list(sources.items()):
+            if t == was:
+                sources[cid] = now
+    bg = "battle_background_asset_id"
+    for old, ts in battles.items():
+        src = mp.get(old)
+        for t in ts:
+            if str(t) not in sources or src is None:
+                continue
+            target = mp[str(sources[str(t)])]
+            want = dict(target, id=str(t), **{bg: src[bg], "script_name": wc_seed.place_script(src, target)})
+            if mp[str(t)] != want:
+                copies[str(t)] = want
+    if (battles, sources, bosses) == (info.get("battles") or {}, info.get("look_sources") or {}, info.get("bosses") or []) \
+            and not copies:
+        return None
+    return battles, sources, bosses, copies
+
+
+def upgrade_parties(seed_dir, deck, dry_run):
+    """The stale-party part of the upgrade, PC (and the Deck's copy): None when nothing to do."""
+    fix = party_fixes(seed_dir)
+    if not fix:
+        return None
+    battles, sources, bosses, copies = fix
+    info = json.load(open(os.path.join(seed_dir, "wc_seed.json"), encoding="utf-8"))
+    for k in sorted(set(info.get("battles") or {}) | set(battles), key=int):
+        if (info.get("battles") or {}).get(k) != battles.get(k):
+            print(f"event party {k}: {(info.get('battles') or {}).get(k)} -> {battles.get(k)}")
+    for cid, row in copies.items():
+        print(f"copy {cid}: rebuilt from party {sources[cid]} (background {row['battle_background_asset_id']}, script {row['script_name']})")
+    if dry_run:
+        return 0
+    bak = backup_dir(seed_dir)
+    shutil.copytree(seed_dir, bak)
+    path = os.path.join(seed_dir, MONSTER_PARTY)
+    with open(path, encoding="utf-8", newline="") as f:
+        lines = f.read().splitlines(keepends=True)
+    head = lines[0].rstrip("\r\n").split(",")
+    done = 0
+    for i, line in enumerate(lines[1:], 1):
+        body = line.rstrip("\r\n")
+        cid = body.split(",", 1)[0]
+        if cid in copies:
+            lines[i] = ",".join(str(copies[cid][c]) for c in head) + line[len(body):]
+            done += 1
+    assert done == len(copies), f"{done} of {len(copies)} copies found"
+    with open(path, "w", encoding="utf-8", newline="") as f:
+        f.write("".join(lines))
+    info.update(battles=battles, look_sources=sources, bosses=bosses)
+    info["upgraded"] = time.strftime("%Y-%m-%d %H:%M:%S") + " (Ifrit/Shiva's party: idmap's hidden-slot match)"
+    with open(os.path.join(seed_dir, "wc_seed.json"), "w", encoding="utf-8") as f:
+        json.dump(info, f, indent=1)
+    print(f"PC: {len(copies)} copies and the battle map in {seed_dir} (backup: {bak})")
+    return push_deck(deck, seed_dir, [MONSTER_PARTY], False) if deck else 0
+
+
 def snes_ai_version():
     sys.path.insert(0, HERE)
     import port_ai
@@ -322,6 +408,9 @@ def main():
                        for d, _, fs in os.walk(os.path.join(seed_dir, AI_DIR)) for f in fs)
         parts += [k for k in (ABILITY, MONSTER, AI_SCRIPTS, MONSTER_PARTY) if os.path.exists(os.path.join(seed_dir, k))]
         return push_deck(a.deck, seed_dir, parts, a.dry_run)
+    parties = upgrade_parties(seed_dir, a.deck, a.dry_run)
+    if parties:
+        return parties
     tower = upgrade_tower(seed_dir, a.deck, a.dry_run)
     if tower:
         return tower
