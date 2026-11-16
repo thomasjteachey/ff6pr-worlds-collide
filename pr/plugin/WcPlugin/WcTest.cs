@@ -3547,6 +3547,32 @@ if (name == "enemy_ai")
                     (2, () => { var (b, s) = ScreenBlack(); Check(!b, $"fade self-test: faded in reads not black ({s})"); return true; }),
                 };
             }
+            if (name == "opera_roof")
+            {
+                // The post-performance disruption state on the rafters. The map initializer
+                // must place Ultros and his 4t weight (ev_e_0344 entities 5 and 6).
+                Func<bool> WarpRoof() => () => { Check(WcEvents.GotoMap(117, 1), "warp to the opera roof"); return true; };
+                return new List<(float, Func<bool>)>
+                {
+                    (0, () =>
+                    {
+                        DataStorage.Instance.Set(DataStorage.Category.kScenarioFlag1, 165, 1);
+                        DataStorage.Instance.Set(DataStorage.Category.kScenarioFlag1, 167, 1);
+                        DataStorage.Instance.Set(DataStorage.Category.kScenarioFlag1, 177, 0);
+                        return true;
+                    }),
+                    (0, WarpRoof()),
+                    (4, () =>
+                    {
+                        var map = UserDataManager.Instance()?.CurrentMapId;
+                        string ultros = FieldEntity(5), weight = FieldEntity(6);
+                        Plugin.L.LogInfo($"[wc test] opera roof: map {map}, Ultros {ultros}, 4t weight {weight}");
+                        Check(map == 117 && ultros == "+" && weight == "+",
+                              $"opera roof: Ultros and 4t weight are present (map {map}, entities 5/6 {ultros}/{weight})");
+                        return true;
+                    }),
+                };
+            }
             var seed = WcSeeds.Active;
             var (module, rn) = SubChecks.TryGetValue(name, out var sub) ? sub : (name, 0);
             if (!seed.Checks.TryGetValue(module, out var c)) { Check(false, $"the seed has no check {module}"); return null; }
