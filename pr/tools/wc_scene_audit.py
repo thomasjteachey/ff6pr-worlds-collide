@@ -119,7 +119,8 @@ def run(sc, state):
     "scenes": [(op, name, map id)], "battles": [...], "layers": [...], "sets": {(cat, idx)}}."""
     ms = sc["Mnemonics"]
     targets = labels(ms)
-    out = {"msgs": [], "scenes": [], "battles": [], "layers": [], "sets": set(), "writes": set(), "puppets": 0, "joins": []}
+    out = {"msgs": [], "scenes": [], "battles": [], "battle_scripts": [], "layers": [],
+           "sets": set(), "writes": set(), "puppets": 0, "joins": [], "wc_calls": []}
     seen, todo = set(), [0]
     while todo:
         pc = todo.pop()
@@ -153,6 +154,8 @@ def run(sc, state):
                 nxt = []
             elif op in SCENE_OPS:
                 out["battles" if op.startswith("Encount") else "scenes"].append((op, tuple(iv[:3]), None))
+                if op.startswith("Encount") and sv[0]:
+                    out["battle_scripts"].append(sv[0])
             elif op == "SetEntities":
                 out["layers"] += [x for x in sv if x]
             elif op in ("SetFlag", "ResetFlag") and sv[0] in FLAG_CATS:
@@ -160,8 +163,11 @@ def run(sc, state):
                 out["writes"].add((sv[0], iv[0], 1 if op == "SetFlag" else 0))
             elif op == "SetPuppet":
                 out["puppets"] += 1
-            elif op == "SysCall" and sv[0].startswith(JOIN):
-                out["joins"].append(sv[0][len(JOIN):])
+            elif op == "SysCall":
+                if sv[0].startswith(JOIN):
+                    out["joins"].append(sv[0][len(JOIN):])
+                if sv[0].startswith("WC:"):
+                    out["wc_calls"].append(sv[0])
             todo += nxt[1:]
             pc = nxt[0] if nxt else -1
     out["msgs"].sort()
@@ -223,6 +229,20 @@ def follow(scripts, state, name, folder, map_of, depth=0, seen=None):
             r["writes"] |= sub["writes"]
             r["puppets"] += sub["puppets"]
             r["joins"] += sub["joins"]
+            r["wc_calls"] += sub["wc_calls"]
+            r["chain"] += sub["chain"]
+    # A check's reward commonly lives in the battle's after-script. Follow it just like an
+    # explicit ChangeMap/ChangeScript so the audit covers the field trigger through completion.
+    for target in list(r["battle_scripts"]):
+        sub = follow(scripts, state, target, folder, map_of, depth + 1, seen)
+        if sub:
+            r["msgs"] += [(n, k) for n, k in sub["msgs"]]
+            r["battles"] += sub["battles"]
+            r["sets"] |= sub["sets"]
+            r["writes"] |= sub["writes"]
+            r["puppets"] += sub["puppets"]
+            r["joins"] += sub["joins"]
+            r["wc_calls"] += sub["wc_calls"]
             r["chain"] += sub["chain"]
     return r
 
@@ -249,7 +269,7 @@ def audit(scripts, state, setters=None):
             if r:
                 placed |= {x + ".json" for x in r["layers"]}
                 sets |= changes(r, mid, main[:-5])
-                if r["msgs"] or r["battles"] or r["joins"]:
+                if r["msgs"] or r["battles"] or r["joins"] or r["wc_calls"]:
                     found.append(dict(map=mid, name=mname, kind="entry", entity="", script=main[:-5], **_brief(r)))
         for layer in sorted(placed):
             p = os.path.join(folder, layer)
@@ -263,7 +283,7 @@ def audit(scripts, state, setters=None):
                 if not r:
                     continue
                 sets |= changes(r, mid, name)
-                if r["msgs"] or r["battles"] or r["joins"]:
+                if r["msgs"] or r["battles"] or r["joins"] or r["wc_calls"]:
                     found.append(dict(map=mid, name=mname, kind=KIND.get(otype, f"type{otype}"), layer=lay,
                                       entity=ename, at=(x // 16 if x is not None else None, y // 16 if y is not None else None),
                                       script=name, **_brief(r)))
@@ -272,7 +292,8 @@ def audit(scripts, state, setters=None):
 
 def _brief(r):
     return {"chain": r["chain"], "msgs": [k for _, k in r["msgs"]], "battles": [b[1] for b in r["battles"]],
-            "puppets": r["puppets"], "joins": r["joins"], "sets": sorted(f"{c}:{i}" for c, i in r["sets"])}
+            "puppets": r["puppets"], "joins": r["joins"], "wc_calls": sorted(set(r["wc_calls"])),
+            "sets": sorted(f"{c}:{i}" for c, i in r["sets"])}
 
 
 BGM_OPS = ("PlayBGM", "StopBGM")

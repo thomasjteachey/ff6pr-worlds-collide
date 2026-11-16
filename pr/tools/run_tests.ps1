@@ -93,8 +93,8 @@ $scenarios = [ordered]@{
     "queen-room"  = "seed=gaadl68ix7j4;flags=-cg -oa 2.2.2.2.6.6.4.9.9 -ob 3.1.1.2.9.9.4.12.12.10.21.21 -oc 30.8.8.1.1.11.8 -od 59.1.1.11.31 -oe 26.8.8.1.1.12.7 -sc1 random -sc2 random -sc3 random -sal -eu -csrp 100 125 -fst -brl -slr 6 10 -lmprp 75 115 -lel -srr 25 35 -rnl -sdr 3 4 -das -dda -dns -sch -scis -com 98989898989898989898989898 -rec1 28 -xpm 3 -mpm 5 -gpm 5 -nxppd -lsced 2 -hmce 2 -xgced 2.5 -ase 2 -msl 40 -sed -bbs -drloc shuffle -stloc mix -be -bnu -dgne -wnz -mmnu -cmd -res -fer 0 -escr 100 -esr 2 5 -elr -ebr 100 -emprp 75 115 -ems -emi -nm1 random -rnl1 -rns1 -nm2 random -rnl2 -rns2 -nmmi -mmprp 75 115 -gp 5000 -smc 3 -sws 3 -sfd 3 -sto 1 -ieor 45 -ieror 45 -ir premium -csb 2 16 -mca -stra -saw -sisr 35 -sprp 75 115 -sdm 5 -npi -ccsr 35 -chrm 0 0 -cms -frw -cor 100 -crr 100 -crvr 255 255 -crm -ari -anca -adeh -ame 1 -nmc -noshoes -nfps -fs -fe -fvd -fr -fj -fbs -fedc -ond -etn -wmhc;newgame=1;queen=1"
     # ... and with the queen's own statue (this seed's reward there is an esper): her stone
     "queen-room-esper" = "seed=t-cwob;$p;newgame=1;queen=1"
-    # the moogle defense played from the mines' door on the user's seed (the user's Deck, 2026-11-14:
-    # "i was able to move through the cutscene"): every look logged, a scene while the party can walk fails
+    # the moogle defense opened from Arvis's house on the user's seed; entering the mines does not
+    # offer it, Arvis does, the original party is preserved, and its opening is never walkable
     "moogles"     = "seed=gaadl68ix7j4;flags=-cg -oa 2.2.2.2.6.6.4.9.9 -ob 3.1.1.2.9.9.4.12.12.10.21.21 -oc 30.8.8.1.1.11.8 -od 59.1.1.11.31 -oe 26.8.8.1.1.12.7 -sc1 random -sc2 random -sc3 random -sal -eu -csrp 100 125 -fst -brl -slr 6 10 -lmprp 75 115 -lel -srr 25 35 -rnl -sdr 3 4 -das -dda -dns -sch -scis -com 98989898989898989898989898 -rec1 28 -xpm 3 -mpm 5 -gpm 5 -nxppd -lsced 2 -hmce 2 -xgced 2.5 -ase 2 -msl 40 -sed -bbs -drloc shuffle -stloc mix -be -bnu -dgne -wnz -mmnu -cmd -res -fer 0 -escr 100 -esr 2 5 -elr -ebr 100 -emprp 75 115 -ems -emi -nm1 random -rnl1 -rns1 -nm2 random -rnl2 -rns2 -nmmi -mmprp 75 115 -gp 5000 -smc 3 -sws 3 -sfd 3 -sto 1 -ieor 45 -ieror 45 -ir premium -csb 2 16 -mca -stra -saw -sisr 35 -sprp 75 115 -sdm 5 -npi -ccsr 35 -chrm 0 0 -cms -frw -cor 100 -crr 100 -crvr 255 255 -crm -ari -anca -adeh -ame 1 -nmc -noshoes -nfps -fs -fe -fvd -fr -fj -fbs -fedc -ond -etn -wmhc;newgame=1;check=narshe_moogle_defense;play=1"
     # the defense's end on its own: after the Marshal (sc_e_0018_2), the reward and one party
     "moogles-end" = "seed=t-mend;$p;newgame=1;check=narshe_moogle_defense"
@@ -104,6 +104,17 @@ $scenarios = [ordered]@{
     "objectives"  = "seed=t-obj;$p;flags=-oa 48.4.4.1.1.2.1.1 -ob 30.8.8.1.1.2.1.1 -oc 37.1.1.2.1.1 -od 51.3.3.1.1.2.1.1 -oe 55.1.1.2.1.1;newgame=1;objectives=1"
     "checks-wob"  = "seed=t-cwob;$p;newgame=1;check=ancient_castle,gau_father_house,kohlingen,zozo,owzer_mansion,zone_eater,mt_zozo,umaro_cave,tritoch,empty_chest,train_chest"
     "checks-more" = "seed=t-cmore;$p;newgame=1;check=serpent_trench,phantom_train,south_figaro_cave_wob,doma_wob,phoenix_cave,floating_continent_3,imperial_camp"
+    # Full check audit: every ported check outcome, split so one slow scene cannot hide the rest.
+    # These complement the field-entry/static audit in wc_scene_audit.py; tzen has its own test.
+    "audit-checks-a" = "seed=t-ca;$p;newgame=1;check=ancient_castle,gau_father_house,kohlingen,tritoch,zozo,owzer_mansion,zone_eater,mt_zozo,umaro_cave,esper_mountain,figaro_castle_wor"
+    "audit-collapse" = "seed=t-ch;$p;newgame=1;check=collapsing_house"
+    "audit-checks-b" = "seed=t-cb;$p;newgame=1;check=narshe_wor,magitek_factory,magitek_factory_2,magitek_factory_3,doma_wor,doma_wor_throne,doma_wor_3,mobliz_wor,doom_gaze"
+    "audit-narshe-2" = "seed=t-cn2;$p;newgame=1;check=narshe_wor_2"
+    "audit-checks-c" = "seed=t-cc;$p;newgame=1;check=lone_wolf,daryl_tomb,baren_falls,south_figaro,figaro_castle_wob,mt_kolts,veldt,fanatics_tower,fanatics_tower_2,ebots_rock,burning_house,whelk"
+    "audit-lone-wolf-2" = "seed=t-clw2;$p;newgame=1;check=lone_wolf_2"
+    "audit-checks-d" = "seed=t-cd;$p;newgame=1;check=narshe_dragon,mt_zozo_dragon,opera_house_dragon,kefka_tower_dragon_g,kefka_tower_dragon_s,ancient_castle_dragon,phoenix_cave_dragon,fanatics_tower_dragon,auction_1,auction_2"
+    "audit-checks-e" = "seed=t-ce;$p;newgame=1;check=kefka_tower,floating_continent,floating_continent_2,floating_continent_3,veldt_cave_wor,lete_river,sealed_gate,serpent_trench,phantom_train,south_figaro_cave_wob"
+    "audit-checks-f" = "seed=t-cf;$p;newgame=1;check=doma_wob,phoenix_cave,narshe_battle,opera_house_wob,imperial_camp,narshe_moogle_defense"
     # the long scenes, each its own run (together they outlast one run's time)
     "sealed-gate" = "seed=t-sg;$p;newgame=1;check=sealed_gate"
     "narshe-battle" = "seed=t-nb;$p;newgame=1;check=narshe_battle"

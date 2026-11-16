@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <PrGame>ff6</PrGame>
+    <AssemblyName>BraveNewWorld.PR</AssemblyName>
+    <BnwData>$(MSBuildThisFileDirectory)..\..\mods\BraveNewWorld\bnw_data.json</BnwData>
+  </PropertyGroup>
+  <!-- the modding kit (plugin/PrKit/*.cs) and the game's BepInEx + interop references; GameDir comes
+       from plugin/PrKit/Games.props (tools/kit.py games, its write-props option) -->
+  <Import Project="..\PrKit\PrKit.props" />
+  <ItemGroup>
+    <Compile Include="..\Rules\*.cs" />
+  </ItemGroup>
+  <!-- dotnet build -c Release -p:Deploy=true  (game must be closed: the DLL is locked while it runs) -->
+  <Target Name="Deploy" AfterTargets="Build" Condition="'$(Deploy)' == 'true'">
+    <Copy SourceFiles="$(TargetPath);$(BnwData)" DestinationFolder="$(GameDir)\BepInEx\plugins\BraveNewWorld" />
+  </Target>
+</Project>

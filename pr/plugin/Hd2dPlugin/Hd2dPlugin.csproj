@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <AssemblyName>HD2D.PR</AssemblyName>
+    <RootNamespace>Hd2d</RootNamespace>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <GameDir Condition="'$(GameDir)' == ''">D:\SteamLibrary\steamapps\common\FINAL FANTASY VI PR</GameDir>
+    <Hd2dBundle>$(MSBuildThisFileDirectory)..\..\hd2d\out\hd2d.bundle</Hd2dBundle>
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+    <NoWarn>NETSDK1138</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="$(GameDir)\BepInEx\core\BepInEx.Core.dll" Private="false" />
+    <Reference Include="$(GameDir)\BepInEx\core\BepInEx.Unity.IL2CPP.dll" Private="false" />
+    <Reference Include="$(GameDir)\BepInEx\core\BepInEx.Unity.Common.dll" Private="false" />
+    <Reference Include="$(GameDir)\BepInEx\core\Il2CppInterop.Runtime.dll" Private="false" />
+    <Reference Include="$(GameDir)\BepInEx\core\Il2CppInterop.Common.dll" Private="false" />
+    <Reference Include="$(GameDir)\BepInEx\core\0Harmony.dll" Private="false" />
+    <Reference Include="$(GameDir)\BepInEx\interop\*.dll" Private="false" />
+  </ItemGroup>
+  <!-- dotnet build -c Release -p:Deploy=true  (game must be closed: the DLL is locked while it runs).
+       The shader bundle comes from pr/hd2d/build_bundle.sh. -->
+  <Target Name="Deploy" AfterTargets="Build" Condition="'$(Deploy)' == 'true'">
+    <Error Condition="!Exists('$(Hd2dBundle)')" Text="build the shaders first: pr/hd2d/build_bundle.sh" />
+    <Copy SourceFiles="$(TargetPath);$(Hd2dBundle)" DestinationFolder="$(GameDir)\BepInEx\plugins\HD2D" />
+  </Target>
+</Project>

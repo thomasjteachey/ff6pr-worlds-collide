@@ -24,11 +24,15 @@ static class Program
         var cases = new List<(string Name, string Flags)>();
 
         // presets: parse -> serialize is stable and loses nothing
+        // Cosmetic SNES-only options are intentionally not rows on the PR screen, but presets
+        // retain them verbatim so a copied seed still matches the website's flags.
+        var allowedPresetUnknown = new HashSet<string> { "-wmhc" };
         foreach (var p in set.Presets)
         {
             var v = new FlagValues(set);
             v.Parse(p.Value);
-            Check(v.Unknown.Count == 0, $"preset {p.Key}: unknown tokens {string.Join(" ", v.Unknown)}");
+            Check(v.Unknown.All(allowedPresetUnknown.Contains),
+                  $"preset {p.Key}: unknown tokens {string.Join(" ", v.Unknown)}");
             var s1 = v.Serialize();
             var v2 = new FlagValues(set);
             v2.Parse(s1);

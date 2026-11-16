@@ -31,7 +31,10 @@ GENERIC_SYSCALLS = {"WaitBattleEndEnemyDisappear", "血塗られた盾", "PauseE
                     "HideBattleUI", "ShowBattleUI", "プレイヤーサイドZ値変更", "プレイヤーサイドZ値戻す"}
 # Battle event scripts read by hand (pr/vanilla/battle_script): they don't depend on the
 # AI of the bosses in them (Veldt: Gau joining; Cultists' Tower: statuses at the start).
-SAFE_SCRIPTS = {"sc_b_0239", "sc_b_2024"}
+# Nelapa's script is safe after wc_events.nelapa_battle removes the PR-only
+# doom/laugh setup in WC mode.  Its WC/SNES AI owns that one-time opening
+# action; the remaining PR script only services the escape countdown.
+SAFE_SCRIPTS = {"sc_b_0239", "sc_b_2019", "sc_b_2024"}
 # Event scripts whose routine decides who is on screen: Chadarnook's switch, Hidon's
 # ghosts, Inferno's parts, Air Force's bays, No.128's arms, tentacles, Dream Stooges,
 # Ultros moving (Esper Cave), Soul Saver.
@@ -119,7 +122,7 @@ class BossPolicy:
 MARK_TURN, MARK_COUNTER, MARK_FINAL = 7680, 7681, 7682
 SNES_AI = os.environ.get("WC_SNES_AI") == "1"
 SNES_AI_F5 = True     # F5 (monsters in and out) by the plugin (WcEnemyAiEntries.cs): on once its fights pass in game
-SNES_AI_VERSION = 3   # wc_seed.json's snes_ai; tools/wc_seed_upgrade.py brings older seeds up to it
+SNES_AI_VERSION = 5   # v5: Nelapa's SNES AI owns its one-shot Doom opening (not PR sc_b_2019)
 
 
 # what the plugin's interpreter does today (WcEnemyAi.cs): every attack, target, condition, variable,

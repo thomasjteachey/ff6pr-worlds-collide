@@ -1,0 +1,57 @@
+<Project>
+  <!--
+    Build settings shared by every plugin made with the kit. A plugin's .csproj is just:
+
+      <Project Sdk="Microsoft.NET.Sdk">
+        <PropertyGroup>
+          <PrGame>ff5</PrGame>                     ff1..ff6: whose code it's built against (default ff6)
+          <AssemblyName>MyMod.PR</AssemblyName>
+        </PropertyGroup>
+        <Import Project="..\PrKit\PrKit.props" />
+      </Project>
+
+    It compiles plugin/PrKit/*.cs into the plugin and references the game's BepInEx core and
+    interop assemblies. GameDir (the game's folder) comes from Games.props, which tools/kit.py
+    games (its write-props option) writes from Steam's library list; -p:GameDir=... overrides it.
+    Installing is tools/kit.py deploy <mod> (the game must be closed: it locks the DLL).
+  -->
+  <PropertyGroup>
+    <PrGame Condition="'$(PrGame)' == ''">ff6</PrGame>
+    <TargetFramework>net6.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);NETSDK1138</NoWarn>
+    <PrKitDir>$(MSBuildThisFileDirectory)</PrKitDir>
+  </PropertyGroup>
+  <Import Project="$(MSBuildThisFileDirectory)Games.props" Condition="Exists('$(MSBuildThisFileDirectory)Games.props')" />
+  <PropertyGroup Condition="'$(GameDir)' == ''">
+    <GameDir Condition="'$(PrGame)' == 'ff1'">$(PrGameDir_ff1)</GameDir>
+    <GameDir Condition="'$(PrGame)' == 'ff2'">$(PrGameDir_ff2)</GameDir>
+    <GameDir Condition="'$(PrGame)' == 'ff3'">$(PrGameDir_ff3)</GameDir>
+    <GameDir Condition="'$(PrGame)' == 'ff4'">$(PrGameDir_ff4)</GameDir>
+    <GameDir Condition="'$(PrGame)' == 'ff5'">$(PrGameDir_ff5)</GameDir>
+    <GameDir Condition="'$(PrGame)' == 'ff6'">$(PrGameDir_ff6)</GameDir>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(PrKitDir)*.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="$(GameDir)\BepInEx\core\BepInEx.Core.dll" Private="false" />
+    <Reference Include="$(GameDir)\BepInEx\core\BepInEx.Unity.IL2CPP.dll" Private="false" />
+    <Reference Include="$(GameDir)\BepInEx\core\BepInEx.Unity.Common.dll" Private="false" />
+    <Reference Include="$(GameDir)\BepInEx\core\Il2CppInterop.Runtime.dll" Private="false" />
+    <Reference Include="$(GameDir)\BepInEx\core\Il2CppInterop.Common.dll" Private="false" />
+    <Reference Include="$(GameDir)\BepInEx\core\0Harmony.dll" Private="false" />
+    <Reference Include="$(GameDir)\BepInEx\interop\*.dll" Private="false" />
+  </ItemGroup>
+  <Target Name="PrKitCheckGame" BeforeTargets="ResolveAssemblyReferences">
+    <Error Condition="'$(GameDir)' == ''"
+           Text="No folder for $(PrGame): run `.venv/Scripts/python tools/kit.py games --write-props` (Steam's library list), or build with -p:GameDir=..." />
+    <Error Condition="'$(GameDir)' != '' and !Exists('$(GameDir)\BepInEx\interop\Assembly-CSharp.dll')"
+           Text="No BepInEx interop in $(GameDir): `tools/kit.py setup $(PrGame)` installs BepInEx + Magicite; then start the game once so BepInEx generates BepInEx/interop." />
+  </Target>
+</Project>

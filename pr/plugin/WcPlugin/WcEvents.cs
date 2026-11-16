@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using HarmonyLib;
+using Last.Data.Master;
 using Last.Interpreter;
 using Last.Interpreter.Instructions;
 using Last.Management;
@@ -27,6 +28,9 @@ namespace WorldsCollide.PR
     //   WC:auction_hint <key> <done flags...>   -adeh: the auction's greeting hints at unsold espers
     //   WC:gate <module>   ScenarioFlag4 131 = 1 when the check's gating character has joined
     //              (or the seed has no character gating, -cg), else 0
+    //   WC:moogle_party_save / WC:moogle_party / WC:moogle_party_restore   preserve the party
+    //              that accepted Arvis's moogle-defense check, fill only its empty slots with
+    //              guests, and restore recruited Mog after vanilla dismisses all moogles
     // Every character joining a WC game (any join, ours or the game's) sets ScenarioFlag4
     // 100 + status id: WC's "character recruited" bits (gates, the Track menu's counts).
     static class WcEvents
@@ -554,6 +558,9 @@ namespace WorldsCollide.PR
                 case "pay": Pay(args[1], int.Parse(args[2])); return;
                 case "gil": Gil(int.Parse(args[1])); return;
                 case "party_refresh": PartyRefresh(); return;
+                case "moogle_party_save": SaveMoogleDefenseParty(); return;
+                case "moogle_party": SetMoogleDefenseParty(); return;
+                case "moogle_party_restore": RestoreMoogleDefenseMog(false); return;
                 case "item": ChestItem(int.Parse(args[1]), args.Length > 2 ? int.Parse(args[2]) : 1); return;
                 case "reward": Reward(args[1], args.Length > 2 ? int.Parse(args[2]) : 0, mc); return;
                 case "gate": Gate(args[1]); return;
@@ -585,6 +592,7 @@ namespace WorldsCollide.PR
                     }
                 case "is_asset": SetWcFlag(Scratch, IsAsset(int.Parse(args[1]), int.Parse(args[2])) ? 1 : 0); return;
                 case "announce": Announce(args[1], int.Parse(args[2]), args[3]); return;
+                case "lone_wolf_taunt": LoneWolfTaunt(args[1]); return;
                 case "hasflag": SetWcFlag(Scratch, WcSeeds.Active?.Flags.Split(' ').Contains(args[1]) == true ? 1 : 0); return;
                 case "brl":
                     // -brl: Bum Rush once a Blitz holder knows the other seven (Raging Fist .. 138)
@@ -614,6 +622,122 @@ namespace WorldsCollide.PR
                 case "to_wob": MoveAirship(from: 5, to: 4, map: 1); break;
                 default: Plugin.L.LogWarning($"[wc] unknown event call WC:{call}"); break;
             }
+        }
+
+        static readonly List<int> MoogleDefenseParty = new List<int>();
+
+        static void SaveMoogleDefenseParty()
+        {
+            MoogleDefenseParty.Clear();
+            var list = UserDataManager.Instance()?.corpsList;
+            for (int i = 0; list != null && i < list.Count && i < 4; i++)
+                if (list[i] != null && list[i].CharacterId > 0) MoogleDefenseParty.Add(list[i].CharacterId);
+            Plugin.L.LogInfo($"[wc] moogle defense: saved party [{string.Join(" ", MoogleDefenseParty)}]");
+        }
+
+        static void SetMoogleDefenseParty()
+        {
+            var members = MoogleDefenseParty.Take(4).ToList();
+            for (int status = 19; members.Count < 4 && status <= 28; status++)
+            {
+                int id = Last.Interpreter.Instructions.SystemCall.Current.GetCharacterIdFromStatusId(status);
+                if (id > 0 && !members.Contains(id)) members.Add(id);
+            }
+            if (members.Count == 0)
+            {
+                Plugin.L.LogWarning("[wc] moogle defense: no saved party or guest moogles");
+                return;
+            }
+            var corps = CorpsClient.Instance();
+            for (int i = 0; i < members.Count; i++)
+                corps.SetSlot(UserDataManager.CorpsSlot.Slot1, i, members[i]);
+            corps.SwitchSlot(UserDataManager.CorpsSlot.Slot1);
+            Plugin.L.LogInfo($"[wc] moogle defense: party 1 [{string.Join(" ", members)}]");
+        }
+
+        // Vanilla treats Mog as part of the temporary moogle roster and dismisses status 11 with
+        // statuses 19-28 at the end. In WC, Mog is a real recruited character (and this check's
+        // gate), so put him back after the guests leave. A defense autosave is made after the
+        // defense-start flag but before the check-complete flag; either flag proves the Mog gate
+        // was met. fieldRepair waits until no event is running, while the ending calls this inline.
+        internal static void RestoreMoogleDefenseMog(bool fieldRepair = true)
+        {
+            try
+            {
+                const int Mog = 11, MoogleDefenseCheck = 62;
+                bool defenseStarted = Flag(DataStorage.Category.kScenarioFlag1, 13) == 1;
+                bool defenseDone = Flag(DataStorage.Category.kScenarioFlag4, MoogleDefenseCheck) == 1;
+                if (!WcGame() || (!IsRecruited(Mog) && !defenseStarted && !defenseDone)) return;
+                var owned = UserDataManager.Instance()?.OwnedCharacterList;
+                bool hasMog = false, hasGuests = false;
+                Last.Data.User.OwnedCharacterData mog = null;
+                if (owned != null)
+                    foreach (var c in owned)
+                    {
+                        if (c == null) continue;
+                        if (c.characterStatusId == Mog) { hasMog = true; mog = c; }
+                        if (c.characterStatusId >= 19 && c.characterStatusId <= 28) hasGuests = true;
+                    }
+                // An autosave taken during the defense can retain the ten temporary moogles even
+                // after the check flag has advanced. Remove only those guest status ids; calling
+                // vanilla SecedeMoogles here would also dismiss the real, recruited Mog.
+                bool activeGuests = false;
+                var active = UserDataManager.Instance()?.GetPartyMemberData();
+                if (active != null)
+                    foreach (var c in active)
+                        if (c != null && c.characterStatusId >= 19 && c.characterStatusId <= 28) activeGuests = true;
+                if (fieldRepair && defenseDone && hasGuests && !activeGuests)
+                {
+                    var guestIds = new HashSet<int>();
+                    for (int i = 0; i < owned.Count; i++)
+                    {
+                        var c = owned[i];
+                        if (c != null && c.characterStatusId >= 19 && c.characterStatusId <= 28)
+                            guestIds.Add(c.Id);
+                    }
+                    // SecedeCharacter requires a live event MainCore and throws when a repair runs
+                    // from the field update. Remove guest references from every saved corps slot,
+                    // then from the authoritative owned list. None can be active at this point.
+                    try
+                    {
+                        var corps = CorpsClient.Instance();
+                        var slots = UserDataManager.Instance()?.corpsSlots;
+                        if (slots != null)
+                            foreach (var pair in slots)
+                                for (int i = pair.Value.Count - 1; i >= 0; i--)
+                                    if (pair.Value[i] != null && guestIds.Contains(pair.Value[i].CharacterId))
+                                        corps.RemoveSlot((UserDataManager.CorpsSlot)pair.Key, i);
+                    }
+                    catch (Exception e) { Plugin.L.LogWarning($"[wc] moogle defense: stale guest corps cleanup: {e.Message}"); }
+                    int removed = 0;
+                    for (int i = owned.Count - 1; i >= 0; i--)
+                    {
+                        var c = owned[i];
+                        if (c != null && c.characterStatusId >= 19 && c.characterStatusId <= 28)
+                        {
+                            owned.RemoveAt(i);
+                            removed++;
+                        }
+                    }
+                    Plugin.L.LogInfo($"[wc] moogle defense: removed {removed} stale guest moogles from loaded save");
+                }
+                // SecedeMoogles also marks Mog ineligible for corps selection. His owned record
+                // can therefore survive while the party organizer silently filters him out.
+                if (fieldRepair && defenseDone && mog != null && !mog.IsEnableCorps)
+                {
+                    mog.IsEnableCorps = true;
+                    Plugin.L.LogInfo("[wc] moogle defense: restored Mog's party-selection eligibility");
+                }
+                if (hasMog) return;
+                // Joining changes the live corps and must still wait for a genuinely idle field.
+                // Guest cleanup above is safe during a background map script once the check is
+                // complete, provided none of those guests is in the active party.
+                if (fieldRepair && EventBusy()) return;
+                bool joined = Join(Mog);
+                Plugin.L.LogInfo($"[wc] moogle defense: recruited Mog was dismissed; restore {(joined ? "succeeded" : "was not needed")} " +
+                                 $"(recruited {IsRecruited(Mog)}, started {defenseStarted}, done {defenseDone})");
+            }
+            catch (Exception e) { WcRunner.WarnOnce("moogle-defense-mog-repair", e); }
         }
 
         // --- checks ---------------------------------------------------------------------------
@@ -670,6 +794,14 @@ namespace WorldsCollide.PR
             if (c == null || c.Rewards.Count <= n) return;
             var (kind, id) = c.Rewards[n];
             SetText(key, kind == "esper" ? $"...a piece of {ContentName(id)} magicite!" : $"...the {ContentName(id)}!");
+        }
+
+        static void LoneWolfTaunt(string key)
+        {
+            var c = CheckOf("lone_wolf");
+            if (c == null || c.Rewards.Count <= 1) return;
+            var (_, id) = c.Rewards[1];
+            SetText(key, $"Grrrr...\nYou'll never get this\n\u201c{ContentName(id)}\u201d!");
         }
 
         // WC's -adeh (auction door esper hint): the auction's greeting says whether an esper is
@@ -816,30 +948,79 @@ namespace WorldsCollide.PR
             catch (Exception e) { Plugin.L.LogWarning($"[wc] timer hook: {e.Message}"); }
         }
 
-        // WC's -name A.B.C...: the 14 characters' names (WC's order, Terra first; empty = default)
+        // WC's -name A.B.C...: the 14 characters' names (WC's order, Terra first; empty = default).
+        // Randomized recruits skip the vanilla naming scene, so PR can leave a newly-owned
+        // character named "???????". Initialize that placeholder from the game's localized
+        // character_default_name row even when the seed has no -name flag. Existing real names
+        // are left alone; an explicit -name retains WC's normal override behavior.
         internal static string StartName(int statusId)
         {
             try
             {
-                var s = WcSeeds.Active;
-                if (s == null) return "";
-                var tokens = Tokens.Split(s.Flags);
-                int at = tokens.IndexOf("-name");
-                if (at < 0 || at + 1 >= tokens.Count) return "";
-                var names = tokens[at + 1].Split('.');
-                if (statusId < 1 || statusId > names.Length || names[statusId - 1].Length == 0) return "";
+                if (statusId < 1 || statusId > 14) return "";
+                string wanted = SeedName(statusId);
                 var list = UserDataManager.Instance()?.OwnedCharacterList;
                 if (list == null) return "";
                 foreach (var c in list)
-                    if (c != null && c.characterStatusId == statusId && c.Name != names[statusId - 1])
+                    if (c != null && c.characterStatusId == statusId)
                     {
-                        c.Name = names[statusId - 1];
-                        Plugin.L.LogInfo($"[wc] character {statusId} named {c.Name} (-name)");
+                        bool seeded = !string.IsNullOrEmpty(wanted);
+                        if (!seeded && InvalidCharacterName(c.Name)) wanted = DefaultName(statusId);
+                        if (string.IsNullOrEmpty(wanted) || c.Name == wanted) return "";
+                        string before = c.Name ?? "<null>";
+                        c.Name = wanted;
+                        Plugin.L.LogInfo($"[wc] character {statusId} named {c.Name} ({(seeded ? "-name" : $"repaired {before}")})");
                         return c.Name;
                     }
             }
-            catch (Exception e) { Plugin.L.LogWarning($"[wc] -name for character {statusId}: {e.Message}"); }
+            catch (Exception e) { Plugin.L.LogWarning($"[wc] name for character {statusId}: {e.Message}"); }
             return "";
+        }
+
+        static string SeedName(int statusId)
+        {
+            var s = WcSeeds.Active;
+            if (s == null) return "";
+            var tokens = Tokens.Split(s.Flags);
+            int at = tokens.IndexOf("-name");
+            if (at < 0 || at + 1 >= tokens.Count) return "";
+            var names = tokens[at + 1].Split('.');
+            return statusId <= names.Length ? names[statusId - 1] : "";
+        }
+
+        static string DefaultName(int statusId)
+        {
+            var mm = MasterManager.Instance;
+            if (mm == null) return "";
+            foreach (var kv in mm.GetList<CharacterDefaultName>())
+            {
+                var row = kv.Value;
+                if (row != null && row.CharacterId == statusId)
+                    return MessageManager.Instance?.GetMessage(row.MesIdName, false) ?? "";
+            }
+            return "";
+        }
+
+        internal static bool InvalidCharacterName(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name)) return true;
+            foreach (char ch in name)
+                if (ch != '?' && ch != '？' && !char.IsWhiteSpace(ch)) return false;
+            return true;
+        }
+
+        // Repair characters already saved with PR's placeholder name. Called after load by the
+        // same conservative repair loop used for old randomized-recruit HP/MP saves.
+        internal static void RepairCharacterNames()
+        {
+            if (!WcGame()) return;
+            var list = UserDataManager.Instance()?.OwnedCharacterList;
+            if (list == null) return;
+            var ids = new List<int>();
+            foreach (var c in list)
+                if (c != null && c.characterStatusId >= 1 && c.characterStatusId <= 14 &&
+                    InvalidCharacterName(c.Name)) ids.Add(c.characterStatusId);
+            foreach (int id in ids) StartName(id);
         }
 
         // WC's -scan / -warp: every character knows Scan / Warp (the PR's Libra, ability 64, and
@@ -1436,5 +1617,6 @@ namespace WorldsCollide.PR
             return $"map {udm.CurrentMapId}; party [{string.Join(" ", ids)}]; gil {udm.OwendGil}; Blackjack {V(4)}; Falcon {V(5)}; " +
                    $"WC game {Flag(DataStorage.Category.kScenarioFlag4, 0)}; Falcon flag {Flag(DataStorage.Category.kScenarioFlag2, 97)}";
         }
+
     }
 }

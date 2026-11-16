@@ -191,14 +191,22 @@ def port_items(van, bnw, tables, jobs):
     skipped = []
     for iv, ib in zip(S.items(van), S.items(bnw)):
         m = M.item(ib.id)
-        if not m or iv.raw == ib.raw:
-            continue
-        if iv.type != ib.type:
-            skipped.append(f"{ib.id} {iv.name}->{ib.name} type {iv.type}->{ib.type}")
+        if not m:
             continue
         table, pid = m
         row = tables[table][pid]
         ch = changed[table]
+        # The PR baseline gives every weapon 100 accuracy, while the SNES weapons use
+        # their 0..255 hit-rate byte (normally 120..255). This is baseline parity, not
+        # only a mod delta, so copy it even when WC left the rest of a weapon unchanged.
+        # Without it, physical attacks miss far more often than they do in SNES WC.
+        if table == "weapon":
+            setv(row, "accuracy_rate", ib.hit_or_mdef, ch)
+        if iv.raw == ib.raw:
+            continue
+        if iv.type != ib.type:
+            skipped.append(f"{ib.id} {iv.name}->{ib.name} type {iv.type}->{ib.type}")
+            continue
         price = ib.price if ib.price > 2 else 0
         setv(row, "buy", price, ch)
         setv(row, "sell", price // SELL_DIVISOR() if SELL_DIVISOR() else 0, ch)

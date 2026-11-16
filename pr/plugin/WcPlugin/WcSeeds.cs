@@ -122,7 +122,11 @@ namespace WorldsCollide.PR
                 }
             }
             catch (Exception e) { Plugin.L.LogWarning($"[wc] {StatePath}: {e.Message}"); }
-            Plugin.L.LogInfo($"[wc] {All().Count} seeds; active: {(Active == null ? "none (vanilla data)" : Describe(Active))}");
+            // Counting used to call All(), which parses every (now fairly large) wc_seed.json.
+            // With a few saved seeds that added several seconds to the opening logo even though
+            // startup needs only the active seed.  The screen still loads the full list when the
+            // player opens it; startup only needs a cheap count for this log line.
+            Plugin.L.LogInfo($"[wc] {Count()} seeds; active: {(Active == null ? "none (vanilla data)" : Describe(Active))}");
             if (Plugin.WcMode) SyncFiles();
         }
 
@@ -356,6 +360,14 @@ namespace WorldsCollide.PR
         }
 
         // newest first
+        static int Count()
+        {
+            if (!Directory.Exists(Root)) return 0;
+            return Directory.EnumerateDirectories(Root)
+                .Count(d => !d.EndsWith(".work", StringComparison.OrdinalIgnoreCase)
+                         && File.Exists(Path.Combine(d, "wc_seed.json")));
+        }
+
         public static List<Seed> All()
         {
             if (!Directory.Exists(Root)) return new List<Seed>();
@@ -565,11 +577,18 @@ namespace WorldsCollide.PR
             if (!Plugin.WcMode) return;
             if (onTitle)
             {
+                // Reset once when returning to the title, not on every title frame. Continue's
+                // LoadAsync begins while the title is still visible; the old loop cleared its
+                // loadingSave marker on the following frame and then treated the loaded autosave
+                // as New Game (regranting the seed's starting inventory).
+                if (!wasOnTitle)
+                {
+                    WcEvents.StartRan = false;
+                    loadingSave = false;
+                    pendingStart = false;
+                    startSince = -1;
+                }
                 wasOnTitle = true;
-                WcEvents.StartRan = false;
-                loadingSave = false;
-                pendingStart = false;
-                startSince = -1;
                 return;
             }
             if (wasOnTitle)
@@ -630,6 +649,11 @@ namespace WorldsCollide.PR
             }
             var load = t.GetMethod("GotoLoadSaveData");
             if (load != null) h.Patch(load, prefix: new HarmonyMethod(typeof(WcSeeds), nameof(Loading)));
+            // Title-screen Continue/Load uses SaveSlotManager.LoadAsync directly (not
+            // GotoLoadSaveData). Without this marker, leaving the title after an autosave load was
+            // mistaken for New Game and WC granted the seed's starting inventory again.
+            foreach (var m in t.GetMethods().Where(m => m.Name == "LoadAsync"))
+                h.Patch(m, prefix: new HarmonyMethod(typeof(WcSeeds), nameof(LoadingAsync)));
             var auto = AccessTools.Method(typeof(global::Last.Interpreter.Instructions.External.Misc), "AutoSave");
             if (auto != null) h.Patch(auto, prefix: new HarmonyMethod(typeof(WcSeeds), nameof(AutoSave_Prefix)));
             // the game's own data beside the slots, which test runs mustn't write either: the bestiary
@@ -739,6 +763,12 @@ namespace WorldsCollide.PR
                 if (err != null) Plugin.L.LogWarning($"[wc] couldn't bring back seed {id}: {err}");
             }
             catch (Exception e) { Plugin.L.LogWarning($"[wc] load hook: {e.Message}"); }
+        }
+
+        static void LoadingAsync()
+        {
+            loadingSave = true;
+            Plugin.L.LogInfo("[wc] loading a save through Continue/LoadAsync");
         }
     }
 }

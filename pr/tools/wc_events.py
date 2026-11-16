@@ -49,6 +49,7 @@ Changes so far (WC's own flags: ScenarioFlag4 0-131, unused by vanilla scripts; 
   .venv/Scripts/python tools/wc_events.py OUT_DIR     (writes the scripts, prints a summary)
 """
 import copy
+import json
 import os
 import sys
 
@@ -61,6 +62,7 @@ BLACKJACK, FALCON = 4, 5   # transportation ids
 WOB_MAP, WOR_MAP = 1, 2    # Map_10010 / Map_10020
 DECK_MAP = 119             # Map_20170, the Blackjack's deck (Falcon's: 268, Map_20390)
 NARSHE_PARK = (84, 34)     # WC parks the airship here (SNES and PR world tiles agree)
+LETE_WASHUP = (161, 37)    # PR WoB point 35 (SNES WC's corresponding tile is 93, 41)
 WC_VAR = 6                 # map-local variable the plugin sets to 1 when it ran WC's start
 
 # WC's own flags live in ScenarioFlag4 0-131, which no vanilla script sets or tests (saved with
@@ -133,7 +135,7 @@ CHECK_FLAGS = {
     "imperial_camp": 61,        # after Cyan's third fight
     "narshe_moogle_defense": 62,  # after the Marshal
 }
-MOOGLE_OFFERED = 130       # ScenarioFlag4: the moogle defense's scene was started on entering the mines
+MOOGLE_OFFERED = 130       # ScenarioFlag4: Arvis's moogle-defense offer was accepted
 # WC's own check names (its Track menu, constants/objectives/condition_bits.py) for each ported check
 TRACK_NAMES = {
     "tzen": "Tzen Thief", "ancient_castle": "Ancient Castle", "gau_father_house": "Gau's Father's House",
@@ -163,9 +165,13 @@ TRACK_NAMES = {
 }
 RECRUITED = 100            # + character status id (1-14): joined in this WC game (the plugin sets these)
 SCRATCH = 131              # the plugin's answer to WC:gate (1 = the check may be done)
+LETE_AIRSHIP_REPAIRED = 132  # one-time repair for saves made after the old airship-less river exit
+COLLAPSING_HOUSE_REPAIRED = 133  # one-time field-control reset for saves made by the old short ending
+MT_KOLTS_REPAIRED = 134  # one-time map reload for saves with vanilla Vargas-scene puppets left behind
 PICK_PARTY = 99            # the plugin's answer to WC:reward: 1 = a character joined (the party pick follows)
 REWARD_LINE = 129          # the plugin's: a reward given in a battle; the battle script shows its line
 PARTY_MENU = "\u30d1\u30fc\u30c6\u30a3\u7de8\u6210\uff1a\uff11\u30d1\u30fc\u30c6\u30a3"   # the PR's party select, one party
+AIRSHIP_PARTY_CHOICE = "WC_AIRSHIP_PARTY"
 
 # story flags WC's start sets (its event modules' init_event_bits), as PR flags
 START_FLAGS = [
@@ -189,7 +195,6 @@ START_FLAGS = [
     ("ScenarioFlag3", 34),    # no free Genji Glove
     ("ScenarioFlag3", 36),    # no chocobo tutorial
     ("ScenarioFlag2", 1), ("ScenarioFlag2", 9),     # Gestahl's dinner over: Albrook's port, Tzen, Maranda freed; no Leo at Albrook
-    ("ScenarioFlag2", 4),     # the Imperial Base's armory door open
     ("ScenarioFlag2", 23),    # Esper Mountain's statue scene seen
     ("ScenarioFlag2", 209), ("ScenarioFlag2", 210), ("ScenarioFlag2", 211), ("ScenarioFlag2", 212),   # Shadow's dreams
     ("ScenarioFlag2", 60), ("ScenarioFlag2", 61), ("ScenarioFlag2", 62), ("ScenarioFlag2", 63), ("ScenarioFlag2", 64),
@@ -206,6 +211,8 @@ START_FLAGS = [
 # text the scripts show (story_mes_en; empty speaker in story_cha_en). WC_REWARD is set by
 # the plugin before each reward line (WC:reward).
 MESSAGES = {
+    "WC_AIRSHIP_SERVICE": "What do you need?",
+    AIRSHIP_PARTY_CHOICE: "Change party members.",
     "WC_HELM_WOR": "(Fly to the World of Ruin.)",
     "WC_HELM_WOB": "(Fly to the World of Balance.)",
     "WC_REWARD": "<CT>Obtained a reward!",
@@ -344,6 +351,52 @@ def falcon_helm():
     wheel(sc, 5, lift_off=7, nothing=12, pose=14, choice_key="WC_HELM_WOB", call="WC:to_wob",
           world_flags=[reset(*GOT_FALCON), reset(*COLLAPSED)], to_map=WOB_MAP, arrive="sc_e_BJoutboard_1")
     return sc
+
+
+def airship_party_npc(script, msg_at, reserve_at, everyone_at, nothing_at):
+    """Add WC's party organizer to one of the otherwise-identical airship unequip NPCs."""
+    sc = S.load(script)
+    ms = sc["Mnemonics"]
+    assert ms[msg_at]["mnemonic"] == "Msg" and ms[msg_at]["operands"]["sValues"][0] == "E0345_00_120_a_01", \
+        f"{script} unequip NPC changed"
+    assert ms[msg_at + 1]["mnemonic"] == "Select" and ms[msg_at + 1]["operands"]["sValues"][:3] == [
+        "E0345_00_120_c_01", "E0345_00_120_c_02", "E0345_00_120_c_03"], \
+        f"{script} unequip choices changed"
+    S.hook(sc, msg_at, "wc_party_npc", [
+        if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
+        S.op("Msg", s=["WC_AIRSHIP_SERVICE"]),
+        S.op("Select", s=[AIRSHIP_PARTY_CHOICE, "E0345_00_120_c_01",
+                          "E0345_00_120_c_02", "E0345_00_120_c_03"]),
+        selection(0, "@party"),
+        selection(1, reserve_at),       # unequip members outside the current party
+        selection(2, everyone_at),      # unequip everybody
+        S.op("Jump", i=[nothing_at]),  # don't do a thing
+        S.label("party"),
+        S.op("ColorFade", i=[0, 0, 0, 255]),
+        S.op("HideMob"),
+        S.op("SysCall", s=[PARTY_MENU]),
+        S.op("RestoreMob"),
+        S.op("ColorFade", i=[0, 0, 0, 0]),
+        S.op("SysCall", s=["WC:party_refresh"]),
+        S.op("FinishPuppet"),
+        S.op("Exit"),
+    ])
+    return sc
+
+
+def blackjack_party_npc():
+    """The Blackjack's unequip NPC also organizes a WC party."""
+    return airship_party_npc("sc_e_0345", 1, 6, 15, 24)
+
+
+def falcon_party_npc_grounded():
+    """The first Falcon copy of the unequip NPC also organizes a WC party."""
+    return airship_party_npc("sc_e_0678", 2, 7, 17, 27)
+
+
+def falcon_party_npc():
+    """The Falcon interior's unequip NPC also organizes a WC party."""
+    return airship_party_npc("sc_e_0704", 2, 7, 17, 27)
 
 
 _picks = 0
@@ -658,7 +711,7 @@ def zozo():
     return sc
 
 
-def talk_reward(name, at, module, done_flags, expect=None, hide=(), after_state=False, theme=None):
+def talk_reward(name, at, module, done_flags, expect=None, hide=(), after_state=False, theme=None, blocked=()):
     """A recruit scene as a WC check: in a WC game, talking gives the seed's reward right away
     (WC strips these cutscenes) if the check's gate is met, and sets the scene's vanilla done
     flags so the room's map script leaves its NPC out from the next load on; gate closed:
@@ -677,6 +730,7 @@ def talk_reward(name, at, module, done_flags, expect=None, hide=(), after_state=
     gone = [S.op("Call", i=["@wc_hide_npc"])] if hide else []
     S.hook(sc, at, "wc_" + module, [
         if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
+    ] + [if_flag(*f, 1, "@closed") for f in blocked] + [
         if_flag(WC_FLAGS, CHECK_FLAGS[module], 1, "@vanilla" if after_state else "@closed"),
     ] + gate(module, "@closed") + give(module, done_flags, theme=theme) + gone + [
         S.op("Exit"),
@@ -699,7 +753,7 @@ def skip(name, at, expect, why):
     return sc
 
 
-def gate_at(sc, at, module, check=None):
+def gate_at(sc, at, module, check=None, blocked=()):
     """In a WC game, the scene at `at` only runs once the check's gate is met (closed: Exit,
     nothing used up) and while the check isn't done. (`at` moves past labelled Nops: the first
     instruction that runs.) check: the done flag of a module's later reward (CHECK_FLAGS key):
@@ -711,6 +765,7 @@ def gate_at(sc, at, module, check=None):
         at += 1
     S.hook(sc, at, "wc_gate", [
         if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
+    ] + [if_flag(*f, 1, "@closed") for f in blocked] + [
         if_flag(WC_FLAGS, CHECK_FLAGS[check or module], 1, "@closed"),
     ] + gate(module, "@closed") + [
         S.op("Jump", i=["@vanilla"]),
@@ -816,12 +871,24 @@ def figaro_castle_wor():
 
 def collapsing_house_map():
     """Tzen in the WoR (WC event/collapsing_house.py, gate Sabin; Map_20330 = PR map 201): the
-    collapsing house's start trigger (ev_e_0634, until ScenarioFlag2 53) only with the gate met."""
+    collapsing house's start trigger (ev_e_0634, until ScenarioFlag2 53) only with the gate met.
+
+    The first WC version of the shortened ending returned in the middle of PR's exterior event,
+    leaving PARTY0 under event control.  A later version moved the party but still did not restore
+    field input.  Completed saves from either version get one normal same-map transition here;
+    that rebuilds the field controller and restores movement without repeating the reward."""
     sc = S.load("sc_map_20330")
     ms = sc["Mnemonics"]
     assert ms[22]["operands"]["iValues"][:3] == [53, 1, 24] and ms[23]["operands"]["sValues"][0] == "ev_e_0634", "Tzen WoR changed"
     S.hook(sc, 22, "wc_gate", [
         if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
+        if_flag("ScenarioFlag2", 56, 0, "@not_done"),
+        if_flag(WC_FLAGS, COLLAPSING_HOUSE_REPAIRED, 1, "@vanilla"),
+        flag(WC_FLAGS, COLLAPSING_HOUSE_REPAIRED),
+        fade_out(),
+        S.op("ChangeMap", i=[201, 1]),             # Tzen's ordinary south entrance
+        S.op("Exit"),
+        S.label("not_done"),
     ] + gate("collapsing_house", 24) + [            # closed: no start trigger (label 24 -> 25)
         S.op("Jump", i=["@vanilla"]),
     ])
@@ -830,7 +897,12 @@ def collapsing_house_map():
 
 def collapsing_house():
     """After the escape (sc_e_0639): the seed's reward instead of Sabin's join, without the
-    story dialogue that WC removes from C5/A16-C5/A7C."""
+    story dialogue that WC removes from C5/A16-C5/A7C.  WC owns the whole short ending: do not
+    enter PR's exterior cutscene tail, which puppets PARTY0 and assigns town movement routes before
+    its later cleanup.  Returning from our reward in the middle of that tail left the player in
+    event movement (auto-running inside a small area); merely placing PARTY0 elsewhere did not
+    release field input.  Finish with a normal transition back into Tzen instead.  Besides landing
+    on a known walkable entrance, ChangeMap rebuilds the field controller and releases event input."""
     sc = S.load("sc_e_0639")
     ms = sc["Mnemonics"]
     assert ms[69]["operands"]["sValues"][0].endswith("マッシュ"), "Tzen WoR scene changed"
@@ -840,13 +912,32 @@ def collapsing_house():
         skip_at(sc, at, f"wc_skip_story_{at}")
     assert ms[1]["mnemonic"] == "SetEntities" and ms[2]["mnemonic"] == "FinishTimer" and ms[55]["label"],         "Tzen WoR's escape changed"
     assert ms[19]["mnemonic"] == "Shake" and ms[19]["operands"]["iValues"][0] == 0, "Tzen WoR's quake stop moved"
-    # and none of the scene with Sabin outside (it played on, silent): the countdown stops, the
-    # house's quake stops (19: sc_e_0634 started it to re-run on every map, so skipping vanilla's
-    # stop left the whole game shaking), then vanilla's end from its done flags (56: the house's
-    # after state, the reward at 69, fade in)
-    S.hook(sc, 1, "wc_no_scene", [if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla")] + S.copy_ops(sc, 2, 3) + S.copy_ops(sc, 19, 20) + [
-        S.op("Jump", i=[55])])
-    reward_at(sc, 69, "collapsing_house", dark=True)
+    # The countdown and quake stop, the town switches directly to its post-house layer for the
+    # reward, then reloads at an ordinary entrance.  In particular, omit vanilla 62-68: its NPC
+    # deletion/creation calls include PARTY0 and its three AssignMoveRoutes belong to the story
+    # scene.  The reload is also the reliable replacement for SNES WC's FreeMovement instruction.
+    S.hook(sc, 1, "wc_no_scene", [
+        if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
+        S.op("FinishTimer"),
+        S.op("Shake", i=[0, 1, 0, 0]),
+        flag("ScenarioFlag2", 56),
+        flag("ScenarioFlag4", 187),
+        S.op("SetEntities", s=["ev_e_0639"]),
+        S.op("PlayBGM", i=[57, 1]),
+        fade_in(),
+    ] + give("collapsing_house") + [
+        flag(WC_FLAGS, COLLAPSING_HOUSE_REPAIRED),
+        fade_out(),
+        S.op("ChangeMap", i=[201, 1]),
+        S.op("Exit"),
+    ])
+    # Kept for vanilla saves; WC exits through wc_no_scene before this instruction.
+    S.hook(sc, 69, "wc_reward", [
+        if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
+        fade_in(),
+    ] + give("collapsing_house") + [
+        S.op("Exit"),
+    ])
     return sc
 
 
@@ -1151,13 +1242,14 @@ def doom_gaze():
 
 
 def magitek_tubes():
-    """The Magitek Research Facility (sc_e_0402, map 403; WC event/magitek_factory.py, gate Celes):
-    the seed's third factory reward instead of the six espers from the tubes. WC skips the tube
-    espers' and Celes's scene (esper_tubes_mod): Kefka, Celes betraying and teleporting him, and
-    her leaving the party (SysCall at 132), which in this port ran silently after the reward and
-    took a WC game's Celes away. In a WC game the switch gives the reward (gate met, not done),
-    marks the scene done (ScenarioFlag1 192, the room's elevator state) and brings the elevator
-    up (ev_e_0403), with vanilla's recovery after it; done or gate closed: nothing."""
+    """The Magitek Research Facility's tube switch (sc_e_0402, map 403).
+
+    SNES WC's esper_tubes_mod gives no reward here. It removes the tube/Celes story, keeps Celes,
+    moves the party and elevator, and branches directly into Cid's automatic escape sequence.
+    The factory's third reward is later, at the former Setzer meetup after the mine cart. PR splits
+    that continuous sequence into an interactive elevator and an interactive Cid; go straight to
+    its mine-cart map instead, with the same completion flags and recovery. This also repairs saves
+    stranded in the tube room by the old port after receiving reward 3 too early."""
     sc = S.load("sc_e_0402")
     ms = sc["Mnemonics"]
     assert [ms[i]["mnemonic"] for i in range(124, 130)] == ["GetItem"] * 6 and ms[123]["operands"]["iValues"][0] == 192 and \
@@ -1165,12 +1257,15 @@ def magitek_tubes():
         [ms[i]["mnemonic"] for i in range(133, 136)] == ["RemoveCondition", "RecoveryHP", "RecoveryMP"], "factory tubes changed"
     S.hook(sc, 1, "wc_tubes", [
         if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
-        if_flag(WC_FLAGS, CHECK_FLAGS["magitek_factory_3"], 1, "@done"),
-    ] + gate("magitek_factory", "@done") + give("magitek_factory", n=2, check="magitek_factory_3") + [
+    ] + gate("magitek_factory", "@closed") + [
         flag("ScenarioFlag1", 192),
-        S.op("SetEntities", s=["ev_e_0403"]),
+        flag("ScenarioFlag1", 193),
     ] + S.copy_ops(sc, 133, 136) + [
-        S.label("done"),
+        fade_out(),
+        flag("ScenarioFlag1", 177),
+        S.op("ChangeMap", i=[578, 1, 0, 0, 0, 0], s=["sc_e_0404_1"]),
+        S.op("Exit"),
+        S.label("closed"),
         S.op("Exit"),
     ])
     return sc
@@ -1233,6 +1328,9 @@ def magitek_escape():
     S.hook(sc, 1, "wc_cranes", [
         if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
         fade_in(),
+        if_flag(WC_FLAGS, CHECK_FLAGS["magitek_factory_3"], 1, "@fight"),
+    ] + give("magitek_factory", n=2, check="magitek_factory_3") + [
+        S.label("fight"),
         cranes,
         S.op("Exit"),
     ])
@@ -1269,7 +1367,8 @@ def lone_wolf():
     """The Lone Wolf chase's end on Narshe's cliffs (WC event/lone_wolf.py, gate Mog; map 20):
     Mog's scene (sc_e_0438) gives the seed's first reward instead of Mog (ScenarioFlag1 215)."""
     # WC ("Play Song Mog"): Mog's theme, or the reward character's
-    return talk_reward("sc_e_0438", 1, "lone_wolf", [("ScenarioFlag1", 215)], expect="SysCall", theme=48)
+    return talk_reward("sc_e_0438", 1, "lone_wolf", [("ScenarioFlag1", 215)], expect="SysCall", theme=48,
+                       blocked=[("ScenarioFlag1", 216)])
 
 
 def lone_wolf_hairpin():
@@ -1277,10 +1376,103 @@ def lone_wolf_hairpin():
     sc = S.load("sc_e_0439")
     ms = sc["Mnemonics"]
     assert ms[3]["operands"]["sValues"][0] == "E0439_00_020_a_03" and ms[10]["mnemonic"] == "GetItem", "hairpin changed"
-    gate_at(sc, 1, "lone_wolf", check="lone_wolf_2")
+    gate_at(sc, 1, "lone_wolf", check="lone_wolf_2", blocked=[("ScenarioFlag1", 215)])
+    # The vanilla line says Gold Hairpin. WC randomizes this reward, so name the seed's item.
+    S.hook(sc, 2, "wc_lone_wolf_taunt", [
+        if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
+        S.op("SysCall", s=["WC:lone_wolf_taunt E0439_00_020_a_01"]),
+        S.op("Jump", i=["@vanilla"]),
+    ])
     reward_at(sc, 3, "lone_wolf", n=1, check="lone_wolf_2")
     skip_at(sc, 10)
     return sc
+
+
+def lone_wolf_cave():
+    """The WoR Moogle Cave holds whichever Lone Wolf reward was not chosen on the cliff."""
+    sc = S.load("sc_e_0778")
+    ms = sc["Mnemonics"]
+    assert ms[1]["mnemonic"] == "StopEnvSe" and ms[45]["operands"]["iValues"][0] == 137, \
+        "Moogle Cave reward scene changed"
+    S.hook(sc, 1, "wc_lone_wolf_cave", [
+        if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
+        if_flag("ScenarioFlag1", 215, 1, "@reward2"),  # saved the cliff moogle
+        if_flag("ScenarioFlag1", 216, 1, "@reward1"),  # saved Lone Wolf
+        S.op("Exit"),                                    # cliff choice not made yet
+        S.label("reward1"),
+        if_flag(WC_FLAGS, CHECK_FLAGS["lone_wolf"], 1, "@closed"),
+    ] + give("lone_wolf", n=0, check="lone_wolf") + [
+        flag("ScenarioFlag2", 137),
+        S.op("Exit"),
+        S.label("reward2"),
+        if_flag(WC_FLAGS, CHECK_FLAGS["lone_wolf_2"], 1, "@closed"),
+    ] + give("lone_wolf", n=1, check="lone_wolf_2") + [
+        flag("ScenarioFlag2", 137),
+        S.op("Exit"),
+        S.label("closed"),
+        S.op("Exit"),
+    ])
+    return sc
+
+
+def daryl_tomb_entrance():
+    """Daryl's Tomb entrance (WC event/daryl_tomb.py, gate Setzer; map 455).  The PR map uses
+    ScenarioFlag2 83 (the vanilla Kohlingen/Setzer story state) to decide whether the entrance
+    trigger exists.  WC recruits Setzer without setting that story flag, so a valid gated party
+    saw only the sealed wall.  In WC, expose the trigger from the character gate instead, and use
+    the current party leader for the opening gesture (SNES WC's PARTY0) rather than requiring
+    Setzer to be in the active party.
+
+    ScenarioFlag2 84 is the PR's "tomb entrance open" state.  Preserve vanilla outside WC, and
+    repair that flag from WC's completed-check flag for progressed saves."""
+    out = []
+
+    sc = S.load("sc_map_30650")
+    ms = sc["Mnemonics"]
+    assert ms[3]["mnemonic"] == "Branch" and ms[3]["operands"]["iValues"][:3] == [84, 1, 8] \
+        and ms[5]["operands"]["iValues"][:3] == [83, 0, 11] \
+        and ms[6]["operands"]["sValues"][0] == "ev_e_0682", "Daryl's Tomb entrance map changed"
+    S.hook(sc, 3, "wc_daryl_entrance", [
+        if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
+        if_flag("ScenarioFlag2", 84, 1, "@vanilla"),
+        if_flag(WC_FLAGS, CHECK_FLAGS["daryl_tomb"], 1, "@done"),
+    ] + gate("daryl_tomb", "@closed") + [
+        S.op("SetEntities", s=["ev_e_0682"]),
+        S.op("Exit"),
+        S.label("done"),
+        flag("ScenarioFlag2", 84),
+        S.op("SetEntities", s=["ev_e_0682_1"]),
+        S.op("Call", i=[13]),
+        S.op("Exit"),
+        S.label("closed"),
+        S.op("SetEntities", s=["ev_e_0001"]),
+        S.op("Exit"),
+    ])
+    out.append((sc, S.path("sc_map_30650")))
+
+    sc = S.load("sc_e_0682")
+    ms = sc["Mnemonics"]
+    assert ms[1]["mnemonic"] == "PlayBGM" and ms[5]["operands"]["sValues"][0] == "E0682_00_455_a_01" \
+        and ms[24]["operands"]["sValues"][0] == "ev_e_0682_1" \
+        and ms[25]["operands"]["iValues"][0] == 84, "Daryl's Tomb opening scene changed"
+    S.hook(sc, 1, "wc_daryl_entrance", [
+        if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
+    ] + gate("daryl_tomb", "@closed") + [
+        S.op("PlayBGM", i=[16, 1]),
+        S.op("Call", i=["@wc_leader_opens"]),
+        S.op("Wait", r=[0.7]),
+    ] + S.copy_ops(sc, 10, 14) + [
+        S.op("Wait", r=[0.7]),
+        S.op("SetEntities", s=["ev_e_0682_1"]),
+        flag("ScenarioFlag2", 84),
+        S.op("Exit"),
+        S.label("closed"),
+        S.op("Exit"),
+    ] + puppets("wc_leader_opens", (-1001,), lambda k: [
+        S.op("PlayAnim", i=[0, 1], s=["HandUpB"], kind=2),
+    ]))
+    out.append((sc, S.path("sc_e_0682")))
+    return out
 
 
 def daryl_tomb():
@@ -1401,9 +1593,45 @@ def figaro_shops():
 
 
 def mt_kolts_start():
-    """Mt. Kolts (WC event/mt_kolts.py, gate Sabin; map 343): Vargas only with the gate met."""
+    """Mt. Kolts (WC event/mt_kolts.py, gate Sabin; map 343): Vargas only with the gate met.
+
+    WC removes the pre-Vargas party scene.  Besides its dialogue, PR turns the current party into
+    fixed-position scene puppets there; entering that scene and then taking WC's short reward path
+    leaves those sprites parked off-map.  Start the encounter directly with the real party."""
     sc = S.load("sc_e_0055")
-    gate_at(sc, 1, "mt_kolts")
+    ms = sc["Mnemonics"]
+    assert ms[1]["mnemonic"] == "BranchByPlayerDirection" and ms[23]["mnemonic"] == "EncountBoss" \
+        and ms[23]["operands"]["sValues"][0] == "sc_e_0055_1", "Mt. Kolts opening changed"
+    S.hook(sc, 1, "wc_mt_kolts", [
+        if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
+    ] + gate("mt_kolts", "@closed") + [
+        copy.deepcopy(ms[23]),
+        S.op("Exit"),
+        S.label("closed"),
+        S.op("Exit"),
+    ])
+    return sc
+
+
+def mt_kolts_map():
+    """Reload map 343 once for completed saves made by the old shortened Vargas ending.
+
+    Its leftover scene puppets are runtime map entities, so an ordinary map transition destroys
+    them and reconstructs the party followers.  Point 2 is the normal lower entrance beside the
+    check.  The repair flag is set before the transition to make the reload non-recursive."""
+    sc = S.load("sc_map_30360")
+    ms = sc["Mnemonics"]
+    assert ms[1]["mnemonic"] == "Call" and ms[2]["operands"]["iValues"][:3] == [40, 1, 6] \
+        and ms[7]["operands"]["iValues"][:3] == [41, 1, 10], "Mt. Kolts map changed"
+    S.hook(sc, 1, "wc_mt_kolts_repair", [
+        if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
+        if_flag("ScenarioFlag1", 41, 0, "@vanilla"),
+        if_flag(WC_FLAGS, MT_KOLTS_REPAIRED, 1, "@vanilla"),
+        flag(WC_FLAGS, MT_KOLTS_REPAIRED),
+        fade_out(),
+        S.op("ChangeMap", i=[343, 2]),
+        S.op("Exit"),
+    ])
     return sc
 
 
@@ -1423,6 +1651,9 @@ def mt_kolts():
         flag("ScenarioFlag1", 41),
         fade_in(),
     ] + give("mt_kolts") + [
+        flag(WC_FLAGS, MT_KOLTS_REPAIRED),
+        fade_out(),
+        S.op("ChangeMap", i=[343, 2]),
         S.op("Exit"),
     ])
     return sc
@@ -1593,6 +1824,75 @@ def ultima_intros():
         ])
         out.append((sc, f))
     return out
+
+
+def nelapa_battle():
+    """Nelapa's PR battle controller (sc_b_2019) calls its bespoke Doom/laugh
+    setup from the main battle loop.  That syscall is tied to the original
+    Floating Continent party; when boss shuffle puts a copied Nelapa party on
+    another check's background, it never reaches its done state and monopolizes
+    the fight by running the opening again and again.
+
+    In WC mode Nelapa runs the SNES script through the enemy-AI plugin.  That
+    script targets each party slot with Doom once, sets its private switch, and
+    then advances to ordinary turns.  Skip only the PR duplicate here; retain
+    the controller's countdown checks and normal battle synchronization.
+    """
+    f = os.path.join(P.VANILLA, "battle_script", "Assets", "GameAssets", "Serial", "Res",
+                     "Battle", "BattleScript", "sc_b_2019.json")
+    sc = S.load_path(f)
+    ms = sc["Mnemonics"]
+    assert ms[8]["mnemonic"] == "SysCall" and ms[8]["operands"]["sValues"][0] == "ネラパ死の宣告" \
+        and ms[9]["mnemonic"] == "SysCall", "Nelapa's battle loop changed"
+    # Jump [8] resumes at the original instruction 9, immediately after the
+    # bespoke opening syscall.  Vanilla mode still executes it unchanged.
+    S.hook(sc, 8, "wc_snes_doom_once", [
+        if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
+        S.op("Jump", i=[8]),
+    ])
+    return [(sc, f)]
+
+
+def wrexsoul_battle():
+    """Wrexsoul's PR battle controller (sc_b_0939) owns a forced opening Fury/Zinger action.
+
+    WC's -wnz option removes both the first Zinger and its dialogue from Wrexsoul's SNES AI.
+    Leaving PR's duplicate Event00 in place asks the hybrid WC AI monster to perform that removed
+    action and the controller waits forever: the enemies are visible and every player ATB gauge is
+    full, but no command window opens.  Its later Soul Saver check has the same dependency: after
+    battle control is released it hides the enemies while waiting for possession state that -wnz
+    can never create.  For a WC seed with -wnz, release the battle pause/UI lock directly and use
+    the normal AI/synchronization loop, omitting both possession-only calls.  Other seeds and
+    vanilla keep the original controller.
+    """
+    f = os.path.join(P.VANILLA, "battle_script", "Assets", "GameAssets", "Serial", "Res",
+                     "Battle", "BattleScript", "sc_b_0939.json")
+    sc = S.load_path(f)
+    ms = sc["Mnemonics"]
+    assert ms[1]["mnemonic"] == "WaitToBattleStart" and ms[2]["mnemonic"] == "BattleInteractive" \
+        and ms[3]["mnemonic"] == "BattlePause" and ms[4]["mnemonic"] == "Call", \
+        "Wrexsoul's opening changed"
+    assert ms[20]["operands"]["sValues"][0] == "HideBattleUI" and ms[21]["mnemonic"] == "Msg" \
+        and ms[22]["operands"]["sValues"][0] == "ShowBattleUI" \
+        and ms[26]["operands"]["sValues"][0] == "敵バトル行動：ヒューリー", \
+        "Wrexsoul's Fury event changed"
+    S.hook(sc, 4, "wc_no_zinger", [
+        if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
+        S.op("SysCall", s=["WC:has -wnz"]),
+        if_flag(WC_FLAGS, SCRATCH, 0, "@vanilla"),
+        S.op("BattleInteractive", i=[1]),
+        S.op("BattlePause", i=[0]),
+        S.op("Jump", i=[5]),                    # resume at ExecBattleAI, original instruction 6
+    ])
+    assert ms[9]["mnemonic"] == "Call" and ms[9]["operands"]["iValues"][0] == 15 \
+        and ms[10]["mnemonic"] == "SyncBattleAI", "Wrexsoul's Soul Saver loop changed"
+    S.hook(sc, 9, "wc_no_zinger_soul_saver", [
+        if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
+        S.op("SysCall", s=["WC:has -wnz"]),
+        if_flag(WC_FLAGS, SCRATCH, 0, "@vanilla"),
+        S.op("Jump", i=[9]),                    # resume at SyncBattleAI, original instruction 10
+    ])
+    return [(sc, f)]
 
 
 def ultros_battles():
@@ -1917,15 +2217,38 @@ def veldt_cave_relm():
 
 
 def lete_river_start():
-    """The Lete River's raft (WC event/lete_river.py, gate Terra; sc_e_0063, map 345)."""
+    """The Lete River's raft (WC event/lete_river.py, gate Terra; sc_e_0063, map 345).
+
+    SNES WC removes the whole first-ride heal/tutorial block, not just its dialogue.  The PR
+    equivalent fades out, hides a story-party mob and runs first-ride raft choreography before
+    changing to the river script.  Its nominal repeat-ride path still runs a two-puppet fall
+    animation on the approach map; WC's arbitrary party/story state can leave either path waiting
+    forever.  Once Terra's gate is met, enter the actual river script directly.  That script's own
+    initial-position routine places PARTY0, the camera and the raft before fading in, and WC does
+    not set the vanilla "started raft ride" story bit."""
     sc = S.load("sc_e_0063")
-    gate_at(sc, 1, "lete_river")
+    ms = sc["Mnemonics"]
+    assert ms[11]["mnemonic"] == "Branch" and ms[11]["operands"]["iValues"][:3] == [48, 1, 27] \
+        and ms[18]["mnemonic"] == "HideMob" and ms[25]["operands"]["sValues"][0] == "sc_e_0063_3" \
+        and ms[28]["mnemonic"] == "Call" and ms[28]["operands"]["iValues"][0] == 52 \
+        and ms[29]["operands"]["sValues"][0] == "sc_e_0063_3", "Lete River raft entrance changed"
+    S.hook(sc, 1, "wc_lete_river", [
+        if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
+    ] + gate("lete_river", "@closed") + [
+        fade_out(),
+        S.op("ChangeScript", s=["sc_e_0063_3"]),
+        S.op("Exit"),
+        S.label("closed"),
+        S.op("Exit"),
+    ])
     return sc
 
 
 def lete_river():
     """After Ultros on the raft (sc_e_0065_1, map 347): the seed's reward, then off the river to
-    the world map as a second ride goes (sc_e_0143_1 [31-32]), no scenario select."""
+    the world map as a second ride goes (sc_e_0143_1 [31-32]), no scenario select.  SNES WC's
+    exit also brings the airship to the landing tile.  PR's ordinary ChangeMap does not, which
+    strands a WC party from the Blackjack.  PR point 35 is (161, 37), not the SNES map's (93, 41)."""
     sc = S.load("sc_e_0065_1")
     ms = sc["Mnemonics"]
     assert ms[16]["mnemonic"] == "FadeOut" and ms[22]["operands"]["sValues"][0] == "sc_e_0065_2", "Lete River changed"
@@ -1933,7 +2256,58 @@ def lete_river():
     assert [o["mnemonic"] for o in out] == ["FadeOut", "ChangeMap"], "raft exit changed"
     S.hook(sc, 16, "wc_reward", [
         if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
-    ] + give("lete_river") + out + [S.op("Exit")])
+    ] + give("lete_river") + [
+        S.op("SetVehicle", i=[BLACKJACK, WOB_MAP, LETE_WASHUP[0], LETE_WASHUP[1], 1, 3]),
+        flag("TreasureFlag4", 135),               # released / boardable
+    ] + out + [S.op("Exit")])
+    return sc
+
+
+def wob_world_map():
+    """Repair the old Lethe River exit once, after the WoB map has loaded.  Builds before
+    2026-11-16 completed the check without moving the Blackjack; the first attempted fix used
+    the SNES coordinate on PR's differently indexed world map.  A completed old save therefore
+    gets the Blackjack at PR point 35's real tile.  The private repair flag prevents later world
+    map visits from moving an airship the player has since flown elsewhere."""
+    sc = S.load("sc_map_10010")
+    ms = sc["Mnemonics"]
+    assert ms[1]["mnemonic"] == "ResetFlag" and ms[1]["operands"]["iValues"][0] == 171 \
+        and ms[3]["mnemonic"] == "Branch", "WoB world-map start changed"
+    S.hook(sc, 1, "wc_lete_airship_repair", [
+        if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
+        if_flag(WC_FLAGS, CHECK_FLAGS["lete_river"], 0, "@vanilla"),
+        if_flag(WC_FLAGS, LETE_AIRSHIP_REPAIRED, 1, "@vanilla"),
+        S.op("SetVehicle", i=[BLACKJACK, WOB_MAP, LETE_WASHUP[0], LETE_WASHUP[1], 1, 3]),
+        flag("TreasureFlag4", 135),
+        flag(WC_FLAGS, LETE_AIRSHIP_REPAIRED),
+        S.op("Jump", i=["@vanilla"]),
+    ])
+    return sc
+
+
+def imperial_observation_post_map():
+    """Imperial Observation Post (WC event/imperial_base.py; sc_map_20240, map 162).
+    WC starts after the espers' attack, so the post's soldiers are gone. Its armory remains locked
+    until Terra's character gate is met, matching WC's cleared treasure-room-door NPC bit.
+    With character gating, its entrance event only blocks passage until Terra has been recruited;
+    Terra need not be in the active party. PR's vanilla map instead begins with ten soldiers and
+    later branches on Terra's current party presence, so replace that state selection entirely."""
+    sc = S.load("sc_map_20240")
+    ms = sc["Mnemonics"]
+    assert ms[2]["mnemonic"] == "Branch" and ms[2]["operands"]["iValues"][:2] == [207, 1], \
+        "Imperial Observation Post state gate changed"
+    assert ms[3]["mnemonic"] == "SetEntities" and ms[3]["operands"]["sValues"][0] == "ev_e_0350", \
+        "Imperial Observation Post soldiers changed"
+    S.hook(sc, 2, "wc_imperial_base", [
+        if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
+    ] + gate("sealed_gate", "@closed") + [
+        flag("ScenarioFlag2", 4),                    # Terra recruited: open the armory
+        S.op("Exit"),                                # Terra recruited: the post is clear
+        S.label("closed"),
+        reset("ScenarioFlag2", 4),                   # no Terra: keep the armory locked
+        S.op("SetEntities", s=["ev_e_0440"]),       # Terra not recruited: turn back at the gate
+        S.op("Exit"),
+    ])
     return sc
 
 
@@ -2213,6 +2587,58 @@ def phoenix_cave_map():
     return sc
 
 
+def phoenix_cave_entry():
+    """Enter Phoenix Cave without PR's two-pass Falcon/drop cinematic.
+
+    SNES WC keeps the two-party selection and the parties' actual drops into the cave, but removes
+    the story landing.  PR begins with a fade-out and same-Falcon-map reload controlled by an
+    AreaLocalVariable before it finally changes to the cave.  Avoid that fragile deck lifecycle:
+    form the parties on the visible Falcon deck and transition directly to the normal crane map.
+    On the cave map, however, retain PR's position/drop calls because they establish both parties'
+    playable tiles as well as animating them.
+    """
+    deck_path = S.path("sc_e_0792_1")
+    deck = S.load_path(deck_path)
+    ms = deck["Mnemonics"]
+    assert ms[1]["mnemonic"] == "Branch" and ms[14]["mnemonic"] == "OrganizePartySlot" \
+        and ms[17]["operands"]["sValues"][0] == "パーティ編成：２パーティ" \
+        and ms[21]["mnemonic"] == "ChangeMap" and ms[35]["operands"]["sValues"][0] == "sc_e_0792_2", \
+        "Phoenix Cave landing changed"
+    S.hook(deck, 1, "wc_phoenix_enter", [
+        if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
+        S.op("PlayEnvSe", i=[956, 1, 1]),
+        S.op("ChangeView", i=[0]),
+        fade_in(),
+    # Do not copy vanilla's OrganizePartySlot at 14: it forces Celes (character 7) into
+    # slot 1.  WC may not have recruited her yet; the native two-party organizer then
+    # closes without resuming the event, leaving field control locked on the Falcon deck.
+    # The current WC party is already in slot 1, so retain it as the organizer's starting
+    # party and copy only the heal, status clear, and two-party menu.
+    ] + S.copy_ops(deck, 15, 18) + [
+        fade_out(),
+        # Keep party slot 1 active.  PR's cinematic switches to slot 2 solely to animate the
+        # second leader falling; an empty/temporary slot there is one route to a black field.
+        S.op("ChangeMap", i=[497, 1, 0, 0, 0, 0], s=["sc_e_0792_2"]),
+        S.op("Exit"),
+    ])
+
+    arrive_path = S.path("sc_e_0792_2")
+    arrive = S.load_path(arrive_path)
+    am = arrive["Mnemonics"]
+    assert am[1]["mnemonic"] == "ChangeScript" and am[1]["operands"]["sValues"][0] == "sc_map_30780" \
+        and am[5]["mnemonic"] == "FadeIn" and am[12]["operands"]["sValues"][0] == "パーティ配置：フェニックスの洞窟" \
+        and am[18]["mnemonic"] == "ShowMapTitle", "Phoenix Cave arrival changed"
+    # The map initializer at 1 must still create the crane/exit entities.  Keep the vanilla
+    # position and drop calls (3..9), skip only its story line at 10, then keep the party placement
+    # and cleanup (11..19).  Skipping the calls strands slot 1 on the upper drop tile even though
+    # slot 2 is placed correctly (the user's Deck screenshot, 2026-11-16).
+    S.hook(arrive, 2, "wc_phoenix_arrive", [
+        if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
+        S.op("StopBGM", i=[0]),
+    ] + S.copy_ops(arrive, 3, 10) + S.copy_ops(arrive, 11, 20))
+    return [(deck, deck_path), (arrive, arrive_path)]
+
+
 def phoenix_cave():
     """Locke's chest (sc_e_0828): the seed's reward instead of the Kohlingen flashback (Locke,
     the Phoenix magicite and the end room's items there); done as vanilla marks it (ScenarioFlag2
@@ -2344,6 +2770,11 @@ def opera_house():
     ms = sc["Mnemonics"]
     assert ms[40]["mnemonic"] == "Wait" and ms[43]["operands"]["sValues"][0] == "sc_e_0344_3", "opera end changed"
     assert ms[5]["mnemonic"] == "Call" and ms[7]["mnemonic"] == "FadeIn", "opera's victory scene changed"
+    # The PR post-battle script first asks the just-finished battle for its result.  WC does not
+    # use the defeat branch (it would rejoin Locke/Celes and replay the opera), and keeping that
+    # query alive after WC's shortened handoff can throw ErrorFactorBase when the field resumes.
+    # Enter WC's victory path directly, as the SNES event does after Ultros is won.
+    wc_jump(sc, 2, 4)
     # WC (opera_house_wob.py) cuts Ultros's fall, the impresario and Setzer's entrance down to the
     # reward: the stage fades in, the reward (40), the deck (43)
     S.hook(sc, 5, "wc_no_scene", [if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla")] + S.copy_ops(sc, 7, 8) + [
@@ -2508,67 +2939,76 @@ def camp_scripts():
             (imperial_camp(), S.path("sc_e_0128_1"))]
 
 
-def moogle_defense_map():
-    """Narshe's mines where the moogles fight (WC event/narshe_moogle_defense.py, gate Mog;
-    sc_map_30011_2, map 318). WC asks at Arvis'; the PR has no free trigger there, so entering
-    these mines in the WoB with the gate met (check not done, defense not running) starts the
-    defense's opening scene (sc_e_0017_6), which asks first. ScenarioFlag4 130 keeps the map's
-    reload from asking again.
-    Started by a timer, not a map change: a ChangeMap from this map script (the map still
-    loading) ran the scene while the game handed the party back to the player halfway into it
-    (the user's Deck, 2026-11-14: "i was able to move through the cutscene"; headless: the main
-    state Player under sc_e_0017_6 for ~30 s). A timer's script starts as an event once the map
-    is up, as the map scripts of Zone Eater's belly and the Falcon's deck start theirs."""
-    sc = S.load("sc_map_30011_2")
-    ms = sc["Mnemonics"]
-    assert ms[22]["operands"]["iValues"][:3] == [13, 0, 26] and ms[24]["operands"]["sValues"][0] == "ev_e_0018", "mines changed"
-    S.hook(sc, 22, "wc_moogles", [
-        if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
-        if_flag(WC_FLAGS, CHECK_FLAGS["narshe_moogle_defense"], 1, "@vanilla"),
-        if_flag(WC_FLAGS, MOOGLE_OFFERED, 1, "@vanilla"),
-        if_flag("ScenarioFlag2", 41, 1, "@vanilla"),
-        if_flag("ScenarioFlag1", 13, 1, "@vanilla"),
-    ] + gate("narshe_moogle_defense", "@vanilla") + [
-        flag(WC_FLAGS, MOOGLE_OFFERED),
-        S.op("SetTimer", i=[1, 1], s=["sc_e_0017_6"], r=[0.5]),
-        S.op("Jump", i=["@vanilla"]),                          # the mines as usual meanwhile
-    ])
-    return sc
-
-
 def moogle_defense_ask():
-    """The defense's opening (sc_e_0017_6): in a WC game it asks first, on the mines as they are
-    (the map's timer starts it); (Yes.) fades out into vanilla's scene, which sets its entities
-    on black and fades in; (Not now.) leaves the party where it stands (asked again next time
-    the mines are entered)."""
-    sc = S.load("sc_e_0017_6")
+    """Arvis offers the defense in his Narshe house, as SNES WC does. The house's Arvis uses
+    sc_e_0017_5 as his talk script in a WC game; (Yes.) moves to the mines and starts the opening,
+    while (Not now.) leaves the party in the house. sc_e_0017_6 only accepts that transition --
+    entering the mines from either side never offers or starts the check."""
+    out = []
+    sc = S.load("sc_e_0017_5")
     ms = sc["Mnemonics"]
-    assert ms[1]["operands"]["sValues"][0] == "ev_e_0017" and ms[3]["mnemonic"] == "FadeIn", "moogle opening changed"
+    assert ms[1]["operands"]["sValues"][0] == "ev_e_0017" and ms[43]["operands"]["sValues"][0] == "sc_e_0017_6", \
+        "Arvis scene changed"
     S.hook(sc, 1, "wc_ask", [
         if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
         S.op("Msg", s=["WC_MOOGLE_ASK"]),
         S.op("Select", s=["WC_MOOGLE_YES", "WC_MOOGLE_NO"]),
         selection(0, "@yes"),
-        reset(WC_FLAGS, MOOGLE_OFFERED),
         S.op("Exit"),
         S.label("yes"),
+        flag(WC_FLAGS, MOOGLE_OFFERED),
         S.op("FadeOut", i=[0, 0, 0, 255], r=[0.7]),
-        S.op("Jump", i=["@vanilla"]),
+        S.op("ChangeMap", i=[318, 1, 0, 0, 1], s=["sc_e_0017_6"]),
+        S.op("Exit"),
     ])
-    return sc
+    out.append((sc, S.path("sc_e_0017_5")))
+
+    sc = S.load("sc_e_0017_6")
+    ms = sc["Mnemonics"]
+    assert ms[1]["operands"]["sValues"][0] == "ev_e_0017" and ms[3]["mnemonic"] == "FadeIn", "moogle opening changed"
+    S.hook(sc, 1, "wc_accepted", [
+        if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
+        if_flag(WC_FLAGS, MOOGLE_OFFERED, 0, "@out"),
+        reset(WC_FLAGS, MOOGLE_OFFERED),
+        S.op("Jump", i=["@vanilla"]),
+        S.label("out"),
+        S.op("Exit"),
+    ])
+    # The PR opening uses Terra herself (entity -1) for the collapsed figure and leaves her in
+    # the Fall animation. Vanilla gets away with that because Terra cannot be in Locke's defense
+    # party; WC can preserve a recruited Terra, so she otherwise remains horizontal while walking
+    # (the user's Deck screenshot, 2026-11-15). SNES WC avoids touching party Terra by using a
+    # separate NPC. Release the PR entity's pose before the next map constructs WC's parties.
+    assert ms[19]["mnemonic"] == "ChangeMap" and ms[19]["operands"]["sValues"][0] == "sc_e_0017_7", \
+        "moogle party transition changed"
+    S.hook(sc, 19, "wc_release_terra", [
+        if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
+        S.op("Call", i=["@wc_terra_default"]),
+        S.op("Jump", i=["@vanilla"]),
+    ] + puppets("wc_terra_default", (-1,),
+                lambda k: [S.op("CueAnim", s=["Default"], i=[0, 1], kind=2)]))
+    out.append((sc, S.path("sc_e_0017_6")))
+    return out
 
 
 def moogle_defense_party():
-    """The defense's parties (sc_e_0017_7): no Locke joining; party 1 keeps its leader with three
-    moogles (vanilla: Locke and three moogles); Mog's and the third party as vanilla."""
+    """The defense's parties (sc_e_0017_7): no Locke joining. SNES WC keeps every member of the
+    active party and fills only its empty slots with moogles; the PR used to keep only its leader.
+    Save the party before the guest moogles join, then let the plugin compose party 1 from it.
+    Mog's party and the third party stay vanilla."""
     sc = S.load("sc_e_0017_7")
     ms = sc["Mnemonics"]
     assert ms[12]["operands"]["sValues"][0].endswith("ロック") and ms[14]["operands"]["iValues"][:5] == [1, 2, 19, 20, 21], \
         "moogle parties changed"
     skip_at(sc, 12)
+    S.hook(sc, 13, "wc_save_party", [
+        if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
+        S.op("SysCall", s=["WC:moogle_party_save"]),
+        S.op("Jump", i=["@vanilla"]),
+    ])
     S.hook(sc, 14, "wc_party", [
         if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
-        S.op("OrganizePartySlot", i=[1, -2, 19, 20, 21]),
+        S.op("SysCall", s=["WC:moogle_party"]),
         S.op("Jump", i=[14]),
     ])
     return sc
@@ -2577,7 +3017,8 @@ def moogle_defense_party():
 def moogle_defense():
     """After the Marshal (sc_e_0018_2, map 318): the moogles leave, then the seed's reward; no
     Locke/Terra party and escape story (ScenarioFlag1 14 = the defense over, as sc_e_0018_5 sets
-    it); multi-party off and one party picked (as after Narshe's battle), back in the mines."""
+    it); recruited Mog is restored after vanilla dismisses the temporary moogle roster; multi-party
+    off and one party picked (as after Narshe's battle), back in the mines."""
     sc = S.load("sc_e_0018_2")
     ms = sc["Mnemonics"]
     assert ms[13]["operands"]["sValues"][0].startswith("メンバー離脱") and ms[14]["operands"]["iValues"][:3] == [1, 2, 1], \
@@ -2586,6 +3027,7 @@ def moogle_defense():
     assert ms[10]["mnemonic"] == "FadeOut", "Marshal end fade moved"
     S.hook(sc, 14, "wc_reward", [
         if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
+        S.op("SysCall", s=["WC:moogle_party_restore"]),  # vanilla's previous call also dismissed recruited Mog
         fade_in(),                                    # faded out at ms[10]: the reward's line shows
     ] + give("narshe_moogle_defense", [("ScenarioFlag1", 14)]) + [
         reset("ScenarioFlag3", 41),
@@ -3103,12 +3545,41 @@ def story_music():
         WC's (SNES 0x96/0x9A: its entrance event plays 0x34 until Terra is recruited)."""
     out = []
     for name in ("sc_map_20160", "sc_map_20161_2", "sc_map_20161_3", "sc_map_20161_4"):
-        out.append((opera_music(S.load(name), name), S.path(name)))
+        sc = opera_music(S.load(name), name)
+        if name == "sc_map_20160":
+            ms = sc["Mnemonics"]
+            assert ms[36]["operands"]["iValues"][:3] == [177, 1, 38] and \
+                ms[39]["operands"]["sValues"][0] == "ev_e_0278" and ms[78]["label"], \
+                "opera entrance entities changed"
+            # SNES WC clears MAN_OPERA_ENTRANCE and IMPRESARIO_OPERA_ENTRANCE at startup.  PR
+            # represents those NPCs with mutually exclusive entity layers instead of NPC bits;
+            # with WC's SAW_OPERA_OVERTURE flag, vanilla selects ev_e_0278 and puts the blocking
+            # "There's a performance underway" attendant at the front door.  Leave the entrance
+            # on its entity-default layer in WC so the player can reach the lobby impresario and
+            # start the Celes-gated disruption check, in every check state just like SNES WC.
+            S.hook(sc, 36, "wc_opera_entrance", [
+                if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
+                S.op("Jump", i=[78]),
+            ])
+        out.append((sc, S.path(name)))
     sc = S.load("sc_map_20011_14")
     ms = sc["Mnemonics"]
     assert ms[1]["operands"]["iValues"][:3] == [14, 1, 4] and ms[2]["operands"]["iValues"][0] == 4 and ms[4]["label"], \
         "Narshe's Awakening house changed"
     wc_jump(sc, 1, 4, "wc_bgm")                 # on at 5: WoB Narshe / WoR
+    # WC moves Arvis into this house as the moogle-defense check giver. The PR already has his
+    # ev_e_0017 puppet here, but its story flags otherwise select no entity layer after the opening.
+    # Show him only in the WoB while the check and its Mog gate are open.
+    assert ms[12]["operands"]["iValues"][:3] == [10, 0, 65], "Narshe house entities changed"
+    S.hook(sc, 12, "wc_arvis", [
+        if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
+        if_flag(WC_FLAGS, CHECK_FLAGS["narshe_moogle_defense"], 1, "@out"),
+        if_flag("ScenarioFlag2", 41, 1, "@out"),
+    ] + gate("narshe_moogle_defense", "@out") + [
+        S.op("SetEntities", s=["ev_e_0017"]),
+        S.label("out"),
+        S.op("Jump", i=[65]),
+    ])
     out.append((sc, S.path("sc_map_20011_14")))
     sc = S.load("sc_map_20071_5")
     ms = sc["Mnemonics"]
@@ -3184,8 +3655,9 @@ def thamasa_burning_map():
 
 def esper_mountain_map():
     """The WoB's world map (sc_Map_10010): Esper Mountain's entrance open (vanilla: after
-    ScenarioFlag2 19, which also turns Thamasa to after the fire)."""
-    sc = S.load("sc_Map_10010")
+    ScenarioFlag2 19, which also turns Thamasa to after the fire).  Build on the Lethe River's
+    one-time Blackjack repair: both changes target this same map script."""
+    sc = wob_world_map()
     ms = sc["Mnemonics"]
     assert ms[90]["operands"]["iValues"][:3] == [19, 1, 93] and ms[91]["operands"]["sValues"][0] == "ev_e_0539", "world map changed"
     wc_jump(sc, 90, 93)
@@ -3287,7 +3759,11 @@ def auction_golem():
     S.hook(sc, 2, "wc_hint", [
         if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
         S.op("SysCall", s=[f"WC:auction_hint E0422_99_111_a_01 {CHECK_FLAGS['auction_1']} {CHECK_FLAGS['auction_2']}"]),
-        S.op("Jump", i=["@vanilla"]),
+        # WC's requirements_mod removes the post-Magitek-Factory/Cranes prerequisite.
+        # ScenarioFlag1 203 is normally unset in a WC game, so returning to the vanilla
+        # branch above sends every visit straight to "This auction is now closed."
+        # Continue with the map-local one-sale-per-visit check instead.
+        S.op("Jump", i=[2]),                 # resume at original instruction 3 (Jump targets run after their label)
     ])
     return sc
 
@@ -3424,13 +3900,55 @@ def mines_1f_map():
     loads here, which left the walls up too: they block the bridge before the east tunnel's
     mouth (320,384; the tunnel to map 634/325) and the save point's side (the user's Deck,
     2026-11-12: "i can't go through that mouth"). In a WC game the walls stay out."""
-    return skip("sc_map_30021_1", 18, "SetEntities ev_e_0001", "the opening's Magitek walls")
+    sc = skip("sc_map_30021_1", 18, "SetEntities ev_e_0001", "the opening's Magitek walls")
+    ms = sc["Mnemonics"]
+    assert ms[17]["mnemonic"] == "Branch" and ms[17]["operands"]["iValues"][:2] == [13, 1], \
+        "the opening-march entity gate changed"
+    assert ms[22]["mnemonic"] == "Branch" and ms[22]["operands"]["iValues"][:2] == [9, 1], \
+        "the Whelk entity gate changed"
+    # A progressed save (including after the moogle defense) has ScenarioFlag1 13 set. Vanilla
+    # then skips this entire block before reaching Whelk. WC must bypass that outer story gate;
+    # the wall hook below still keeps ev_e_0001 out, while the door and Whelk use their own flags.
+    S.hook(sc, 17, "wc_progressed_mine", [
+        if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
+        S.op("Jump", i=[19]),
+    ])
+    # WC relocates the SNES guard from map 029 to 02B. PR split and cropped that SNES mine,
+    # but reuses this Map_30021_1 gate for the ordinary WoB route (the user's screenshots,
+    # 2026-11-16). Keep the PR-native guard here and gate it with WC's completion bit.
+    S.hook(sc, 22, "wc_whelk_entities", [
+        if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
+        if_flag("ScenarioFlag2", 41, 1, "@closed"),       # WoR: no Whelk check
+        if_flag(WC_FLAGS, CHECK_FLAGS["whelk"], 0, "@open"),
+        # Repair an old port save that has only the WC bit, without Whelk's vanilla defeated bit.
+        if_flag("ScenarioFlag1", 9, 0, "@repair"),
+        S.op("Jump", i=["@closed"]),
+        S.label("repair"),
+        reset(WC_FLAGS, CHECK_FLAGS["whelk"]),
+        S.label("open"),
+        S.op("SetEntities", s=["ev_e_0011"]),
+        S.label("closed"),
+        S.op("Jump", i=[24]),
+    ])
+    return sc
 
 
 def whelk_start():
-    """Narshe's mines (WC event/whelk.py, gate Terra): the Whelk only with the gate met."""
+    """Narshe's mines (WC event/whelk.py, gate Terra): the PR gate's guard starts Whelk
+    directly. Do not run the PR opening's fixed-coordinate Biggs/Wedge/guard puppet scene."""
     sc = S.load("sc_e_0011")
-    gate_at(sc, 1, "whelk")
+    ms = sc["Mnemonics"]
+    assert ms[8]["mnemonic"] == "SysCall" and ms[9]["mnemonic"] == "EncountBoss", "Whelk start changed"
+    S.hook(sc, 1, "wc_gate", [
+        if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
+        if_flag(WC_FLAGS, CHECK_FLAGS["whelk"], 1, "@closed"),
+    ] + gate("whelk", "@closed") + [
+        S.op("SysCall", s=["戦闘不能キャラを全て蘇生"]),
+        copy.deepcopy(ms[9]),
+        S.op("Exit"),
+        S.label("closed"),
+        S.op("Exit"),
+    ])
     return sc
 
 
@@ -3440,21 +3958,32 @@ def whelk():
     ms = sc["Mnemonics"]
     assert ms[4]["mnemonic"] == "SetFlag" and ms[4]["operands"]["iValues"][0] == 9, "Whelk changed"
     reward_at(sc, 4, "whelk", then="keep")
+    # Skip the PR opening's fixed party choreography/teleport and reveal the field before reward.
+    S.hook(sc, 1, "wc_relocated", [
+        if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
+        fade_in(),
+        S.op("Jump", i=[3]),                       # continue at the reward hook at index 4
+    ])
     return sc
 
 
+MAGITEK_IFRIT_SHIVA_DONE = [("ScenarioFlag1", x) for x in (184, 188, 189, 190)]
+
+
 def magitek_pickup(name, msg_key):
-    """The Magitek Factory's Ifrit / Shiva magicite (WC event/magitek_factory.py, gate Celes; map
-    398): either one gives the factory's first reward and takes both (ScenarioFlag1 189, 190)."""
+    """Fallback for a save already at the Ifrit / Shiva magicite (map 398): either one gives
+    the factory's first reward and removes both stones.  Fresh WC games receive this reward in
+    the battle callback, as SNES Worlds Collide does."""
     sc = S.load(name)
     ms = sc["Mnemonics"]
     assert ms[6]["operands"]["sValues"][0] == msg_key and ms[8]["mnemonic"] == "GetItem", f"{name} changed"
     gate_at(sc, 1, "magitek_factory")
     S.hook(sc, 6, "wc_reward", [
         if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
-    ] + give("magitek_factory", [("ScenarioFlag1", 189), ("ScenarioFlag1", 190)]) + [
+        S.op("Call", i=["@wc_hide_magicite"]),
+    ] + give("magitek_factory", MAGITEK_IFRIT_SHIVA_DONE) + [
         S.op("Exit"),
-    ])
+    ] + puppets("wc_hide_magicite", (11, 1), lambda k: [S.op("Hide", kind=2)]))
     return sc
 
 
@@ -3466,12 +3995,197 @@ def magitek_shiva():
     return magitek_pickup("sc_e_0400", "E0400_00_398_a_02")
 
 
+def magitek_ifrit_shiva():
+    """The first Magitek Factory check, matching WC's ifrit_shiva_mod: winning the battle gives
+    the reward immediately and removes both espers.  PR normally requires a two-NPC conversation
+    after the fight before they become separately collectible magicite; that state sat before the
+    old pickup-only hooks, so the reward never ran and both sprites remained.
+
+    The two talk scripts are retained as an old-save repair for a battle already won under the old
+    port.  The map initializer also repairs completed saves whose old reward flags did not include
+    PR's conversation-finished bit.
+    """
+    out = []
+
+    start_path = S.path("sc_e_0394")
+    start = S.load_path(start_path)
+    sm = start["Mnemonics"]
+    assert sm[7]["mnemonic"] == "EncountBoss" and sm[7]["operands"]["sValues"][0] == "sc_e_0394_1", \
+        "Ifrit/Shiva battle changed"
+    gate_at(start, 1, "magitek_factory")
+    out.append((start, start_path))
+
+    after_path = S.path("sc_e_0394_1")
+    after = S.load_path(after_path)
+    am = after["Mnemonics"]
+    assert am[1]["operands"]["sValues"][0] == "図鑑登録：シヴァ・イフリート" \
+        and am[7]["mnemonic"] == "SetFlag" and am[7]["operands"]["iValues"][0] == 184, \
+        "Ifrit/Shiva battle callback changed"
+    S.hook(after, 1, "wc_ifrit_shiva_reward", [
+        if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
+        S.op("Call", i=["@wc_hide_espers"]),
+        fade_in(),
+    ] + give("magitek_factory", MAGITEK_IFRIT_SHIVA_DONE) + [
+        S.op("Exit"),
+    ] + puppets("wc_hide_espers", (13, 12, 14), lambda k: [S.op("Hide", kind=2)]))
+    out.append((after, after_path))
+
+    # A save made after the broken callback has ScenarioFlag1 184 (battle won) but no WC reward.
+    # Talking to either remaining esper completes the check without PR's story handshake.
+    for name in ("sc_e_0395", "sc_e_0397"):
+        path = S.path(name)
+        talk = S.load_path(path)
+        tm = talk["Mnemonics"]
+        assert tm[1]["mnemonic"] == "Msg" and tm[3]["mnemonic"] == "SetFlag", f"{name} changed"
+        S.hook(talk, 1, "wc_ifrit_shiva_repair", [
+            if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
+            if_flag("ScenarioFlag1", 184, 0, "@closed"),
+            if_flag(WC_FLAGS, CHECK_FLAGS["magitek_factory"], 1, "@already"),
+            S.op("Call", i=["@wc_hide_espers"]),
+            fade_in(),
+        ] + give("magitek_factory", MAGITEK_IFRIT_SHIVA_DONE) + [
+            S.op("Exit"),
+            S.label("already"),
+        ] + [flag(*f) for f in MAGITEK_IFRIT_SHIVA_DONE] + [
+            S.op("Call", i=["@wc_hide_espers"]),
+            S.label("closed"),
+            S.op("Exit"),
+        ] + puppets("wc_hide_espers", (13, 12, 14), lambda k: [S.op("Hide", kind=2)]))
+        out.append((talk, path))
+
+    map_path = S.path("sc_map_30521_3")
+    room = S.load_path(map_path)
+    mm = room["Mnemonics"]
+    assert mm[3]["mnemonic"] == "Nop" and mm[4]["mnemonic"] == "Branch" \
+        and mm[6]["operands"]["sValues"][0] == "ev_e_0394" \
+        and mm[10]["operands"]["sValues"][0] == "ev_e_0399" \
+        and mm[23]["operands"]["sValues"][0] == "ev_e_0400", "Ifrit/Shiva room changed"
+    S.hook(room, 4, "wc_ifrit_shiva_done", [
+        if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
+        if_flag(WC_FLAGS, CHECK_FLAGS["magitek_factory"], 0, "@vanilla"),
+    ] + [flag(*f) for f in MAGITEK_IFRIT_SHIVA_DONE] + [
+        S.op("Jump", i=[25]),
+    ])
+    out.append((room, map_path))
+
+    out.append((magitek_ifrit(), S.path("sc_e_0399")))
+    out.append((magitek_shiva(), S.path("sc_e_0400")))
+    return out
+
+
 def owzer_mansion():
-    """Owzer's Mansion (WC event/owzer_mansion.py; map 446): after Chadarnook, Relm and Owzer
-    (sc_e_0775): the seed's reward instead of Lakshmi + Relm (ScenarioFlag2 135 = done)."""
-    # the scene opens with Relm's theme (PlayBGM 50): WC ("Play Song Relm") plays the reward
-    # character's instead
-    return talk_reward("sc_e_0775", 1, "owzer_mansion", [("ScenarioFlag2", 135)], expect="PlayBGM", theme=50)
+    """Owzer's Mansion (WC event/owzer_mansion.py; map 446): the seed's reward immediately
+    after Chadarnook, instead of making the player inspect Lakshmi's bookshelf.
+
+    The PR splits the post-battle continuation between sc_e_0773_1 (the battle callback) and
+    sc_e_0773_2 (the reloaded room).  The old port hooked only sc_e_0775, the bookshelf, so the
+    callback ended with no reward and Owzer kept asking "Where's the stone now?".  Keep that
+    shelf hook as a fallback, but own both callback continuations.  Owzer's ordinary talk also
+    repairs saves that already defeated Chadarnook (ScenarioFlag2 134) under the old scripts.
+    ScenarioFlag2 135 is the vanilla completed/took-Lakshmi flag.
+    """
+    done = [("ScenarioFlag2", 135)]
+    out = []
+
+    # Fresh victory: _1 changes/reloads the map into _2.  Normally only _2 reaches the reward;
+    # the _1 hook after ChangeMap is a safe fallback if this engine path ever resumes there.
+    for name, at in (("sc_e_0773_1", 3), ("sc_e_0773_2", 1)):
+        path = S.path(name)
+        sc = S.load_path(path)
+        ms = sc["Mnemonics"]
+        assert ms[at]["mnemonic"] == "SetFlag" and ms[at]["operands"]["iValues"][0] == 134, \
+            f"{name}'s post-Chadarnook continuation changed"
+        S.hook(sc, at, "wc_owzer_reward", [
+            if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
+            if_flag(WC_FLAGS, CHECK_FLAGS["owzer_mansion"], 1, "@closed"),
+            fade_in(),                         # the post-battle room starts black
+        ] + give("owzer_mansion", done, theme=50) + [
+            S.op("Exit"),
+            S.label("closed"),
+            S.op("Exit"),
+        ])
+        out.append((sc, path))
+
+    # Old-save repair: flag 134 means Chadarnook is gone.  Owzer's talk reaches instruction 20
+    # before displaying the missing-stone lines; grant the still-open WC check there instead.
+    path = S.path("sc_e_0773")
+    sc = S.load_path(path)
+    ms = sc["Mnemonics"]
+    assert ms[20]["mnemonic"] == "Branch" and ms[20]["operands"]["iValues"][:2] == [135, 1] \
+        and ms[21]["operands"]["sValues"][0] == "E0773_02_446_a_06", "Owzer's post-battle talk changed"
+    S.hook(sc, 20, "wc_owzer_reward_repair", [
+        if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
+        if_flag(WC_FLAGS, CHECK_FLAGS["owzer_mansion"], 1, "@vanilla"),
+    ] + give("owzer_mansion", done, theme=50) + [S.op("Exit")])
+    out.append((sc, path))
+
+    # Bookshelf fallback, and vanilla behavior outside WC.
+    path = S.path("sc_e_0775")
+    out.append((talk_reward("sc_e_0775", 1, "owzer_mansion", done, expect="PlayBGM", theme=50), path))
+    return out
+
+
+def owzer_mansion_start():
+    """Owzer's Mansion entrance hall (PR map 442 / sc_map_30631_1): WC's check is available
+    in the WoR once Relm is recruited.  Vanilla creates the interactive light switch only after
+    its Relm-captured NPC and diary sequence (ScenarioFlag2 42/122/123 and ScenarioFlag3 65),
+    flags a WC game never sets.  Place the switch and the woman-portrait battle trigger directly
+    while the WC check is unfinished, and put WC's Relm character gate on both as the SNES mod
+    does."""
+    path = S.path("sc_map_30631_1")
+    room = S.load_path(path)
+    ms = room["Mnemonics"]
+    assert ms[3]["label"] and ms[4]["mnemonic"] == "Branch" and ms[4]["operands"]["iValues"][:2] == [135, 1], \
+        "Owzer entrance map changed"
+    S.hook(room, 4, "wc_owzer_switch", [
+        if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
+        if_flag("ScenarioFlag2", 41, 0, "@vanilla"),             # the check is in the WoR
+        if_flag(WC_FLAGS, CHECK_FLAGS["owzer_mansion"], 1, "@vanilla"),
+        S.op("SetEntities", s=["ev_e_0758"]),                    # interactive light switch
+        S.op("SetEntities", s=["ev_e_0762"]),                    # woman portrait / hidden-door battle
+        S.op("Exit"),
+    ])
+
+    light_path = S.path("sc_e_0758")
+    light = S.load_path(light_path)
+    lm = light["Mnemonics"]
+    assert lm[1]["label"] and lm[2]["mnemonic"] == "Branch" and lm[2]["operands"]["iValues"][:2] == [42, 1], \
+        "Owzer light switch changed"
+    S.hook(light, 2, "wc_owzer_gate", [
+        if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
+        if_flag("ScenarioFlag2", 41, 0, "@closed"),
+        if_flag(WC_FLAGS, CHECK_FLAGS["owzer_mansion"], 1, "@closed"),
+    ] + gate("owzer_mansion", "@stay_away") + [
+        S.op("Jump", i=["@vanilla"]),
+        S.label("stay_away"),
+        S.op("Msg", s=["E0756_00_442_a_01"]),
+        S.op("Exit"),
+        S.label("closed"),
+        S.op("Exit"),
+    ])
+
+    portrait_path = S.path("sc_e_0762")
+    portrait = S.load_path(portrait_path)
+    pm = portrait["Mnemonics"]
+    assert pm[1]["mnemonic"] == "Msg" and pm[2]["mnemonic"] == "Branch" and \
+        pm[2]["operands"]["iValues"][:2] == [42, 1] and pm[4]["label"], \
+        "Owzer woman portrait changed"
+    # Vanilla starts the battle only when Relm is captured (42/122). WC already has Relm and
+    # never sets those story flags, so skip its portrait line and go straight to the labelled
+    # vanilla battle block.
+    S.hook(portrait, 1, "wc_owzer_portrait", [
+        if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
+        if_flag("ScenarioFlag2", 41, 0, "@closed"),
+        if_flag(WC_FLAGS, CHECK_FLAGS["owzer_mansion"], 1, "@closed"),
+    ] + gate("owzer_mansion", "@stay_away") + [
+        S.op("Jump", i=[4]),
+        S.label("stay_away"),
+        S.op("Msg", s=["E0756_00_442_a_01"]),
+        S.op("Exit"),
+        S.label("closed"),
+        S.op("Exit"),
+    ])
+    return [(room, path), (light, light_path), (portrait, portrait_path)]
 
 
 def zone_eater():
@@ -3509,10 +4223,13 @@ def umaro_cliff():
     assert ms[1]["mnemonic"] == "Msg" and ms[1]["operands"]["sValues"][0] == "E0781_00_020_a_01" \
         and ms[11]["mnemonic"] == "Call" and ms[11]["operands"]["iValues"][0] == 27 \
         and ms[27]["label"] == "return_move", "Umaro's cliff changed"
+    # Resume directly after the hook. Jumping to @vanilla copied the Msg and then resumed at the
+    # original Msg, displaying it twice.
     S.hook(sc, 1, "wc_gate", [
-        if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
+        if_flag(WC_FLAGS, WC_GAME, 0, "@open"),
     ] + gate("umaro_cave", "@closed") + [
-        S.op("Jump", i=["@vanilla"]),
+        S.label("open"),
+        S.op("Jump", i=[1]),
         S.label("closed"),
         S.op("Msg", s=["WC_UMARO_CLIFF"]),
         S.op("Call", i=[27]),                 # return_move: the party steps back from the edge
@@ -3723,21 +4440,22 @@ def kt_demon_drop():
     return [(sc, f[0])]
 
 
-SCRIPTS = [opening, blackjack_helm, falcon_helm, tzen_wob, tzen_wor, tzen_map, ancient_castle, ancient_castle_room,
+SCRIPTS = [opening, blackjack_helm, falcon_helm, blackjack_party_npc, falcon_party_npc_grounded, falcon_party_npc, tzen_wob, tzen_wor, tzen_map, ancient_castle, ancient_castle_room,
            gau_father_house_map, gau_father_house, kohlingen_map, kohlingen, tritoch, tritoch_map, zozo_map, zozo,
-           owzer_mansion, zone_eater, mt_zozo, umaro_cliff, umaro_cave, umaro_carving_line, umaro_carving_item,
+           owzer_mansion_start, owzer_mansion, zone_eater, mt_zozo, umaro_cliff, umaro_cave, umaro_carving_line, umaro_carving_item,
            esper_mountain_start, esper_mountain, figaro_castle_wor_start, figaro_castle_wor,
-           collapsing_house_map, collapsing_house, narshe_wor, magitek_ifrit, magitek_shiva,
+           collapsing_house_map, collapsing_house, narshe_wor, magitek_ifrit_shiva,
            doma_wor, doma_wor_throne, mobliz_wor_start, mobliz_wor, mobliz_fenrir, doom_gaze_start, doom_gaze,
-           magitek_tubes, magitek_escape, lone_wolf, lone_wolf_hairpin, daryl_tomb, baren_falls_jump, baren_falls, south_figaro,
-           figaro_castle_wob, mt_kolts_start, mt_kolts, magitek_024_start, magitek_024, doma_stooges, doma_stooges_lines, veldt, veldt_world, veldt_battle, ultima_intros, ultros_battles, boss_battle_events,
+           magitek_tubes, magitek_escape, lone_wolf, lone_wolf_hairpin, lone_wolf_cave, daryl_tomb_entrance, daryl_tomb, baren_falls_jump, baren_falls, south_figaro,
+           figaro_castle_wob, mt_kolts_start, mt_kolts_map, mt_kolts, magitek_024_start, magitek_024, doma_stooges, doma_stooges_lines, veldt, veldt_world, veldt_battle, ultima_intros, nelapa_battle, wrexsoul_battle, ultros_battles, boss_battle_events,
            fanatics_tower, fanatics_tower_dragon, magimaster, dragons, auction_golem, auction_zona_seeker, kefka_tower_atma, final_kefka,
            fc_airship_trip, fc_arrive, fc_airship_return, fc_beast, fc_statues, fc_escape, veldt_cave_start, veldt_cave_shadow,
-           veldt_cave_relm, lete_river_start, lete_river, sealed_gate_start, sealed_gate, sealed_gate_after,
+           veldt_cave_relm, lete_river_start, lete_river, imperial_observation_post_map,
+           sealed_gate_start, sealed_gate, sealed_gate_after,
            sealed_gate_map, serpent_trench_start, serpent_trench_cave, serpent_trench_cliff, serpent_trench, nikeah_ferry,
            phantom_train_start, phantom_train, south_figaro_cave_map, south_figaro_cave_start, south_figaro_cave,
-           doma_siege_start, doma_siege, phoenix_cave_map, phoenix_cave, narshe_battle_map, narshe_lineups,
-           narshe_battle, opera_scripts, camp_scripts, moogle_defense_map, moogle_defense_ask, moogle_defense_party,
+           doma_siege_start, doma_siege, phoenix_cave_entry, phoenix_cave_map, phoenix_cave, narshe_battle_map, narshe_lineups,
+           narshe_battle, opera_scripts, camp_scripts, moogle_defense_ask, moogle_defense_party,
            moogle_defense, event_timers, blackjack_deck, narshe_town, figaro_castle_map, figaro_throne_map, figaro_shops, thamasa_burning_map,
            esper_mountain_map, kt_skip, kt_demon_drop, ebots_rock_fight_a, ebots_rock_fight_b, ebots_rock_a, ebots_rock_b, ebots_rock_evening,
            burning_house_start, burning_house, mines_1f_map, whelk_start, whelk,
@@ -3840,6 +4558,26 @@ def build(out_root):
             S.save(made, out_root)
             written.append(S.rel(made["Name"]))
     written += [r for r in cut_removed_lines(out_root) if r not in written]
+    # Arvis's existing ev_e_0017 puppet in his house is scene-only in vanilla. Make that copy
+    # talkable and point it at sc_e_0017_5, whose WC branch is the moogle-defense offer.
+    arvis = os.path.join(P.VANILLA, "map_20011", "Assets", "GameAssets", "Serial", "Res", "Map",
+                         "Map_20011", "Map_20011_14", "ev_e_0017.json")
+    layer = json.load(open(arvis, encoding="utf-8"))
+    entities = [o for group in layer["layers"] for o in group.get("objects", [])
+                if any(p.get("name") == "entity_id" and p.get("value") == 12 for p in o.get("properties", []))]
+    assert len(entities) == 1, "Arvis's Narshe-house entity changed"
+    props = {p["name"]: p for p in entities[0]["properties"]}
+    assert props["action_id"]["value"] == 0 and props["script_id"]["value"] == 0, "Arvis's talk state changed"
+    props["action_id"]["value"] = 2
+    props["script_id"]["value"] = 39                         # sc_e_0017_5
+    rel = os.path.relpath(arvis, P.VANILLA).replace("\\", "/")
+    dest = os.path.join(out_root, *rel.split("/"))
+    os.makedirs(os.path.dirname(dest), exist_ok=True)
+    with open(dest, "w", encoding="utf-8") as f:
+        json.dump(layer, f, ensure_ascii=False, separators=(",", ":"))
+    if rel not in written:
+        written.append(rel)
+
     return written
 
 

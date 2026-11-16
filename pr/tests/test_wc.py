@@ -14,6 +14,7 @@ The game itself is tested headless by pr/tools/run_tests.ps1 (WcTest.cs: a New G
 landing, walking into Narshe and out...).
 """
 import collections
+import copy
 import glob
 import json
 import os
@@ -179,8 +180,12 @@ class WcScripts(unittest.TestCase):
         cls.tmp = tempfile.mkdtemp(prefix="wc_scripts_")
         E.build(cls.tmp)
         cls.built = {}
+        cls.assets = {}
         for p in glob.glob(os.path.join(cls.tmp, "**", "*.json"), recursive=True):
-            cls.built[os.path.basename(p)[:-5].lower()] = p
+            name = os.path.basename(p)[:-5].lower()
+            cls.assets[name] = p
+            if "Mnemonics" in load(p):
+                cls.built[name] = p
 
     @classmethod
     def tearDownClass(cls):
@@ -475,6 +480,41 @@ class WcScripts(unittest.TestCase):
             self.assertEqual(len(r.did("Msg")), 0 if wc else 3, f"Esper Mountain's defeat, WC game {wc}")
             self.assertTrue(r.did("BattleForceExitOnSave"), "the fight still ends")
 
+    def test_wrexsoul_no_zinger_releases_battle_control(self):
+        """PR's forced Fury must not run when WC's -wnz removed that opening Zinger."""
+        built, _ = self.battle_script("sc_b_0939")
+        # End immediately where the real controller starts AI.  This isolates the opening from its
+        # intentionally endless battle loop while retaining calls into vanilla Event00.
+        sc = copy.deepcopy(built)
+        start_ai = next(i for i, m in enumerate(sc["Mnemonics"]) if m["mnemonic"] == "ExecBattleAI")
+        sc["Mnemonics"][start_ai] = S.op("Exit")
+
+        st = State()
+        st.set(E.WC_FLAGS, E.WC_GAME, 1)
+        wc = Run(sc, st, syscalls={"WC:has -wnz": gate(True)})
+        self.assertEqual([t[2][0] for t in wc.did("BattleInteractive")], [0, 1])
+        self.assertEqual([t[2][0] for t in wc.did("BattlePause")], [1, 0])
+        self.assertEqual(wc.did("Msg"), [], "no removed opening dialogue")
+        self.assertEqual(wc.did("SysCall", "敵バトル行動：ヒューリー"), [], "no removed Fury/Zinger")
+        self.assertEqual(wc.did("SysCall", "ソウルセイバー座標保存"), [], "no possession coordinate state")
+
+        vanilla = Run(sc, State())
+        self.assertEqual([t[3][0] for t in vanilla.did("Msg")], ["E0939_01_537_b_01"])
+        self.assertTrue(vanilla.did("SysCall", "敵バトル行動：ヒューリー"), "vanilla keeps its opening")
+
+        # Isolate one pass through the main loop: -wnz skips the possession-only Soul Saver check
+        # and reaches synchronization; vanilla still calls it.
+        loop = copy.deepcopy(built)
+        sync = next(i for i, m in enumerate(loop["Mnemonics"]) if m["mnemonic"] == "SyncBattleAI")
+        loop["Mnemonics"][sync] = S.op("Exit")
+        hook = next(i for i, m in enumerate(loop["Mnemonics"]) if m.get("label") == "wc_no_zinger_soul_saver")
+        st = State()
+        st.set(E.WC_FLAGS, E.WC_GAME, 1)
+        wc_loop = Run(loop, st, start=hook, syscalls={"WC:has -wnz": gate(True)})
+        self.assertEqual(wc_loop.did("SysCall", "ソウルセイバーチェック"), [])
+        vanilla_loop = Run(loop, State(), start=hook)
+        self.assertTrue(vanilla_loop.did("SysCall", "ソウルセイバーチェック"))
+
     def test_plugin_removed_battle_lines_are_ai_lines(self):
         """The plugin's WcRemovedBattleLines (WcEvents.cs) are lines of the PR AIs the seed keeps:
         Ultros 2/3, Vargas, Chadarnook (painting and demon); Chadarnook's "Back off!" isn't one."""
@@ -605,6 +645,16 @@ class WcScripts(unittest.TestCase):
     def test_opera_stage_open_after_the_start(self):
         st, _ = self.new_game()
         self.assertTrue(self.stage(st), "the performance's trigger (ev_e_0318)")
+
+    def test_opera_entrance_is_open_in_wc(self):
+        st, _ = self.new_game()
+        self.assertFalse(self.sets("sc_map_20160", st),
+                         "SNES WC removes the entrance attendant instead of spawning ev_e_0278")
+
+        vanilla = State()
+        vanilla.set("ScenarioFlag1", 158, 1)
+        self.assertEqual(self.sets("sc_map_20160", vanilla), ["ev_e_0278"],
+                         "the unmodified PR story still has its performance attendant")
 
     def test_opera_disruption_still_starts(self):
         st, _ = self.new_game()
@@ -820,6 +870,20 @@ class WcScripts(unittest.TestCase):
             self.assertEqual(len(shops), 1)
             self.assertIn("初期", shops[0], "non-WC games keep the vanilla opening inventory")
 
+    def test_auction_is_open_without_the_vanilla_cranes_story_flag(self):
+        """WC removes the auction's post-Magitek-Factory requirement. A fresh WC state keeps
+        ScenarioFlag1 203 clear, but must reach the auction greeting rather than its closed line;
+        the map-local flag still closes a second auction during the same visit."""
+        st, _ = self.new_game()
+        self.assertEqual(st.get("ScenarioFlag1", 203), 0)
+        sc = self.script("sc_e_0422")
+        first = Run(sc, st, answers=[1])
+        self.assertIn("E0422_99_111_a_01", [t[3][0] for t in first.did("Msg")])
+        self.assertNotIn("N014_C00_111_01_01", [t[3][0] for t in first.did("Msg")])
+        st.set("MapLocalVariable", 1, 1)
+        second = Run(sc, st)
+        self.assertEqual([t[3][0] for t in second.did("Msg")], ["N014_C00_111_01_01"])
+
     def test_check_scenes_show_no_story_text(self):
         """Every scene that gates or rewards a check, and the scenes it moves on to (ChangeMap /
         ChangeScript), run in a WC game with the gate open: no story line the plugin would let
@@ -928,26 +992,133 @@ class WcScripts(unittest.TestCase):
         self.assertFalse(r.black, "the field is visible when control returns in the tomb")
         self.assertEqual(r.black_lines, [])
 
-    def test_moogle_defense_opening_starts_as_an_event(self):
-        # The user's Deck, 2026-11-14: "i was able to move through the cutscene". The mines' map
-        # script changed map into the opening while the map was still loading, and the game handed
-        # the party back halfway into the scene; it starts it by a timer now (an event), asks on
-        # the mines as they are, and fades out only on (Yes.)
+    def test_lete_river_skips_the_first_ride_tutorial(self):
+        # WC lete_river.py removes the entire first-ride setup.  With its story bit clear, an
+        # arbitrary WC party enters the river script directly; both PR approach-map animations
+        # use story puppets and can wait forever because WC never created that story party.
+        st, _ = self.new_game()
+        self.assertEqual(st.get("ScenarioFlag1", 48), 0)
+        r = Run(self.script("sc_e_0063"), st,
+                syscalls={"WC:gate lete_river": gate(True)})
+        self.assertEqual(r.end, ("ChangeScript", "sc_e_0063_3"))
+        self.assertEqual(r.did("Select"), [], "the WC entrance is the raft trigger itself")
+        self.assertEqual(r.did("RecoveryHP"), [], "no vanilla first-ride healing")
+        self.assertEqual(r.did("HideMob"), [], "no missing story-party mob")
+        self.assertEqual(r.did("ColorFade"), [], "no first-ride tutorial transition")
+        self.assertEqual(r.did("SetPuppet"), [], "no approach-map fall animation")
+        self.assertEqual(st.get("ScenarioFlag1", 48), 0, "WC does not set the vanilla story bit")
+
+        closed, _ = self.new_game()
+        blocked = Run(self.script("sc_e_0063"), closed,
+                      syscalls={"WC:gate lete_river": gate(False)})
+        self.assertEqual(blocked.end, ("Exit",))
+        self.assertEqual(blocked.did("ChangeScript"), [])
+
+        # SNES WC's river exit loads the WoB with the airship on the party's landing tile.
+        # PR's copied second-ride exit alone leaves the Blackjack wherever it was before the check.
+        finished, _ = self.new_game()
+        washed_up = Run(self.script("sc_e_0065_1"), finished,
+                         syscalls={"WC:gate lete_river": gate(True)})
+        vehicles = [t[2][:6] for t in washed_up.did("SetVehicle")]
+        self.assertIn([E.BLACKJACK, E.WOB_MAP, *E.LETE_WASHUP, 1, 3], vehicles)
+        self.assertEqual(finished.get("TreasureFlag4", 135), 1, "the Blackjack is boardable")
+        self.assertEqual(washed_up.end, ("ChangeMap", E.WOB_MAP, 35, ""))
+
+        # An already-completed save is repaired once when the WoB world map initializes.  It
+        # must not keep teleporting the Blackjack after the player has flown it elsewhere.
+        old_save, _ = self.new_game()
+        old_save.set(E.WC_FLAGS, E.CHECK_FLAGS["lete_river"], 1)
+        world = self.script("sc_map_10010")
+        repaired = Run(world, old_save)
+        self.assertIn([E.BLACKJACK, E.WOB_MAP, *E.LETE_WASHUP, 1, 3],
+                      [t[2][:6] for t in repaired.did("SetVehicle")])
+        self.assertEqual(old_save.get(E.WC_FLAGS, E.LETE_AIRSHIP_REPAIRED), 1)
+        self.assertEqual(old_save.get("TreasureFlag4", 135), 1)
+        self.assertEqual(Run(world, old_save).did("SetVehicle"), [], "the repair runs only once")
+
+    def test_daryl_tomb_entrance_uses_recruited_setzer_not_active_party(self):
+        # WC event/daryl_tomb.py gates on Setzer's recruited bit and changes both entrance
+        # animations from Setzer to PARTY0.  The vanilla PR map instead hides the trigger behind
+        # its Setzer story flag, which WC recruitment does not set.
+        st, _ = self.new_game()
+        st.party = [3, 4, 12, 5]                 # the user's party: Setzer is recruited, not active
+        closed = Run(self.script("sc_map_30650"), st,
+                     syscalls={"WC:gate daryl_tomb": gate(False)})
+        self.assertIn("ev_e_0001", [t[3][0] for t in closed.did("SetEntities")])
+        self.assertNotIn("ev_e_0682", [t[3][0] for t in closed.did("SetEntities")])
+
+        shown = Run(self.script("sc_map_30650"), st,
+                    syscalls={"WC:gate daryl_tomb": gate(True)})
+        self.assertIn("ev_e_0682", [t[3][0] for t in shown.did("SetEntities")],
+                      "recruited Setzer exposes the entrance trigger")
+        opened = Run(self.script("sc_e_0682"), st,
+                     syscalls={"WC:gate daryl_tomb": gate(True)})
+        self.assertEqual(st.get("ScenarioFlag2", 84), 1)
+        self.assertIn("ev_e_0682_1", [t[3][0] for t in opened.did("SetEntities")])
+        self.assertEqual(opened.did("Msg"), [], "WC removes Daryl's story dialogue")
+        puppets_used = [t[2][1] for t in opened.did("SetPuppet")]
+        self.assertIn(-1001, puppets_used, "the active party leader opens the tomb")
+        self.assertNotIn(-10, puppets_used, "Setzer need not be in the active party")
+
+        # A completed check repairs the open entrance on old/progressed saves.
+        repaired, _ = self.new_game()
+        repaired.set(E.WC_FLAGS, E.CHECK_FLAGS["daryl_tomb"], 1)
+        r = Run(self.script("sc_map_30650"), repaired,
+                syscalls={"WC:gate daryl_tomb": gate(False)})
+        self.assertEqual(repaired.get("ScenarioFlag2", 84), 1)
+        self.assertIn("ev_e_0682_1", [t[3][0] for t in r.did("SetEntities")])
+
+    def test_moogle_defense_is_offered_by_arvis_and_keeps_the_party(self):
+        # SNES WC puts Arvis in his house and starts the check only when he is spoken to. Entering
+        # the mines from the south or north must not ask. Accepting moves to the mines on black,
+        # then the opening runs; party 1 is composed from the entire saved party, not just its lead.
         st, _ = self.new_game()
         mines = Run(self.script("sc_map_30011_2"), st, syscalls={"WC:gate narshe_moogle_defense": gate(True)})
-        self.assertEqual([t[3][0] for t in mines.did("SetTimer")], ["sc_e_0017_6"])
-        self.assertEqual(mines.did("ChangeMap"), [])
-        self.assertFalse(mines.black)
+        self.assertEqual((mines.did("SetTimer"), mines.did("ChangeMap")), ([], []), "the mines never offer it")
+
+        house = Run(self.script("sc_map_20011_14"), st,
+                    syscalls={"WC:gate narshe_moogle_defense": gate(True)})
+        self.assertIn("ev_e_0017", [t[3][0] for t in house.did("SetEntities")], "Arvis is in his house")
+        arvis = load(self.assets["ev_e_0017"])
+        entity = next(o for layer in arvis["layers"] for o in layer.get("objects", [])
+                      if any(p.get("name") == "entity_id" and p.get("value") == 12 for p in o.get("properties", [])))
+        props = {p["name"]: p["value"] for p in entity["properties"]}
+        self.assertEqual((props["action_id"], props["script_id"]), (2, 39), "Arvis talks through the offer")
+
+        no = Run(self.script("sc_e_0017_5"), st, answers=[1])
+        self.assertEqual((no.end, no.did("FadeOut"), no.did("ChangeMap")), (("Exit",), [], []))
+        self.assertEqual(st.get(E.WC_FLAGS, E.MOOGLE_OFFERED), 0)
+        yes = Run(self.script("sc_e_0017_5"), st, answers=[0])
+        self.assertEqual(yes.end, ("ChangeMap", 318, 1, "sc_e_0017_6"))
         self.assertEqual(st.get(E.WC_FLAGS, E.MOOGLE_OFFERED), 1)
-        again = Run(self.script("sc_map_30011_2"), st, syscalls={"WC:gate narshe_moogle_defense": gate(True)})
-        self.assertEqual(again.did("SetTimer"), [], "asked once per visit")
-        yes = Run(self.script("sc_e_0017_6"), st, answers=[0])
-        self.assertEqual(yes.end, ("ChangeMap", 584, 1, "sc_e_0017_7"))
-        first = [t[1] for t in yes.trace if t[1] in ("FadeOut", "SetEntities", "FadeIn")][:3]
-        self.assertEqual(first, ["FadeOut", "SetEntities", "FadeIn"], "on black before the scene's entities")
-        no = Run(self.script("sc_e_0017_6"), st, answers=[1])
-        self.assertEqual((no.end, no.did("FadeOut"), no.did("SetEntities")), (("Exit",), [], []))
-        self.assertEqual(st.get(E.WC_FLAGS, E.MOOGLE_OFFERED), 0, "asked again next time")
+        opening = Run(self.script("sc_e_0017_6"), st)
+        self.assertEqual(opening.end, ("ChangeMap", 584, 1, "sc_e_0017_7"))
+        self.assertEqual(st.get(E.WC_FLAGS, E.MOOGLE_OFFERED), 0)
+        self.assertEqual([t[1] for t in opening.trace if t[1] in ("SetEntities", "FadeIn")][:2],
+                         ["SetEntities", "FadeIn"])
+        opening_script = self.script("sc_e_0017_6")
+        reset_at = next(i for i, m in enumerate(opening_script["Mnemonics"])
+                        if m.get("label") == "wc_terra_default")
+        reset = opening_script["Mnemonics"][reset_at:reset_at + 7]
+        terra = next(m for m in reset if m["mnemonic"] == "SetPuppet")
+        pose = opening_script["Mnemonics"][terra["operands"]["iValues"][2] + 1]
+        self.assertEqual(terra["operands"]["iValues"][1], -1, "the collapsed Terra entity is released")
+        self.assertEqual((pose["mnemonic"], pose["operands"]["sValues"][0]), ("CueAnim", "Default"),
+                         "a recruited Terra does not keep the horizontal Fall pose")
+
+        party = self.script("sc_e_0017_7")
+        calls = [m["operands"]["sValues"][0] for m in party["Mnemonics"] if m["mnemonic"] == "SysCall"]
+        self.assertIn("WC:moogle_party_save", calls)
+        self.assertIn("WC:moogle_party", calls)
+        self.assertNotIn([1, -2, 19, 20, 21],
+                         [m["operands"]["iValues"][:5] for m in party["Mnemonics"] if m["mnemonic"] == "OrganizePartySlot"])
+
+        ending = self.script("sc_e_0018_2")
+        end_calls = [(i, m["operands"]["sValues"][0]) for i, m in enumerate(ending["Mnemonics"])
+                     if m["mnemonic"] == "SysCall"]
+        dismissed = next(i for i, call in end_calls if call.startswith("メンバー離脱"))
+        restored = next(i for i, call in end_calls if call == "WC:moogle_party_restore")
+        self.assertGreater(restored, dismissed, "recruited Mog returns after the guest moogles leave")
 
     def test_tritoch_beaten_leaves_the_lone_wolf_chase_in_the_wob(self):
         # The user's Deck, 2026-11-14: "killing tritech blocks me from doing the moogle lone wolf
@@ -1084,6 +1255,10 @@ class WcScripts(unittest.TestCase):
         # The WC item/esper path returns immediately after Vargas.  A common compact path also
         # prevents the vanilla Sabin-family scene from addressing an arbitrary seed reward.
         st, _ = self.new_game()
+        opening = Run(self.script("sc_e_0055"), st, syscalls={"WC:gate mt_kolts": gate(True)})
+        self.assertEqual(opening.did("Call"), [], "no vanilla party-puppet scene before Vargas")
+        self.assertEqual(opening.did("Msg"), [], "no vanilla Vargas/Sabin scene")
+        self.assertEqual([t[2][0] for t in opening.did("EncountBoss")], [436])
         r = Run(self.script("sc_e_0055_1"), st)
         # the restore pairs with the save in the fight's Sabin event, which a WC game no longer
         # plays (boss_battle_events, 2026-11-12): nothing to restore
@@ -1092,8 +1267,19 @@ class WcScripts(unittest.TestCase):
         self.assertEqual([t[3][0] for t in r.did("Msg")], ["WC_REWARD"], "no Sabin reunion dialogue")
         self.assertEqual(r.did("Call"), [], "no Sabin reunion animation")
         self.assertEqual(st.get("ScenarioFlag1", 41), 1, "Vargas defeated")
-        self.assertEqual(r.end, ("Exit",))
-        self.assertFalse(r.black)
+        self.assertEqual(st.get(E.WC_FLAGS, E.MT_KOLTS_REPAIRED), 1)
+        self.assertEqual(r.end, ("ChangeMap", 343, 2, ""), "reload the map without scene puppets")
+        self.assertEqual(r.black_lines, [], "the reward is visible before the reload")
+
+    def test_mt_kolts_repairs_old_puppet_save_once(self):
+        st, _ = self.new_game()
+        st.set("ScenarioFlag1", 41, 1)
+        first = Run(self.script("sc_map_30360"), st)
+        self.assertEqual(first.end, ("ChangeMap", 343, 2, ""))
+        self.assertEqual(st.get(E.WC_FLAGS, E.MT_KOLTS_REPAIRED), 1)
+        second = Run(self.script("sc_map_30360"), st)
+        self.assertEqual(second.end, ("Exit",), "the one-time repair cannot reload recursively")
+        self.assertEqual(second.did("ChangeMap"), [])
 
     def test_fanatics_tower_skips_the_relm_strago_scene(self):
         st, _ = self.new_game()
@@ -1106,16 +1292,30 @@ class WcScripts(unittest.TestCase):
 
     def test_collapsing_house_has_only_its_reward_line(self):
         st, _ = self.new_game()
-        r = Run(self.script("sc_e_0639"), st)
+        scene = self.script("sc_e_0639")
+        r = Run(scene, st)
         self.assertEqual([t[3][0] for t in r.did("Msg")], ["WC_REWARD"],
                          "WC removes every post-escape story line")
         self.assertEqual(len(r.did("SysCall", "WC:reward collapsing_house 0")), 1)
         self.assertEqual(st.get("ScenarioFlag2", 56), 1)
-        self.assertEqual(r.end, ("Exit",))
-        self.assertFalse(r.black)
+        self.assertEqual(st.get(E.WC_FLAGS, E.COLLAPSING_HOUSE_REPAIRED), 1)
+        self.assertEqual(r.end, ("ChangeMap", 201, 1, ""), "reload Tzen to restore field movement")
+        self.assertEqual(r.did("SetPuppet"), [], "the shortened ending never puppets PARTY0")
+        self.assertEqual(r.did("AssignMoveRoute"), [], "no vanilla town cutscene movement remains")
+        self.assertIn("ev_e_0639", [t[3][0] for t in r.did("SetEntities")], "the completed town layer")
         # the house's quake (sc_e_0634: Shake iValues[3], re-run on every map) stops as vanilla's
         # skipped scene stops it (sc_e_0639: 19), or the whole game shakes after the check
         self.assertEqual([t[2][0] for t in r.did("Shake")], [0], "the quake stops")
+
+    def test_collapsing_house_repairs_old_stuck_save_once(self):
+        st, _ = self.new_game()
+        st.set("ScenarioFlag2", 56, 1)  # completed by either of the old shortened endings
+        first = Run(self.script("sc_map_20330"), st)
+        self.assertEqual(first.end, ("ChangeMap", 201, 1, ""), "one town reload releases field input")
+        self.assertEqual(st.get(E.WC_FLAGS, E.COLLAPSING_HOUSE_REPAIRED), 1)
+        second = Run(self.script("sc_map_20330"), st)
+        self.assertEqual(second.end, ("Exit",), "the repair cannot loop on the reloaded map")
+        self.assertEqual(second.did("ChangeMap"), [])
 
     def test_floating_continent_escape_stops_the_quake(self):
         """The user's Deck (2026-11-12): "after i completed the floating continent the whole game
@@ -1249,7 +1449,7 @@ class WcScripts(unittest.TestCase):
     def test_later_rewards_stay_open_after_the_first(self):
         # gate_at keyed every scene of a module to its first reward's flag: once Ifrit/Shiva were
         # taken, Number 024 and the tubes ended at once (no 2nd/3rd reward, no elevator down);
-        # once Mog's scene was done, the Gold Hairpin's place too
+        # Lone Wolf's cliff is a choice; the unchosen reward stays for the WoR Moogle Cave
         st, _ = self.new_game()
         st.set(E.WC_FLAGS, E.CHECK_FLAGS["magitek_factory"], 1)
         r = Run(self.script("sc_e_0401"), st, syscalls={"WC:gate magitek_factory": gate(True)})
@@ -1257,26 +1457,81 @@ class WcScripts(unittest.TestCase):
         st.set(E.WC_FLAGS, E.CHECK_FLAGS["magitek_factory_2"], 1)
         r = Run(self.script("sc_e_0401"), st, syscalls={"WC:gate magitek_factory": gate(True)})
         self.assertEqual((r.did("EncountBoss"), r.did("Encount"), r.end), ([], [], ("Exit",)), "not twice")
+        fresh, _ = self.new_game()
+        wolf = Run(self.script("sc_e_0439"), fresh, syscalls={"WC:gate lone_wolf": gate(True)})
+        self.assertEqual(len(wolf.did("SysCall", "WC:lone_wolf_taunt E0439_00_020_a_01")), 1,
+                         "Lone Wolf names the randomized second reward")
         st.set(E.WC_FLAGS, E.CHECK_FLAGS["lone_wolf"], 1)
+        st.set("ScenarioFlag1", 215, 1)
         r = Run(self.script("sc_e_0439"), st, syscalls={"WC:gate lone_wolf": gate(True)})
-        self.assertEqual(len(r.did("SysCall", "WC:reward lone_wolf 1")), 1, "the hairpin's reward after Mog's")
+        self.assertEqual(r.did("SysCall", "WC:reward lone_wolf 1"), [], "the other cliff reward is gone")
+        cave = Run(self.script("sc_e_0778"), st)
+        self.assertEqual(len(cave.did("SysCall", "WC:reward lone_wolf 1")), 1,
+                         "the unchosen item moves to the WoR Moogle Cave")
+
+        st2, _ = self.new_game()
+        st2.set(E.WC_FLAGS, E.CHECK_FLAGS["lone_wolf_2"], 1)
+        st2.set("ScenarioFlag1", 216, 1)
+        moogle = Run(self.script("sc_e_0438"), st2, syscalls={"WC:gate lone_wolf": gate(True)})
+        self.assertEqual(moogle.did("SysCall", "WC:reward lone_wolf 0"), [], "the other cliff reward is gone")
+        cave = Run(self.script("sc_e_0778"), st2)
+        self.assertEqual(len(cave.did("SysCall", "WC:reward lone_wolf 0")), 1,
+                         "the unchosen first reward moves to the WoR Moogle Cave")
+
+    def test_ifrit_shiva_battle_gives_reward_and_clears_both(self):
+        """WC rewards this check after the battle, before PR's talk-to-both/magicite state."""
+        st, _ = self.new_game()
+        start = Run(self.script("sc_e_0394"), st,
+                    syscalls={"WC:gate magitek_factory": gate(True)})
+        self.assertEqual([t[2][0] for t in start.did("EncountBoss")], [440])
+
+        won = Run(self.script("sc_e_0394_1"), st,
+                  syscalls={"WC:reward magitek_factory 0": lambda state: None})
+        self.assertEqual(len(won.did("SysCall", "WC:reward magitek_factory 0")), 1)
+        self.assertEqual(st.get(E.WC_FLAGS, E.CHECK_FLAGS["magitek_factory"]), 1)
+        self.assertEqual([st.get("ScenarioFlag1", f) for f in (184, 188, 189, 190)], [1, 1, 1, 1])
+        self.assertEqual([t[2][0] for t in won.did("Call")],
+                         [next(i for i, m in enumerate(self.script("sc_e_0394_1")["Mnemonics"])
+                               if m.get("label") == "wc_hide_espers")])
+
+        room = Run(self.script("sc_map_30521_3"), st)
+        shown = [t[3][0] for t in room.did("SetEntities")]
+        self.assertFalse(set(shown) & {"ev_e_0394", "ev_e_0396", "ev_e_0399", "ev_e_0400"}, shown)
+
+        # Repair a save made after the old battle callback: talking to either remaining esper.
+        old, _ = self.new_game()
+        old.set("ScenarioFlag1", 184, 1)
+        repaired = Run(self.script("sc_e_0395"), old,
+                       syscalls={"WC:reward magitek_factory 0": lambda state: None})
+        self.assertEqual(len(repaired.did("SysCall", "WC:reward magitek_factory 0")), 1)
+        self.assertEqual(old.get(E.WC_FLAGS, E.CHECK_FLAGS["magitek_factory"]), 1)
+        self.assertEqual(repaired.did("Msg")[0][3][0], "WC_REWARD")
 
     def test_magitek_factory_end_is_wc_s(self):
-        # WC event/magitek_factory.py: no tube espers'/Celes scene (Celes stays), no elevator ride
-        # with Cid, no Cid scene; the mine cart, the Cranes, then the airship outside Vector
+        # WC event/magitek_factory.py: the tube switch gives no reward. It skips the tube/Celes,
+        # Cid and elevator scenes into the mine cart; reward 3 is at the former Setzer meetup,
+        # followed by the Cranes and the airship outside Vector.
         st, _ = self.new_game()
         st.party = [7, 1]                                   # Celes in the party
         st.set(E.WC_FLAGS, E.CHECK_FLAGS["magitek_factory"], 1)
         st.set(E.WC_FLAGS, E.CHECK_FLAGS["magitek_factory_2"], 1)
         r = Run(self.script("sc_e_0402"), st, syscalls={"WC:gate magitek_factory": gate(True)})
-        self.assertEqual(len(r.did("SysCall", "WC:reward magitek_factory 2")), 1)
+        self.assertEqual(r.did("SysCall", "WC:reward magitek_factory 2"), [], "no reward at the tubes")
         self.assertEqual(r.did("SysCall", "メンバー離脱：セリス"), [], "Celes doesn't leave")
-        self.assertEqual([t[3][0] for t in r.did("Msg")], ["WC_REWARD"], "no scene")
+        self.assertEqual(r.did("Msg"), [], "no tube story")
         self.assertEqual(r.did("GetItem"), [], "no tube espers")
-        self.assertEqual((st.get("ScenarioFlag1", 192), len(r.did("SetEntities", "ev_e_0403"))), (1, 1), "the elevator")
-        self.assertEqual(st.get(E.WC_FLAGS, E.CHECK_FLAGS["magitek_factory_3"]), 1)
-        again = Run(self.script("sc_e_0402"), st, syscalls={"WC:gate magitek_factory": gate(True)})
-        self.assertEqual((again.did("SysCall"), again.end), ([], ("Exit",)), "done: nothing")
+        self.assertEqual([st.get("ScenarioFlag1", f) for f in (192, 193, 177)], [1, 1, 1])
+        self.assertEqual(st.get(E.WC_FLAGS, E.CHECK_FLAGS["magitek_factory_3"]), 0)
+        self.assertEqual(r.end, ("ChangeMap", 578, 1, "sc_e_0404_1"), "straight into the mine cart")
+
+        # The user's old port save already received reward 3 in the tube room; it still escapes
+        # without receiving it twice.
+        repaired = copy.deepcopy(st)
+        repaired.set(E.WC_FLAGS, E.CHECK_FLAGS["magitek_factory_3"], 1)
+        old = Run(self.script("sc_e_0402"), repaired,
+                  syscalls={"WC:gate magitek_factory": gate(True)})
+        self.assertEqual(old.did("SysCall", "WC:reward magitek_factory 2"), [])
+        self.assertEqual(old.end, ("ChangeMap", 578, 1, "sc_e_0404_1"))
 
         r = Run(self.script("sc_e_0403"), st)
         self.assertEqual((r.end, st.get("ScenarioFlag1", 193)), (("ChangeMap", 404, 1, ""), 1), "straight down to Cid")
@@ -1284,11 +1539,21 @@ class WcScripts(unittest.TestCase):
         self.assertEqual((r.did("Msg"), r.end), ([], ("ChangeMap", 578, 1, "sc_e_0404_1")), "talking to Cid: the cart")
         self.assertEqual(st.get("ScenarioFlag1", 194), 0, "no escape state (it brings Setzer's scene back to Vector)")
 
-        r = Run(self.script("sc_e_0404_8"), st)
+        r = Run(self.script("sc_e_0404_8"), st,
+                syscalls={"WC:reward magitek_factory 2": lambda state: None})
+        self.assertEqual(len(r.did("SysCall", "WC:reward magitek_factory 2")), 1,
+                         "reward 3 is after the mine cart")
+        self.assertEqual([t[3][0] for t in r.did("Msg")], ["WC_REWARD"])
+        self.assertEqual(st.get(E.WC_FLAGS, E.CHECK_FLAGS["magitek_factory_3"]), 1)
         self.assertEqual(r.did("SetEntities", "ev_e_0405"), [], "no Setzer in Vector")
         boss = r.did("EncountBoss")
         self.assertEqual([(t[2][0], t[3][0]) for t in boss], [(E.CRANES, "sc_e_0405")], "the Cranes, then out")
         self.assertFalse(r.black, "the fight starts from the field")
+
+        already = Run(self.script("sc_e_0404_8"), st)
+        self.assertEqual(already.did("SysCall", "WC:reward magitek_factory 2"), [], "no duplicate reward")
+        self.assertEqual([(t[2][0], t[3][0]) for t in already.did("EncountBoss")],
+                         [(E.CRANES, "sc_e_0405")])
         r = Run(self.script("sc_e_0405"), st)
         self.assertEqual(r.did("SysCall"), [], "Setzer doesn't join")
         ship = r.did("SetVehicle")
@@ -1406,6 +1671,24 @@ class WcScripts(unittest.TestCase):
         self.assertEqual([t[3][0] for t in r.did("SysCall")][-2:], ["控えに移動：カイエン", "夢のダンジョン：分離"],
                          "vanilla's bed as it was")
 
+    def test_imperial_observation_post_matches_wc(self):
+        sc = self.script("sc_map_20240")
+        for opened in (False, True):
+            with self.subTest(terra_recruited=opened):
+                st, _ = self.new_game()
+                r = Run(sc, st, syscalls={"WC:gate sealed_gate": gate(opened)})
+                groups = [t[3][0] for t in r.did("SetEntities")]
+                self.assertNotIn("ev_e_0350", groups, "WC never loads the vanilla soldier encounters")
+                self.assertNotIn("ev_e_0441", groups, "WC does not require Terra in the active party")
+                self.assertNotIn("ev_e_0442", groups, "WC skips Terra's vanilla post scene")
+                self.assertEqual(groups, [] if opened else ["ev_e_0440"],
+                                 "open passage, or only the Terra-not-recruited boundary")
+                self.assertEqual(st.get("ScenarioFlag2", 4), int(opened),
+                                 "the armory is locked without Terra and open once recruited")
+        vanilla = State()
+        self.assertIn("ev_e_0350", [t[3][0] for t in Run(sc, vanilla).did("SetEntities")],
+                      "a non-WC game keeps the soldiers")
+
     def test_check_scenes_are_fight_and_reward(self):
         # the user's Deck, 2026-11-12: "there's still a cutscene with edgar in disguise" (Figaro's
         # engine room); WC trims the scenes around its checks' fights and rewards
@@ -1428,7 +1711,8 @@ class WcScripts(unittest.TestCase):
         st, r = run("sc_e_0344_2", black=True)
         self.assertEqual(([t[3][0] for t in r.did("Msg")], r.end[:2]), (["WC_REWARD"], ("ChangeMap", 119)), "opera: reward, deck")
         st, r = run("sc_e_0639", black=True)
-        self.assertEqual(([t[3][0] for t in r.did("Msg")], len(r.did("FinishTimer")), r.black), (["WC_REWARD"], 1, False))
+        self.assertEqual(([t[3][0] for t in r.did("Msg")], len(r.did("FinishTimer")), r.black, r.end),
+                         (["WC_REWARD"], 1, True, ("ChangeMap", 201, 1, "")))
         self.assertEqual(r.black_lines, [], "collapsing house: the reward on screen")
         st, r = run("sc_e_0460_3", black=True)
         self.assertEqual(([t[3][0] for t in r.did("Msg")], r.end), (["WC_REWARD"], ("ChangeMap", 411, 2, "sc_e_0460_4")))
@@ -1481,6 +1765,54 @@ class WcScripts(unittest.TestCase):
         self.assertEqual((again.did("SysCall"), again.end), ([], ("ChangeMap", 475, 1, "")),
                          "Mt. Zozo done: the vanilla door into Cyan's room, no scene")
 
+    def test_owzer_mansion_switch_exists_in_wor_and_is_gated_by_relm(self):
+        """WC never runs vanilla's captured-Relm/diary story, so its flags cannot be required
+        to create Owzer's light switch. The switch belongs to the WoR and Relm gates it."""
+        room = self.script("sc_map_30631_1")
+        st, _ = self.new_game()
+        self.assertEqual(Run(room, st).did("SetEntities", "ev_e_0758"), [], "not in the WoB")
+        st.set("ScenarioFlag2", 41, 1)
+        entered = Run(room, st)
+        self.assertEqual(len(entered.did("SetEntities", "ev_e_0758")), 1, "switch in the WoR")
+        self.assertEqual(len(entered.did("SetEntities", "ev_e_0762")), 1, "woman portrait in the WoR")
+
+        light = self.script("sc_e_0758")
+        shut = Run(light, st, syscalls={"WC:gate owzer_mansion": gate(False)})
+        self.assertEqual(([t[3][0] for t in shut.did("Msg")], st.get("MapLocalVariable", 2)),
+                         (["E0756_00_442_a_01"], 0), "without Relm: stay away and leave lights on")
+        opened = Run(light, st, syscalls={"WC:gate owzer_mansion": gate(True)})
+        self.assertEqual(st.get("MapLocalVariable", 2), 1, "Relm recruited: switch turns the lights off")
+        self.assertTrue(opened.did("ColorFade"))
+
+        portrait = self.script("sc_e_0762")
+        shut = Run(portrait, st, syscalls={"WC:gate owzer_mansion": gate(False)})
+        self.assertEqual(([t[3][0] for t in shut.did("Msg")], shut.did("Encount")),
+                         (["E0756_00_442_a_01"], []),
+                         "without Relm: portrait stays closed")
+        opened = Run(portrait, st, syscalls={"WC:gate owzer_mansion": gate(True)})
+        self.assertEqual([t[2][0] for t in opened.did("Encount")], [289],
+                         "Relm recruited: woman portrait starts the hidden-door battle")
+
+    def test_owzer_reward_follows_chadarnook_and_repairs_old_save(self):
+        """WC removes the bookshelf stop: the post-battle callback gives the reward. An old
+        save with Chadarnook defeated but the WC flag unset gets it by talking to Owzer."""
+        st, _ = self.new_game()
+        sys_ = {"WC:reward owzer_mansion 0": lambda state: None}
+        won = Run(self.script("sc_e_0773_2"), st, syscalls=sys_)
+        self.assertEqual((len(won.did("SysCall", "WC:reward owzer_mansion 0")),
+                          [t[3][0] for t in won.did("Msg")],
+                          st.get(E.WC_FLAGS, E.CHECK_FLAGS["owzer_mansion"]), st.get("ScenarioFlag2", 135), won.end),
+                         (1, ["WC_REWARD"], 1, 1, ("Exit",)), "fresh victory rewards immediately")
+
+        old, _ = self.new_game()
+        old.set("ScenarioFlag2", 134, 1)          # Chadarnook already defeated by the old port
+        repaired = Run(self.script("sc_e_0773"), old, syscalls=sys_)
+        self.assertEqual((len(repaired.did("SysCall", "WC:reward owzer_mansion 0")),
+                          [t[3][0] for t in repaired.did("Msg")],
+                          old.get(E.WC_FLAGS, E.CHECK_FLAGS["owzer_mansion"]), old.get("ScenarioFlag2", 135)),
+                         (1, ["WC_REWARD"], 1, 1), "Owzer repairs the already-defeated state")
+        self.assertNotIn("E0773_02_446_a_06", [t[3][0] for t in repaired.did("Msg")])
+
     def test_umaro_cliff_needs_umaro(self):
         # WC event/umaro_cave.py add_gating_condition: without Umaro, Tritoch's cliff only says
         # "There's an opening in the cliff." and walks the party back; no jump (the user, Deck,
@@ -1493,7 +1825,8 @@ class WcScripts(unittest.TestCase):
         self.assertEqual([t[2][0] for t in closed.did("Call")], [27], "the party steps back (return_move)")
         jump = Run(sc, st, answers=[0], syscalls={"WC:gate umaro_cave": gate(True)})
         self.assertEqual(([t[3][0] for t in jump.did("Msg")], jump.end),
-                         (["E0781_00_020_a_01"] * 2, ("ChangeMap", 493, 1, "sc_e_0781_1")), "Umaro joined: the vanilla jump")
+                         (["E0781_00_020_a_01"], ("ChangeMap", 493, 1, "sc_e_0781_1")),
+                         "Umaro joined: one prompt, then the vanilla jump")
         st.set(E.WC_FLAGS, E.CHECK_FLAGS["umaro_cave"], 1)
         again = Run(sc, st, answers=[0], syscalls={"WC:gate umaro_cave": gate(True)})
         self.assertEqual(again.end[:2], ("ChangeMap", 493), "check done: the cave stays open, as WC")
@@ -1537,16 +1870,69 @@ class WcScripts(unittest.TestCase):
             with self.subTest(wor=world):
                 st, _ = self.new_game()
                 st.set(*COLLAPSED, world)
+                st.set("ScenarioFlag1", 13, 1)  # a progressed save / after the moogle defense
                 r = Run(sc, st)
                 groups = [t[3][0] for t in r.did("SetEntities")]
                 self.assertNotIn("ev_e_0001", groups, "no Magitek walls in a WC game")
                 self.assertIn("ev_e_0609_1" if world else "ev_e_0609", groups, "the floor's exits")
-                self.assertIn("ev_e_0011", groups, "the Whelk check still loads")
+                if world:
+                    self.assertNotIn("ev_e_0011", groups, "Whelk is WoB-only")
+                else:
+                    self.assertIn("ev_e_0011", groups, "Whelk is at PR's ordinary WoB gate")
         vanilla = State()
         self.assertIn("ev_e_0001", [t[3][0] for t in Run(sc, vanilla).did("SetEntities")], "the opening: untouched")
 
+    def test_whelk_is_at_the_pr_wc_mine_gate(self):
+        st, _ = self.new_game()
+        mine = self.script("sc_map_30021_1")
+        groups = lambda state: [t[3][0] for t in Run(mine, state).did("SetEntities")]
+        self.assertIn("ev_e_0011", groups(st), "the guard appears at the gate in the screenshots")
+        st.set(E.WC_FLAGS, E.CHECK_FLAGS["whelk"], 1)
+        self.assertIn("ev_e_0011", groups(st), "a stale WC bit does not hide Whelk")
+        self.assertEqual(st.get(E.WC_FLAGS, E.CHECK_FLAGS["whelk"]), 0, "the stale WC bit is repaired")
+        st.set(E.WC_FLAGS, E.CHECK_FLAGS["whelk"], 1)
+        st.set("ScenarioFlag1", 9, 1)
+        self.assertNotIn("ev_e_0011", groups(st), "a genuinely finished Whelk guard disappears")
+        st.set(E.WC_FLAGS, E.CHECK_FLAGS["whelk"], 0)
+        st.set("ScenarioFlag1", 9, 0)
+        st.set(*COLLAPSED, 1)
+        self.assertNotIn("ev_e_0011", groups(st), "the WoR mine contains no Whelk guard")
+
+        st, _ = self.new_game()
+        fight = Run(self.script("sc_e_0011"), st, syscalls={"WC:gate whelk": gate(True)})
+        self.assertEqual([t[2][0] for t in fight.did("EncountBoss")], [433])
+        self.assertEqual((fight.did("Msg"), fight.did("Call")), ([], []),
+                         "no opening-map Biggs/Wedge or fixed-position puppet scene")
+        reward = Run(self.script("sc_e_0011_1"), st,
+                     syscalls={"WC:reward whelk 0": lambda state: None})
+        self.assertEqual((len(reward.did("SysCall", "WC:reward whelk 0")),
+                          st.get(E.WC_FLAGS, E.CHECK_FLAGS["whelk"]), reward.did("Call")),
+                         (1, 1, []), "reward without the opening map's party teleport")
+
     def test_phoenix_cave_has_no_reunion(self):
         st, _ = self.new_game()
+        landing = Run(self.script("sc_e_0792_1"), st)
+        self.assertEqual(landing.end, ("ChangeMap", 497, 1, "sc_e_0792_2"))
+        self.assertEqual(len(landing.did("SysCall", "パーティ編成：２パーティ")), 1)
+        self.assertEqual(landing.did("OrganizePartySlot"), [],
+                         "WC must not force vanilla Celes into a seed that has not recruited her")
+        self.assertEqual(landing.did("Call"), [], "no Falcon puppet/drop cinematic")
+        self.assertEqual(landing.did("ChangePartySlot"), [], "the cinematic cannot select an empty second slot")
+        self.assertEqual(landing.black_lines, [], "the party menu and transition are visible")
+
+        # ChangeScript at arrival instruction 1 initializes the crane map in the real engine;
+        # model its return by starting at the following WC block while the transition is black.
+        arrival = self.script("sc_e_0792_2")
+        at = next(i for i, m in enumerate(arrival["Mnemonics"]) if m.get("label") == "wc_phoenix_arrive")
+        arrived = Run(arrival, st, start=at, black=True)
+        self.assertEqual(arrived.end, ("Exit",))
+        self.assertFalse(arrived.black, "Phoenix Cave explicitly fades in before field control")
+        self.assertEqual([t[2][0] for t in arrived.did("Call")], [20, 27, 37, 48],
+                         "both parties run their vanilla position/drop calls before field control")
+        self.assertEqual(arrived.did("Msg"), [], "the drop keeps no vanilla story line")
+        self.assertEqual(len(arrived.did("SysCall", "パーティ配置：フェニックスの洞窟")), 1)
+        self.assertEqual((st.get("ScenarioFlag4", 197), st.get("ScenarioFlag3", 45)), (1, 1))
+
         r = Run(self.script("sc_e_0828"), st, syscalls={"WC:gate phoenix_cave": gate(True)})
         self.assertEqual([t[3][0] for t in r.did("Msg")], ["WC_REWARD"])
         self.assertEqual(r.end, ("ChangeMap", 268, 2, ""))
@@ -1745,6 +2131,45 @@ class WcScripts(unittest.TestCase):
         self.assertGreater(n, 40)
         self.assertEqual(bad, [])
 
+    def test_blackjack_unequip_npc_also_changes_party(self):
+        """WC adds party organization to the Blackjack NPC without changing vanilla saves or
+        removing either equipment-removal service."""
+        sc = self.script("sc_e_0345")
+
+        st, _ = self.new_game()
+        changed = Run(sc, st, answers=[E.AIRSHIP_PARTY_CHOICE])
+        self.assertEqual(changed.offered[0], [E.AIRSHIP_PARTY_CHOICE,
+                         "E0345_00_120_c_01", "E0345_00_120_c_02", "E0345_00_120_c_03"])
+        self.assertEqual(len(changed.did("SysCall", E.PARTY_MENU)), 1)
+        self.assertEqual(len(changed.did("SysCall", "WC:party_refresh")), 1)
+        self.assertEqual(changed.end, ("Exit",))
+
+        reserve = Run(sc, st, answers=["E0345_00_120_c_01"])
+        everyone = Run(sc, st, answers=["E0345_00_120_c_02"])
+        self.assertEqual(len(reserve.did("SysCall", "\u63a7\u3048\u30e1\u30f3\u30d0\u30fc\u306e\u88c5\u5099\u3092\u5916\u3059")), 1)
+        self.assertEqual(len(everyone.did("SysCall", "\u5168\u54e1\u306e\u88c5\u5099\u3092\u5916\u3059")), 1)
+
+        vanilla = Run(sc, State())
+        self.assertEqual(vanilla.offered[0], ["E0345_00_120_c_01",
+                         "E0345_00_120_c_02", "E0345_00_120_c_03"])
+        self.assertEqual(vanilla.did("SysCall", E.PARTY_MENU), [])
+
+    def test_falcon_unequip_npc_also_changes_party(self):
+        """The Falcon's copies of the same NPC provide the same WC party service."""
+        for name in ("sc_e_0678", "sc_e_0704"):
+            sc = self.script(name)
+            st, _ = self.new_game()
+            changed = Run(sc, st, answers=[E.AIRSHIP_PARTY_CHOICE])
+            self.assertEqual(changed.offered[0], [E.AIRSHIP_PARTY_CHOICE,
+                             "E0345_00_120_c_01", "E0345_00_120_c_02", "E0345_00_120_c_03"], name)
+            self.assertEqual(len(changed.did("SysCall", E.PARTY_MENU)), 1, name)
+            self.assertEqual(len(changed.did("SysCall", "WC:party_refresh")), 1, name)
+
+            vanilla = Run(sc, State())
+            self.assertEqual(vanilla.offered[0], ["E0345_00_120_c_01",
+                             "E0345_00_120_c_02", "E0345_00_120_c_03"], name)
+            self.assertEqual(vanilla.did("SysCall", E.PARTY_MENU), [], name)
+
     def test_narshe_checkpoint_without_its_explanation(self):
         # WC keeps Narshe's security checkpoint but deletes its explanation (event/narshe_wob.py:
         # CC/DA09 returns); the user's playtest (2026-11-06) saw Edgar's and Terra's lines
@@ -1919,8 +2344,39 @@ class WcPort(unittest.TestCase):
         self.assertEqual(table["tiers"][4][3], [172, 176], "wind tier 3: Wind Slash, Sand Storm")
         self.assertTrue(all(all(t) for cat in table["tiers"] for t in cat), "every tier has PR abilities")
 
+    def test_chadarnook_wc_ai_signals_the_pr_form_switch(self):
+        """The PR's sc_b_2016 owns Chadarnook's NoSelectChad form animation, so the WC AI's
+        F5 painting/demon swaps are removed.  Its replacement must set AI variable 9, the
+        same handshake used by both original PR AIs; without it the painting stays active
+        forever and the fight cannot be won."""
+        import ai_compile as AC
+        import snes_ai as A
+
+        for enemy in (286, 328):
+            main, counter = A.script(self.wc, enemy)
+            ctx = AC.Context(enemy, 1, 1, pr_entrances=True)
+            ms = AC.compile_script(ctx, main, counter)
+            signals = [m for m in ms if m["mnemonic"] == "VariableAssign"
+                       and m["operands"]["iValues"][:2] == [9, 1]]
+            self.assertTrue(signals, f"Chadarnook form {enemy} never signals sc_b_2016")
+
 
 class EventLooks(unittest.TestCase):
+    def test_nelapa_pr_opening_is_skipped_in_wc(self):
+        # A shuffled Nelapa copy uses sc_b_2019 outside party 452.  The PR-only
+        # Doom/laugh syscall then repeats forever; WC's SNES AI supplies the
+        # opening once instead.
+        import wc_events
+        made = wc_events.nelapa_battle()
+        self.assertEqual(len(made), 1)
+        ms = made[0][0]["Mnemonics"]
+        hook = next(i for i, m in enumerate(ms) if m.get("label") == "wc_snes_doom_once")
+        self.assertEqual(ms[hook + 1]["mnemonic"], "Branch")
+        self.assertEqual(ms[hook + 2]["mnemonic"], "Jump")
+        self.assertEqual(ms[hook + 3]["label"], "vanilla")
+        self.assertEqual(ms[hook + 4]["mnemonic"], "SysCall", "vanilla syscall remains behind the WC gate")
+        self.assertEqual(ms[hook + 4]["operands"]["sValues"][0], "ネラパ死の宣告")
+
     def test_ifrit_shiva_is_the_real_fight(self):
         # The user's Deck, seed gaadl68ix7j4, 2026-11-14: Kefka at Narshe swapped for Ifrit/Shiva
         # "fought ifrit ... and the fight immediately ended". SNES formation 439 starts with Ifrit

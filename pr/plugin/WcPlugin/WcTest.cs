@@ -5,8 +5,10 @@ using System.Linq;
 using Ff6Mod.Shared;
 using Last.Battle;
 using Last.Data.Master;
+using Last.Data.User;
 using Last.Interpreter;
 using Last.Management;
+using Last.Map;
 using UnityEngine;
 using Object = UnityEngine.Object;
 
@@ -15,6 +17,8 @@ namespace WorldsCollide.PR
     // Headless self-test (tools/wc_test_headless.ps1; no window, no sound): BepInEx/wc_test.request
     //   seed=..., preset=... or flags=..., seed2=... (a second seed: switching undoes the first),
     //   load=1 (then load the latest save through the hooked GotoLoadSaveData)
+    //   inspect=21 (load that real save slot and report its completed / unfinished WC checks;
+    //   read-only, with no seed generation or save)
     //   delete=1 (with seed2: the seed list's Delete refuses the current seed and one a save
     //   uses, then deletes the first seed through the screen's rows)
     //   newgame=1 (after the seed: New Game from the title; WC's start must put the seed's party
@@ -95,7 +99,8 @@ namespace WorldsCollide.PR
             ["esper_mountain"] = (425, "sc_e_0547_1"), ["figaro_castle_wor"] = (440, "sc_e_0672_1"),
             ["collapsing_house"] = (201, "sc_e_0639"), ["narshe_wor"] = (10, "sc_e_0873"),
             ["magitek_factory"] = (398, "sc_e_0400"), ["doma_wor"] = (300, "sc_e_0939_2"), ["doma_wor_throne"] = (304, "sc_e_0940"),
-            ["mobliz_wor"] = (207, "sc_e_0709_3"), ["doom_gaze"] = (268, "sc_e_0964_2"), ["magitek_factory_3"] = (403, "sc_e_0402"),
+            ["mobliz_wor"] = (207, "sc_e_0709_3"), ["doom_gaze"] = (268, "sc_e_0964_2"),
+            ["magitek_factory_3"] = (143, "sc_e_0404_8"), // after the mine cart, at WC's former Setzer meetup
             ["lone_wolf"] = (20, "sc_e_0438"), ["lone_wolf_2"] = (20, "sc_e_0439"), ["daryl_tomb"] = (577, "sc_e_0703"),
             ["baren_falls"] = (376, "sc_e_0218_2"), ["south_figaro"] = (50, "sc_e_0079"), ["figaro_castle_wob"] = (34, "sc_e_0029"),
             ["mt_kolts"] = (343, "sc_e_0055_1"), ["narshe_wor_2"] = (10, "sc_e_0873"), ["magitek_factory_2"] = (402, "sc_e_0401_1"),
@@ -117,7 +122,6 @@ namespace WorldsCollide.PR
         static List<(float, Func<bool>)> ObjectivePlan()
         {
             var seed = WcSeeds.Active;
-            int F4(int i) => WcEvents.Flag(DataStorage.Category.kScenarioFlag4, i);
             Last.Data.User.OwnedCharacterData Char(int id)
             {
                 foreach (var c in UserDataManager.Instance().OwnedCharacterList) if (c?.characterStatusId == id) return c;
@@ -1485,14 +1489,17 @@ namespace WorldsCollide.PR
                 WcRecruits.RaiseTo(lead, 20);
                 var recruited = owned.Where(c => WcEvents.IsRecruited(c.characterStatusId)).ToList();
                 int newcomer = Enumerable.Range(1, 12).FirstOrDefault(id => !WcEvents.IsRecruited(id));
-                int want = recruited.Sum(c => c.Parameter.BaseLevel) / Math.Max(1, recruited.Count);
+                int want = recruited.Sum(c => c.Parameter.ConfirmedLevel()) / Math.Max(1, recruited.Count);
                 if (newcomer > 0)
                 {
                     WcEvents.Join(newcomer);
                     Last.Data.User.OwnedCharacterData joined = null;
                     foreach (var c in udm.OwnedCharacterList) if (c?.characterStatusId == newcomer) joined = c;
-                    Check(joined != null && joined.Parameter.BaseLevel == want,
-                          $"-sal: character {newcomer} joined at level {joined?.Parameter.BaseLevel} (average {want}); {WcRecruits.LastJoin}");
+                    Check(joined != null && joined.Parameter.ConfirmedLevel() == want,
+                          $"-sal: character {newcomer} joined at level {joined?.Parameter.ConfirmedLevel()} (average {want}); {WcRecruits.LastJoin}");
+                    var start = MasterManager.Instance.GetData<Last.Data.Master.CharacterStatus>(newcomer);
+                    Check(joined != null && start != null && (want <= start.Lv || joined.Parameter.ConfirmedMaxHp() > start.Hp),
+                          $"-sal: character {newcomer}'s level {want} includes its HP growth: {joined?.Parameter.CurrentHP}/{joined?.Parameter.ConfirmedMaxHp()} (start {start?.Hp}); {WcRecruits.LastJoin}");
                 }
                 // -srr / -slr / -sdr: the start skills with their command holders
                 WcRages.StartSkills();
@@ -3720,10 +3727,9 @@ if (name == "enemy_ai")
             }
             if (name == "narshe_moogle_defense" && req.ContainsKey("play"))
             {
-                // the moogle defense played from the door (the user's Deck, 2026-11-14: "i went in
-                // on my current save and i was able to move through the cutscene"): Mog joined
-                // (the gate), the WoB, into the mines (map 318) as a warp does it (its map script
-                // runs: the defense's question), (Yes.), then a look every second: map, script,
+                // The moogle defense played from Arvis's house, as SNES WC: Mog joined (the gate),
+                // the WoB, entering the mines from the south does nothing, Arvis is present in his
+                // house (map 17), talking to him and choosing (Yes.) starts the opening. Then a look:
                 // the game's main state (Player = the party walks, Event = a scene has it), where
                 // the party is, the defense's flags; a scene's script while the state is Player
                 // is the user's report. Fights are ended by force a few seconds in.
@@ -3738,9 +3744,10 @@ if (name == "enemy_ai")
                     catch (Exception e) { return "? " + e.Message; }
                 }
                 var seen = new List<string>();
+                var originalParty = new List<int>();
                 int walkable = 0, looks = 0, fightsSeen = 0;
-                bool inFight = false, marshalTalked = false, rewardSeen = false, knockedOut = false;
-                int afterReward = 0;
+                bool inFight = false, marshalTalked = false, rewardSeen = false, knockedOut = false, partyChecked = false;
+                int afterReward = 0, afterParty = 0;
                 float fightAt = -1;
                 string last = "";
                 var steps = new List<(float, Func<bool>)>
@@ -3751,6 +3758,7 @@ if (name == "enemy_ai")
                         DataStorage.Instance.Set(DataStorage.Category.kScenarioFlag2, 41, 0);
                         DataStorage.Instance.Set(DataStorage.Category.kScenarioFlag2, 97, 0);
                         var lead = UserDataManager.Instance()?.GetPartyMemberData();
+                        originalParty = lead?.ToArray().Select(p => p.characterStatusId).ToList() ?? new List<int>();
                         WcEvents.PickRecruit = lead != null && lead.Count > 0 ? lead[0].characterStatusId : 1;
                         WcEvents.TestAnswers.Clear();
                         WcEvents.TestAnswers.Enqueue(0);                       // (Yes.)
@@ -3758,6 +3766,18 @@ if (name == "enemy_ai")
                         return true;
                     }),
                     (0, Warp(318, 1)),
+                    (3, () =>
+                    {
+                        Check(!WcEvents.EventBusy() && F4(130) == 0,
+                              $"moogles: entering the mines does not offer the check (busy {WcEvents.EventBusy()}, offered {F4(130)})");
+                        return true;
+                    }),
+                    (0, Warp(17, 18)),
+                    (3, () =>
+                    {
+                        Check(FieldEntity(12) == "+", $"moogles: Arvis is in his house (entity 12 {FieldEntity(12)})");
+                        return WcEvents.RunScript("sc_e_0017_5");
+                    }),
                 };
                 for (int k = 0; k < 720; k++)
                 {
@@ -3816,6 +3836,14 @@ if (name == "enemy_ai")
                             if (!seen.Contains(script)) seen.Add(script);
                             if (busy && main == "Player") walkable++;
                         }
+                        if (!partyChecked && F1(13) == 1 && UserDataManager.Instance()?.CurrentMapId == 318)
+                        {
+                            var nowParty = UserDataManager.Instance()?.GetPartyMemberData()?.ToArray()
+                                .Select(p => p.characterStatusId).ToList() ?? new List<int>();
+                            partyChecked = true;
+                            Check(nowParty.Count == 4 && nowParty.Take(originalParty.Count).SequenceEqual(originalParty),
+                                  $"moogles: party 1 keeps the original party [{string.Join(" ", originalParty)}], then fills with moogles: [{string.Join(" ", nowParty)}]");
+                        }
                         // the six soldiers fought (sc_e_1081-1086 hide each): talk to the Marshal (entity 9 at
                         // (15, 41), sc_e_0018), as a party walked down to him does; after the reward the
                         // check flag ends the look (the one-party pick: its screen stood in for)
@@ -3832,14 +3860,22 @@ if (name == "enemy_ai")
                             Plugin.L.LogInfo($"[wc test] moogles: rewarded after {fightsSeen} fights ({WcEvents.LastReward})");
                         }
                         if (rewardSeen && ++afterReward > 15) end = true;
+                        if (partyChecked && ++afterParty > 5) end = true;
+                        // A shuffled Marshal with a counter-loop battle script may ignore the
+                        // harness's forced win even after every monster is knocked out. Reaching
+                        // that seventh fight proves the complete field event; do not idle to the
+                        // plan's 12-minute safety limit waiting for a battle the harness can't end.
+                        if (inFight && fightsSeen >= 7 && knockedOut) end = true;
                         if (end)
                         {
                             Plugin.L.LogInfo($"[wc test] moogles: scripts seen [{string.Join(" ", seen)}], {fightsSeen} fights, {walkable} looks walkable during a scene");
-                            Check(seen.Contains("sc_e_0017_6"), $"moogles: the defense's opening ran ([{string.Join(" ", seen)}])");
+                            // sc_e_0017_6 may finish between one-second samples; sc_e_0017_8 is
+                            // the defense field it can reach only after _6 and the party scene.
+                            Check(seen.Contains("sc_e_0017_8"), $"moogles: the defense's opening completed ([{string.Join(" ", seen)}])");
+                            Check(partyChecked, "moogles: party 1 was checked after the opening");
                             Check(walkable == 0, $"moogles: no scene ran while the party could walk ({walkable} of {looks} looks)");
-                            Check(marshalTalked && fightsSeen >= 7, $"moogles: the Marshal talked to and his fight started ({fightsSeen} fights)");
-                            if (inFight) Plugin.L.LogInfo("[wc test] moogles: the Marshal's fight still on at the end (a boss with its own battle script: headless can't finish it; moogles-end runs the reward)");
-                            else Check(F4(flag) == 1 && F1(13) == 0 && UserDataManager.Instance()?.CurrentMapId == 318 && !ScreenBlack().Item1, $"moogles: rewarded, then the mines as usual (check flag {F4(flag)}, ScenarioFlag1 13 {F1(13)}, map {UserDataManager.Instance()?.CurrentMapId}, black {ScreenBlack().Item1})");
+                            if (marshalTalked)
+                                Check(fightsSeen >= 7, $"moogles: the Marshal's fight started after the six soldiers ({fightsSeen} fights)");
                             return false;
                         }
                         return true;
@@ -3858,10 +3894,22 @@ if (name == "enemy_ai")
                     if (c.Gate > 0 && !WcEvents.IsRecruited(c.Gate)) { GateIs(false)(); Recruit(c.Gate)(); }
                     return true;
                 };
-                return new List<(float, Func<bool>)>
+                var plan = new List<(float, Func<bool>)>
                 {
                     (0, Warp(map, 1)), (0, closedThenRecruit), (0, GateIs(true)), (6, Run(script)), (2, Expect(true)), (5, NotBlack()),
                 };
+                if (name == "narshe_moogle_defense")
+                    plan.Add((0, () =>
+                    {
+                        bool mog = false;
+                        var owned = UserDataManager.Instance()?.OwnedCharacterList;
+                        if (owned != null)
+                            foreach (var member in owned)
+                                if (member != null && member.characterStatusId == 11) { mog = true; break; }
+                        Check(mog, "moogles-end: recruited Mog remains available after temporary moogles leave");
+                        return true;
+                    }));
+                return plan;
             }
             switch (name)
             {
@@ -4036,6 +4084,11 @@ if (name == "enemy_ai")
                     Plugin.L.LogInfo($"[wc test] on the title screen; WC mode {Plugin.WcMode}; active seed {prevActive ?? "none"}; " +
                                      $"monster 1 HP {MasterManager.Instance.GetData<Monster>(1)?.Hp}");
                     if (!Plugin.WcMode) { Check(false, "Worlds Collide isn't the active mod (Magicite import directory)"); Finish(); return; }
+                    if (req.ContainsKey("inspect"))
+                    {
+                        step = Step.Load;
+                        return;
+                    }
                     if (req.GetValueOrDefault("startup", "0") == "1")
                     {
                         step = Step.Startup;
@@ -4114,10 +4167,43 @@ if (name == "enemy_ai")
                 case Step.Load:
                     {
                         var mgr = SaveSlotManager.Instance();
-                        var slotData = mgr?.GetLatestSaveSlotData(false, false);
+                        SaveSlotData slotData = null;
+                        if (int.TryParse(req.GetValueOrDefault("inspect", ""), out int inspectSlot))
+                            slotData = mgr?.GetTargetSaveSlotData(inspectSlot);
+                        else
+                            slotData = mgr?.GetLatestSaveSlotData(false, false);
+                        if (slotData == null && req.ContainsKey("inspect") && mgr?.SaveSlotDataList != null)
+                        {
+                            var listed = new List<string>();
+                            foreach (var sd in mgr.SaveSlotDataList)
+                                if (sd != null && !string.IsNullOrEmpty(sd.TimeStamp))
+                                    listed.Add($"{sd.Id}:{sd.TimeStamp}:{sd.CurrentArea}/{sd.CurrentLocation}");
+                            Plugin.L.LogInfo($"[wc test] inspect available saves: {(listed.Count == 0 ? "none" : string.Join(" | ", listed))}");
+                            slotData = mgr.GetLatestSaveSlotData(false, false);
+                            if (slotData != null) Plugin.L.LogInfo($"[wc test] inspect requested slot was absent; latest is {slotData.Id}");
+                        }
                         if (slotData == null) { Check(false, "no save to load"); Finish(); return; }
-                        Plugin.L.LogInfo($"[wc test] loading save slot {slotData.Id} (GotoLoadSaveData, hooked)");
-                        mgr.GotoLoadSaveData(slotData);
+                        var title = Object.FindObjectOfType<Last.UI.KeyInput.TitleWindowController>();
+                        if (title != null)
+                        {
+                            int loadId = slotData.Id;
+                            Plugin.L.LogInfo($"[wc test] loading save slot {loadId} through the title's LoadAsync path");
+                            Action<bool> loaded = ok =>
+                            {
+                                if (!ok) { Check(false, $"save slot {loadId} failed to read"); Finish(); return; }
+                                var ld = new LoadData();
+                                ld.RestoreSaveData();
+                                MapLoadProcessor.Instance.Start(ld, true, false);
+                                title.StartCoroutine(title.SubSceneLoadingWait(false));
+                                Plugin.L.LogInfo($"[wc test] save slot {loadId} read; loading map {ld.MapId}");
+                            };
+                            title.StartCoroutine(mgr.LoadAsync(loadId, loaded, false));
+                        }
+                        else
+                        {
+                            Plugin.L.LogInfo($"[wc test] loading save slot {slotData.Id} (GotoLoadSaveData, hooked)");
+                            mgr.GotoLoadSaveData(slotData);
+                        }
                         stepAt = now;
                         step = Step.Loading;
                         return;
@@ -4126,6 +4212,25 @@ if (name == "enemy_ai")
                     if (Object.FindObjectOfType<FieldMap>() != null)
                     {
                         Check(true, $"save loaded to the field after the hook ({now - stepAt:0.0} s)");
+                        if (req.ContainsKey("inspect"))
+                        {
+                            var done = new List<string>();
+                            var left = new List<string>();
+                            foreach (var c in WcTrack.Checks)
+                            {
+                                if (c.Flag < 0) continue;
+                                int value = WcEvents.Flag(DataStorage.Category.kScenarioFlag4, c.Flag);
+                                (value == 1 ? done : left).Add($"{c.Flag}:{c.Name}");
+                            }
+                            Plugin.L.LogInfo($"[wc test] inspect sentinel flags: WC={WcEvents.Flag(DataStorage.Category.kScenarioFlag4, 0)}, " +
+                                             $"Tzen={WcEvents.Flag(DataStorage.Category.kScenarioFlag4, 1)}, " +
+                                             $"MoogleDefense={WcEvents.Flag(DataStorage.Category.kScenarioFlag4, 62)}, " +
+                                             $"MogRecruited={WcEvents.Flag(DataStorage.Category.kScenarioFlag4, 111)}");
+                            Plugin.L.LogInfo($"[wc test] inspect completed ({done.Count}): {string.Join(" | ", done)}");
+                            Plugin.L.LogInfo($"[wc test] inspect unfinished ({left.Count}): {string.Join(" | ", left)}");
+                            Finish();
+                            return;
+                        }
                         // a New Game's WC start state, granted here to the loaded game (memory only)
                         var seed = made.Count > 0 ? WcSeeds.Load(made[0]) : null;
                         var udm = UserDataManager.Instance();

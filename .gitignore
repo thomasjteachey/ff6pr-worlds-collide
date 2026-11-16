@@ -7,7 +7,14 @@ __pycache__/
 pr/vanilla/
 pr/build/
 pr/cache/
+pr/mods/
 pr/data/wc_base.bin
+# Unity-generated HD-2D project data and build output
+pr/hd2d/unity/Library/
+pr/hd2d/unity/Logs/
+pr/hd2d/unity/Temp/
+pr/hd2d/unity/obj/
+pr/hd2d/out/
 rom/
 build/
 *.sfc

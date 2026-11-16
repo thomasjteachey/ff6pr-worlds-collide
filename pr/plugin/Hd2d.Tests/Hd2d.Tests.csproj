@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Offline tests for the HD-2D plugin's settings and math. No game, no NuGet packages.
+       Run from this folder: dotnet run -c Release -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net6.0</TargetFramework>
+    <RollForward>Major</RollForward>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <GameDir Condition="'$(GameDir)' == ''">D:\SteamLibrary\steamapps\common\FINAL FANTASY VI PR</GameDir>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="..\Hd2dPlugin\Profile.cs" />
+    <Compile Include="..\Hd2dPlugin\ProfileBinding.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- ConfigFile only; copied next to the test exe -->
+    <Reference Include="$(GameDir)\BepInEx\core\BepInEx.Core.dll" />
+  </ItemGroup>
+</Project>

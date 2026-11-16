@@ -11,6 +11,7 @@ against the vanilla game by tools/check_vanilla.py) or by name:
   hash       the same WC game on both sides (WC's hash)
   rewards    every check's reward: WC's spoiler log (Events) = the PR seed's checks, by name
   commands   every character's commands: the SNES character data = character_status, by name
+  weapons    every weapon's physical hit rate
   espers     every esper's spells, learn rates and level-up bonus
   shops      every SNES shop's stock = its PR shop's (the porter's shop pairs)
   chests     every chest WC changed = its PR chest(s) (the porter's chest pairs)
@@ -243,6 +244,20 @@ class WcXref(unittest.TestCase):
                 pr.remove("Magitek")                       # the PR's hidden armor slot
             if snes != set(pr) - COMMON:
                 bad.append(f"{self.snes_name(CHAR_NAMES, CHAR_NAME_SIZE, c)}: SNES {sorted(snes)}, PR {sorted(set(pr) - COMMON)}")
+        self.assertEqual(bad, [])
+
+    def test_weapon_accuracy(self):
+        """Every weapon keeps the SNES game's hit rate. The PR baseline gives every weapon
+        100 accuracy, which made WC physical attacks miss much more often against Evade."""
+        weapons = self.table("weapon")
+        bad = []
+        for item in SN.items(self.rom):
+            mapped = M.item(item.id)
+            if not mapped or mapped[0] != "weapon":
+                continue
+            got = int(weapons[mapped[1]]["accuracy_rate"])
+            if got != item.hit_or_mdef:
+                bad.append(f"{item.name}: SNES {item.hit_or_mdef}, PR {got}")
         self.assertEqual(bad, [])
 
     def test_espers(self):

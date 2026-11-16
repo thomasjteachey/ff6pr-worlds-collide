@@ -1,5 +1,7 @@
 """Bring a Worlds Collide seed up to the generator's monster AI: cast-time ability scaling (seeds
 made before 2026-11-11) and WC's own AI scripts run by the plugin (before 2026-11-12, snes_ai).
+AI version 5 also moves Nelapa's one-shot Doom opening into that SNES path, because the PR's
+hard-coded opening loops forever when boss shuffle copies Nelapa onto another check's background.
 
 Older seeds compiled WC's ability scaling placeholders (-ase / -asr) to one fixed spell per monster,
 and ran approximations of WC's AI as PR scripts. This regenerates the seed with its own seed and
@@ -42,6 +44,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 MASTER = "master/Assets/GameAssets/Serial/Data/Master/"
 ABILITY = MASTER + "ability.csv"
 MONSTER = MASTER + "monster.csv"
+WEAPON = MASTER + "weapon.csv"
 AI_SCRIPTS = MASTER + "monster_ai_script.csv"
 AI_DIR = "files/monster_ai"
 LOGS = {"generate.log", "wc_log.txt", "wc_seed.json"}
@@ -50,6 +53,10 @@ NEW_ABILITIES = set(range(SCALED_BASE, SCALED_BASE + 36)) | {7680, 7681, 7682} |
 AI_TABLES = ("ability", "monster", "monster_ai_script")
 JSON_PARTS = ("ability_scaling", "snes_ai")
 MONSTER_PARTY = MASTER + "monster_party.csv"
+CHADARNOOK_AI = tuple(
+    f"{AI_DIR}/Assets/GameAssets/Serial/Res/Battle/MonsterAI/sc_ai_bnw_{enemy}.json"
+    for enemy in (286, 328)
+)
 
 
 def tower_fixes(seed_dir):
@@ -263,6 +270,102 @@ def snes_ai_version():
     return port_ai.SNES_AI_VERSION
 
 
+def upgrade_chadarnook_v4(seed_dir, info, deck, dry_run):
+    """Version 4 adds the missing AI-variable handshake between WC's Chadarnook scripts and
+    the PR's sc_b_2016 form-switch routine. Only the two compiled AI files change; regenerate
+    them without replacing the seed's party map (older installed seeds may already contain
+    independent safe party-map upgrades). None means this targeted upgrade does not apply."""
+    old = (info.get("snes_ai") or {}).get("version", 0)
+    if old != 3 or snes_ai_version() < 4:
+        return None
+    work = tempfile.mkdtemp(prefix="wc_chadarnook_upgrade_")
+    try:
+        new = os.path.join(work, "seed")
+        r = subprocess.run([sys.executable, os.path.join(HERE, "wc_seed.py"), "--seed", info["seed"],
+                            "--flags", info["flags"], "--preset", info.get("preset", "") or "", "--out", new],
+                           capture_output=True, text=True)
+        if r.returncode != 0:
+            print(r.stdout[-2000:], r.stderr[-2000:])
+            return 1
+        generated = json.load(open(os.path.join(new, "wc_seed.json"), encoding="utf-8"))
+        if generated.get("hash") != info.get("hash"):
+            print("the regenerated Chadarnook AI is not from the same game; stopped")
+            return 1
+        if any(not os.path.exists(os.path.join(new, p)) for p in CHADARNOOK_AI):
+            print("the regenerated seed has no compiled Chadarnook AI; stopped")
+            return 1
+        print("upgrading: Chadarnook's painting/demon form-switch handshake")
+        if dry_run:
+            if deck:
+                print(f"Deck: {len(CHADARNOOK_AI)} Chadarnook AI files plus wc_seed.json")
+            return 0
+        bak = backup_dir(seed_dir)
+        shutil.copytree(seed_dir, bak)
+        for p in CHADARNOOK_AI:
+            dst = os.path.join(seed_dir, p)
+            os.makedirs(os.path.dirname(dst), exist_ok=True)
+            shutil.copy2(os.path.join(new, p), dst)
+        info.setdefault("snes_ai", {})["version"] = 4
+        info["upgraded"] = time.strftime("%Y-%m-%d %H:%M:%S") + " (Chadarnook form switching)"
+        with open(os.path.join(seed_dir, "wc_seed.json"), "w", encoding="utf-8") as f:
+            json.dump(info, f, indent=1)
+        print(f"PC: Chadarnook AI in {seed_dir} (backup: {bak})")
+        return push_deck(deck, seed_dir, list(CHADARNOOK_AI), False) if deck else 0
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+
+
+def upgrade_weapon_accuracy(seed_dir, info, deck, dry_run):
+    """Bring an existing seed's weapon hit rates in line with its SNES game. Seeds made before
+    this fix inherited the PR baseline's flat 100 instead of the SNES weapon accuracy byte.
+    Regenerate only to obtain the same seed's weapon table, then rewrite only accuracy_rate;
+    every other weapon field must match so a save's equipment remains unchanged."""
+    work = tempfile.mkdtemp(prefix="wc_weapon_accuracy_upgrade_")
+    try:
+        new = os.path.join(work, "seed")
+        r = subprocess.run([sys.executable, os.path.join(HERE, "wc_seed.py"), "--seed", info["seed"],
+                            "--flags", info["flags"], "--preset", info.get("preset", "") or "", "--out", new],
+                           capture_output=True, text=True)
+        if r.returncode != 0:
+            print(r.stdout[-2000:], r.stderr[-2000:])
+            return 1
+        generated = json.load(open(os.path.join(new, "wc_seed.json"), encoding="utf-8"))
+        if generated.get("hash") != info.get("hash"):
+            print("the regenerated weapon table is not from the same game; stopped")
+            return 1
+        old_rows = rows(os.path.join(seed_dir, WEAPON))
+        new_rows = rows(os.path.join(new, WEAPON))
+        if set(old_rows) != set(new_rows):
+            print("the regenerated weapon table has different rows; stopped")
+            return 1
+        fixes = {}
+        for wid, old in old_rows.items():
+            new_row = new_rows[wid]
+            other = [c for c in old if c != "accuracy_rate" and old[c] != new_row.get(c)]
+            if other:
+                print(f"weapon {wid} differs outside accuracy_rate ({', '.join(other[:5])}); stopped")
+                return 1
+            if old["accuracy_rate"] != new_row["accuracy_rate"]:
+                fixes[wid] = (old["accuracy_rate"], new_row["accuracy_rate"])
+        if not fixes:
+            if deck:
+                return push_deck(deck, seed_dir, [WEAPON], dry_run)
+            return None
+        print(f"upgrading: {len(fixes)} weapons get their SNES physical hit rates")
+        if dry_run:
+            return 0
+        bak = backup_dir(seed_dir)
+        shutil.copytree(seed_dir, bak)
+        rewrite_column(seed_dir, WEAPON, "accuracy_rate", fixes)
+        info["upgraded"] = time.strftime("%Y-%m-%d %H:%M:%S") + " (SNES weapon hit rates)"
+        with open(os.path.join(seed_dir, "wc_seed.json"), "w", encoding="utf-8") as f:
+            json.dump(info, f, indent=1)
+        print(f"PC: {len(fixes)} weapons in {seed_dir} (backup: {bak})")
+        return push_deck(deck, seed_dir, [WEAPON], False) if deck else 0
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+
+
 def needed(info):
     """The upgrades this seed lacks."""
     out = []
@@ -406,7 +509,7 @@ def main():
             return 1
         parts = sorted(os.path.relpath(os.path.join(d, f), seed_dir).replace(os.sep, "/")
                        for d, _, fs in os.walk(os.path.join(seed_dir, AI_DIR)) for f in fs)
-        parts += [k for k in (ABILITY, MONSTER, AI_SCRIPTS, MONSTER_PARTY) if os.path.exists(os.path.join(seed_dir, k))]
+        parts += [k for k in (ABILITY, MONSTER, WEAPON, AI_SCRIPTS, MONSTER_PARTY) if os.path.exists(os.path.join(seed_dir, k))]
         return push_deck(a.deck, seed_dir, parts, a.dry_run)
     parties = upgrade_parties(seed_dir, a.deck, a.dry_run)
     if parties:
@@ -419,6 +522,12 @@ def main():
     if undead:
         return undead
     info = json.load(open(os.path.join(seed_dir, "wc_seed.json"), encoding="utf-8"))
+    chadarnook = upgrade_chadarnook_v4(seed_dir, info, a.deck, a.dry_run)
+    if chadarnook is not None:
+        return chadarnook
+    weapons = upgrade_weapon_accuracy(seed_dir, info, a.deck, a.dry_run)
+    if weapons is not None:
+        return weapons
     what = needed(info)
     if not what:
         print("already up to date (ability scaling and the plugin's AI)")
@@ -438,6 +547,20 @@ def main():
             print(f"the regenerated seed isn't the same game (hash {jn.get('hash')} vs {info.get('hash')}): stopped")
             return 1
         bad = differences(seed_dir, new)
+        # A v4 seed may have the independent, save-safe party-map repairs this
+        # tool applied after it was generated (hidden-slot party matching and
+        # event-look copies).  Nelapa's v5 migration changes only monster AI;
+        # preserve those repaired battles/look sources exactly as installed.
+        if (info.get("snes_ai") or {}).get("version", 0) == 4 and snes_ai_version() == 5:
+            allowed = {
+                f"{MONSTER_PARTY}: differs",
+                "wc_seed.json battles differs",
+                "wc_seed.json look_sources differs",
+            }
+            kept = [x for x in bad if x in allowed]
+            bad = [x for x in bad if x not in allowed]
+            if kept:
+                print("preserving installed party-map repairs: " + ", ".join(kept))
         if bad:
             print("the regenerated seed differs beyond the upgrade; nothing changed:")
             for x in bad[:30]:

@@ -592,6 +592,27 @@ def final_rows(ctx, actions):
 def compile_script(ctx, main, counter):
     """Returns a list of mnemonics (dicts) or raises Unsupported."""
     if ctx.pr_entrances:  # keep "everyone dies like a boss", drop the rest of F5
+        # Chadarnook is a hybrid: WC's two F5 commands swap painting/demon, while the
+        # PR battle script sc_b_2016 owns the actual NoSelectChad animation and targeting.
+        # That routine waits for AI variable 9, which the PR's original AIs set just before
+        # each swap.  Preserve that handshake when replacing WC's F5 pair; otherwise the
+        # painting remains selected forever and the demon can never be killed.
+        def entrance_signals(ops):
+            if ctx.enemy_id not in (286, 328):
+                return ops
+            out, i = [], 0
+            while i < len(ops):
+                op, a = ops[i]
+                if (i + 1 < len(ops) and op == "enemies" and a[1] == 2 and
+                        ops[i + 1][0] == "enemies" and ops[i + 1][1][1] == 1):
+                    out.append(("var", (9, 1)))
+                    i += 2
+                    continue
+                out.append((op, a))
+                i += 1
+            return out
+
+        main, counter = entrance_signals(main), entrance_signals(counter)
         keep = lambda op, a: op != "enemies" or (a[1] in (1, 5) and a[2] == 0xFF)
         main = [(op, a) for op, a in main if keep(op, a)]
         counter = [(op, a) for op, a in counter if keep(op, a)]

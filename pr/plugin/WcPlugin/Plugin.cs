@@ -153,6 +153,7 @@ namespace WorldsCollide.PR
                 PadFix.Update(); t = WcPerf.Lap(0, "padfix", t);
                 InputDiag.Update(); t = WcPerf.Lap(1, "inputlog", t);
                 WcSeeds.Update(); t = WcPerf.Lap(2, "seeds", t);
+                WcRecruits.Update();
                 WcScreen.Poll(); t = WcPerf.Lap(3, "screen-poll", t);
                 WcObjectives.Poll(); t = WcPerf.Lap(4, "poll", t);
                 WcScreen.Update(); t = WcPerf.Lap(5, "screen", t);

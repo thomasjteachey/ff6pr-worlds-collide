@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Offline tests for the kit's game-free parts (which PR a process is, request files, feature
+       switches). No game running, no NuGet packages; BepInEx.Core comes from the game's folder.
+       Run from this folder: dotnet run -c Release -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net6.0</TargetFramework>
+    <RollForward>Major</RollForward>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <NoWarn>$(NoWarn);NETSDK1138</NoWarn>
+  </PropertyGroup>
+  <Import Project="..\PrKit\Games.props" Condition="Exists('..\PrKit\Games.props')" />
+  <PropertyGroup>
+    <GameDir Condition="'$(GameDir)' == ''">$(PrGameDir_ff6)</GameDir>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="..\PrKit\*.cs" />
+    <!-- run here: BepInEx's config/logging and Harmony's types (plain .NET; no patching happens) -->
+    <Reference Include="$(GameDir)\BepInEx\core\BepInEx.Core.dll" Private="true" />
+    <Reference Include="$(GameDir)\BepInEx\core\0Harmony.dll" Private="true" />
+    <!-- compile only: the kit's game-side files (never run by these tests) -->
+    <Reference Include="$(GameDir)\BepInEx\core\BepInEx.Unity.IL2CPP.dll" Private="false" />
+    <Reference Include="$(GameDir)\BepInEx\core\BepInEx.Unity.Common.dll" Private="false" />
+    <Reference Include="$(GameDir)\BepInEx\core\Il2CppInterop.Runtime.dll" Private="false" />
+    <Reference Include="$(GameDir)\BepInEx\core\Il2CppInterop.Common.dll" Private="false" />
+    <Reference Include="$(GameDir)\BepInEx\interop\*.dll" Private="false" />
+  </ItemGroup>
+</Project>
