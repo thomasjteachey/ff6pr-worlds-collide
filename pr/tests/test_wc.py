@@ -658,8 +658,10 @@ class WcScripts(unittest.TestCase):
 
     def test_opera_disruption_still_starts(self):
         st, _ = self.new_game()
+        st.set("ScenarioFlag1", 165, 1)
         r = Run(self.script("sc_npc_20161_2_1"), st)
-        self.assertEqual(r.end, ("ChangeScript", "sc_e_0330"), "the impresario: on to the disruption check")
+        self.assertEqual(r.end, ("ChangeScript", "sc_e_0330"),
+                         "the original impresario advances only after the performance")
 
     def test_opera_success_is_the_quest(self):
         st, _ = self.new_game()
@@ -804,6 +806,16 @@ class WcScripts(unittest.TestCase):
         self.assertEqual(self.bgm("sc_map_20071_5", shadow), [12], "vanilla: Shadow's theme while he's there")
         self.assertEqual(self.bgm("sc_map_20131_1", st, {"WC:gate kohlingen": gate(True)}), [21],
                          "Kohlingen's inn keeps the town's theme with the check open")
+        wor = Run(self.script("sc_map_20381_1"), st, syscalls={"WC:gate kohlingen": gate(True)})
+        self.assertEqual(len(wor.did("SetEntities", "ev_e_0681")), 1,
+                         "Kohlingen's WoR inn has the SNES shared-map check too")
+        self.assertEqual([t[2][0] for t in wor.did("PlayBGM")], [21])
+        closed = Run(self.script("sc_map_20381_1"), st, syscalls={"WC:gate kohlingen": gate(False)})
+        self.assertEqual(closed.did("SetEntities", "ev_e_0681"), [])
+        layer = load(self.assets["ev_e_0681"])
+        ids = {p["value"] for group in layer["layers"] for obj in group.get("objects", [])
+               for p in obj.get("properties", []) if p["name"] == "entity_id"}
+        self.assertEqual(ids, {1, 9}, "the WoR check actors avoid that map's occupied field ids 2-8")
         st.set("ScenarioFlag2", 97, 1)                   # in Mobliz's WoR story
         self.assertEqual(self.bgm("sc_map_20341_9", st), [57], "Mobliz WoR: From That Day On..., as WC's")
         phunbaba = State()
@@ -1709,7 +1721,9 @@ class WcScripts(unittest.TestCase):
         self.assertEqual(r.black_lines, [])
 
         st, r = run("sc_e_0344_2", black=True)
-        self.assertEqual(([t[3][0] for t in r.did("Msg")], r.end[:2]), (["WC_REWARD"], ("ChangeMap", 119)), "opera: reward, deck")
+        self.assertEqual(([t[3][0] for t in r.did("Msg")], r.end),
+                         (["WC_REWARD"], ("ChangeMap", E.WOB_MAP, 1, "sc_e_BJoutboard_1")),
+                         "opera: reward, then native boarding into the flying Blackjack")
         st, r = run("sc_e_0639", black=True)
         self.assertEqual(([t[3][0] for t in r.did("Msg")], len(r.did("FinishTimer")), r.black, r.end),
                          (["WC_REWARD"], 1, True, ("ChangeMap", 201, 1, "")))

@@ -21,7 +21,8 @@ namespace WorldsCollide.PR
     static partial class WcScreen
     {
         internal static bool Open;
-        internal static WcFlagSet Defs;
+        internal static WcFlagSet Defs => Plugin.FlagDefs;
+        static bool initialized;
         static FlagValues values;
         static string seedText = "", presetName = "";
         static int page, cursor, scroll, slot;
@@ -48,7 +49,8 @@ namespace WorldsCollide.PR
 
         public static void Init(WcFlagSet defs)
         {
-            Defs = defs;
+            if (initialized) return;
+            initialized = true;
             values = new FlagValues(defs);
             var active = WcSeeds.Active;
             if (active != null)
@@ -89,6 +91,11 @@ namespace WorldsCollide.PR
 
         public static void Show(bool show, bool track = false)
         {
+            if (show)
+            {
+                WcScreenState.Active = true;
+                Init(Defs);
+            }
             if (show == Open) return;
             Open = show;
             if (show && track != Track) { Track = track; page = 0; cursor = 0; scroll = 0; slot = 0; }
@@ -127,7 +134,6 @@ namespace WorldsCollide.PR
         public static void Update()
         {
             bool title = OnTitle();
-            WcSeeds.UpdateNewGame(title);
             if (releaseWait)
             {
                 bool held = WcInput.Held(Key.Cancel) || WcInput.Held(Key.Action) || WcInput.Held(Key.Select);
@@ -733,6 +739,8 @@ namespace WorldsCollide.PR
 
         internal static void Toast(string text)
         {
+            WcScreenState.Active = true;
+            Init(Defs);
             toast = text;
             toastUntil = Time.unscaledTime + 6;
         }

@@ -159,6 +159,10 @@ namespace WorldsCollide.PR
             // Randomized joins skip vanilla naming scenes. Repair only blank/question-mark
             // placeholders, including existing saves, and preserve all legitimate custom names.
             WcEvents.RepairCharacterNames();
+            // Older saves can own a character but lack WC's private gate bit.  Roster ownership
+            // is enough to restore that bit; this is independent of starting-average-level.
+            WcEvents.RepairRecruitedFlagsFromRoster();
+            WcEvents.RepairKohlingenCafe();
             if (!On("-sal")) return;
             try
             {

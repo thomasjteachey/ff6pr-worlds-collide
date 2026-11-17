@@ -672,14 +672,14 @@ namespace WorldsCollide.PR
 
         public static bool NoDataSaveInTest(System.Reflection.MethodBase __originalMethod)
         {
-            if (!WcTest.Running) return true;
+            if (!WcTestState.Running) return true;
             Plugin.L.LogInfo($"[wc test] {__originalMethod.DeclaringType?.Name}.{__originalMethod.Name} skipped (test run)");
             return false;
         }
 
         public static bool NoDataSaveInTestBool(System.Reflection.MethodBase __originalMethod, ref bool __result)
         {
-            if (!WcTest.Running) return true;
+            if (!WcTestState.Running) return true;
             Plugin.L.LogInfo($"[wc test] {__originalMethod.DeclaringType?.Name}.{__originalMethod.Name} skipped (test run)");
             __result = true;
             return false;
@@ -690,7 +690,7 @@ namespace WorldsCollide.PR
         // Blackjack's boarding arrival (sc_e_BJinboard_1) saves before it fades in, and stayed black
         static bool AutoSave_Prefix(ref int __result)
         {
-            bool test = WcTest.Running, ironMog = !test && IronMog();
+            bool test = WcTestState.Running, ironMog = !test && IronMog();
             if (!test && !ironMog) return true;
             Plugin.L.LogInfo(test ? "[wc test] a script's autosave skipped (test run)" : "[wc] -nosaves: a script's autosave skipped");
             __result = 0;
@@ -706,21 +706,23 @@ namespace WorldsCollide.PR
 
         static bool NoSaveInTest(int slotId)
         {
-            if (!WcTest.Running && IronMog()) { Plugin.L.LogInfo($"[wc] -nosaves: save to slot {slotId} refused"); return false; }
-            if (!WcTest.Running) return true;
+            if (!WcTestState.Running && IronMog()) { Plugin.L.LogInfo($"[wc] -nosaves: save to slot {slotId} refused"); return false; }
+            if (!WcTestState.Running) return true;
+            if (WcTest.AllowsSave(slotId)) return true;
             Plugin.L.LogInfo($"[wc test] save to slot {slotId} skipped (test run)");
             return false;
         }
 
         static bool NoSaveInTestCallback(int slotId, Il2CppSystem.Action<bool> callback)
         {
-            if (!WcTest.Running && IronMog())
+            if (!WcTestState.Running && IronMog())
             {
                 Plugin.L.LogInfo($"[wc] -nosaves: autosave to slot {slotId} skipped");
                 try { callback?.Invoke(true); } catch (Exception e) { Plugin.L.LogWarning($"[wc] save callback: {e.Message}"); }
                 return false;
             }
-            if (!WcTest.Running) return true;
+            if (!WcTestState.Running) return true;
+            if (WcTest.AllowsSave(slotId)) return true;
             Plugin.L.LogInfo($"[wc test] save to slot {slotId} skipped (test run), reported done");
             try { callback?.Invoke(true); } catch (Exception e) { Plugin.L.LogWarning($"[wc test] save callback: {e.Message}"); }
             return false;
@@ -728,7 +730,7 @@ namespace WorldsCollide.PR
 
         static void Saved(int slotId)
         {
-            if (WcTest.Running) return;
+            if (WcTestState.Running && !WcTest.AllowsSave(slotId)) return;
             try
             {
                 // "" = saved in Worlds Collide with no seed: loading it goes back to the game's own data

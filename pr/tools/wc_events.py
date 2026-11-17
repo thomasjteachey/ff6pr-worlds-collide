@@ -17,8 +17,9 @@ Changes so far (WC's own flags: ScenarioFlag4 0-131, unused by vanilla scripts; 
    of Raiden, if the gate character (Edgar) has been recruited (with -cg).
  * Gau's father's house (WC event/gau_father_house.py, sc_map_20090 / sc_e_0097): the NPC is
    there until the check is done (gate Shadow); talking gives the seed's reward.
- * Kohlingen's inn (WC event/kohlingen.py, sc_map_20131_1 / sc_e_0285): the NPC is there until
-   the check is done (gate Setzer); talking gives the seed's reward (WoB; the PR has no WoR copy).
+ * Kohlingen's inn (WC event/kohlingen.py, sc_map_20131_1 / sc_map_20381_1 / sc_e_0285): the NPC
+   is there until the check is done (gate Setzer); the PR's two world-specific copies both match
+   the SNES's shared inn map.
  * Recruit scenes as checks (`talk_reward`): talking gives the seed's reward at once if the gate
    is met (WC strips these cutscenes): Owzer's Mansion (sc_e_0775), the Zone Eater's Gogo
    (sc_e_0865), Mt. Zozo's Cyan (sc_e_0735), Umaro's cave (sc_e_0790; the carving's Midgardsormr
@@ -621,6 +622,27 @@ def kohlingen_map():
     return sc
 
 
+def kohlingen_wor_map():
+    """The PR split the SNES's shared Kohlingen inn into separate WoB and WoR maps. WC's
+    Kohlingen check therefore belongs in both copies. In the WoR copy, replace vanilla Setzer's
+    recruitment layer with the check layer (written as ev_e_0681 by build())."""
+    sc = S.load("sc_map_20381_1")
+    ms = sc["Mnemonics"]
+    assert ms[1]["mnemonic"] == "Branch" and ms[2]["mnemonic"] == "SetEntities" \
+        and ms[2]["operands"]["sValues"][0] == "ev_e_0681", "Kohlingen WoR inn changed"
+    S.hook(sc, 1, "wc_inn", [
+        if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
+        if_flag(WC_FLAGS, CHECK_FLAGS["kohlingen"], 1, "@closed"),
+    ] + gate("kohlingen", "@closed") + [
+        S.op("PlayBGM", i=[21, 1]),
+        S.op("SetEntities", s=["ev_e_0681"]),
+        S.op("Exit"),
+        S.label("closed"),
+        S.op("Exit"),
+    ])
+    return sc
+
+
 def kohlingen():
     """Talking to him (sc_e_0285): the seed's reward for free (WC), as the vanilla hire ends:
     fade, the scene's puppets, then the reward; ScenarioFlag1 147 = hired."""
@@ -639,6 +661,43 @@ def kohlingen():
         flag(WC_FLAGS, CHECK_FLAGS["kohlingen"]),
         flag("ScenarioFlag1", 147),
     ] + pick_party() + [
+        S.op("Exit"),
+    ])
+    return sc
+
+
+def kohlingen_wor():
+    """The PR's WoR copy already owns sc_e_0681, so use that local script for the same WC check.
+    Magicite can replace an asset in a map package but cannot add sc_e_0285 to a package that did
+    not originally contain it."""
+    sc = S.load("sc_e_0681")
+    ms = sc["Mnemonics"]
+    assert ms[1]["mnemonic"] == "Call" and ms[39]["mnemonic"] == "SysCall" \
+        and ms[39]["operands"]["sValues"][0].endswith("セッツァー"), "Kohlingen WoR scene changed"
+    S.hook(sc, 1, "wc_inn", [
+        if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
+        S.op("FadeOut", i=[0, 0, 0, 255], r=[0.7]),
+        S.op("Call", i=["@hide_check"]),
+        reset(WC_FLAGS, PICK_PARTY),
+        S.op("SysCall", s=["WC:reward kohlingen"]),
+        S.op("FadeIn", i=[0, 0, 0, 255], r=[0.7]),
+        S.op("PlaySE", i=[105, 1]),
+        S.op("Msg", s=["WC_REWARD"]),
+        flag(WC_FLAGS, CHECK_FLAGS["kohlingen"]),
+        flag("ScenarioFlag1", 147),
+        flag("ScenarioFlag2", 83),
+    ] + pick_party() + [
+        S.op("Exit"),
+        S.label("hide_check"),
+        S.op("SetPuppet", i=[0, 9, "@hide_shadow"]),
+        S.op("SetPuppet", i=[1, 1, "@hide_dog"]),
+        S.op("ExecPuppet"),
+        S.op("Return"),
+        S.label("hide_shadow"),
+        S.op("Hide"),
+        S.op("Exit"),
+        S.label("hide_dog"),
+        S.op("Hide"),
         S.op("Exit"),
     ])
     return sc
@@ -2764,8 +2823,12 @@ def opera_no_join(name, *at):
 
 def opera_house():
     """After Ultros on the stage (sc_e_0344_2, map 118): the seed's reward while the stage still
-    shows, then the opera's after state (ScenarioFlag1 177) and the Blackjack's deck: no curtain,
-    no Setzer's cabin, no Celes joining (sc_e_0344_3-5)."""
+    shows, then the opera's after state (ScenarioFlag1 177) and the flying Blackjack: no curtain,
+    no Setzer's cabin, no Celes joining (sc_e_0344_3-5). SNES WC sets AIRSHIP_FLYING before it
+    loads the airship interior. PR has no equivalent story flag: loading the deck directly leaves
+    its bird-view/parent-map state stale, so taking the wheel can render the party separately over
+    the ocean. Enter through the world map's native Blackjack outboard script instead; its
+    OnTheVehicle and bird-view setup are PR's equivalent of AIRSHIP_FLYING."""
     sc = S.load("sc_e_0344_2")
     ms = sc["Mnemonics"]
     assert ms[40]["mnemonic"] == "Wait" and ms[43]["operands"]["sValues"][0] == "sc_e_0344_3", "opera end changed"
@@ -2784,7 +2847,7 @@ def opera_house():
     S.hook(sc, 43, "wc_deck", [
         if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
         flag("ScenarioFlag1", 177),
-        S.op("ChangeMap", i=[119, 1, 0, 0, 1, 0], s=["sc_e_BJinboard_1"]),
+        S.op("ChangeMap", i=[WOB_MAP, 1, 0, 0, 1, 0], s=["sc_e_BJoutboard_1"]),
         S.op("Exit"),
     ])
     return sc
@@ -3160,7 +3223,6 @@ NO_SCENE_LAYERS = [
     ("sc_map_20081_2", 19, "ev_e_1108", "the Returners' hideout: a wounded soldier talks in his sleep"),
     ("sc_map_20371_3", 5, "ev_e_0671", "Figaro Castle WoR's prison: Gerad overheard (WC hides him: GERAD_PRISON_FIGARO_CASTLE)"),
     ("sc_map_30470", 9, "ev_e_0216", "Baren Falls: the talk on the cliff (Shadow leaves)"),
-    ("sc_map_20381_1", 2, "ev_e_0681", "Kohlingen WoR's inn: Setzer, who joins when talked to (WC never sets SETZER_KOHLINGEN_INN)"),
     ("sc_map_30430", 3, "ev_e_0160", "the Phantom Train's platform: finding the train (WC: phantom train skip find train event)"),
 ]
 
@@ -4364,14 +4426,6 @@ def opera_performance():
         if_flag("ScenarioFlag1", 174, 1, 42),
     ])
     out.append((sc, S.path("sc_Map_20161_1")))
-    sc = S.load("sc_npc_20161_2_1")
-    ms = sc["Mnemonics"]
-    assert ms[2]["operands"]["iValues"][:3] == [165, 1, 17] and ms[17]["label"], "impresario changed"
-    S.hook(sc, 2, "wc_impresario", [
-        if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
-        S.op("Jump", i=[17]),                       # on to the disruption (next2: the letter read)
-    ])
-    out.append((sc, S.path("sc_npc_20161_2_1")))
     sc = S.load("sc_e_0318_1")
     ms = sc["Mnemonics"]
     assert ms[11]["label"] and ms[12]["mnemonic"] == "ChangePartySlot" and ms[29]["label"] and \
@@ -4441,7 +4495,7 @@ def kt_demon_drop():
 
 
 SCRIPTS = [opening, blackjack_helm, falcon_helm, blackjack_party_npc, falcon_party_npc_grounded, falcon_party_npc, tzen_wob, tzen_wor, tzen_map, ancient_castle, ancient_castle_room,
-           gau_father_house_map, gau_father_house, kohlingen_map, kohlingen, tritoch, tritoch_map, zozo_map, zozo,
+           gau_father_house_map, gau_father_house, kohlingen_map, kohlingen_wor_map, kohlingen, kohlingen_wor, tritoch, tritoch_map, zozo_map, zozo,
            owzer_mansion_start, owzer_mansion, zone_eater, mt_zozo, umaro_cliff, umaro_cave, umaro_carving_line, umaro_carving_item,
            esper_mountain_start, esper_mountain, figaro_castle_wor_start, figaro_castle_wor,
            collapsing_house_map, collapsing_house, narshe_wor, magitek_ifrit_shiva,
@@ -4571,6 +4625,34 @@ def build(out_root):
     props["action_id"]["value"] = 2
     props["script_id"]["value"] = 39                         # sc_e_0017_5
     rel = os.path.relpath(arvis, P.VANILLA).replace("\\", "/")
+    dest = os.path.join(out_root, *rel.split("/"))
+    os.makedirs(os.path.dirname(dest), exist_ok=True)
+    with open(dest, "w", encoding="utf-8") as f:
+        json.dump(layer, f, ensure_ascii=False, separators=(",", ":"))
+    if rel not in written:
+        written.append(rel)
+
+    # The SNES has one Kohlingen inn in both worlds; the PR duplicated it. Put the same Shadow
+    # and Interceptor check layer in the WoR copy under that map's existing layer name, replacing
+    # its vanilla Setzer recruitment actor. Keeping entity ids 1/2 lets sc_e_0285's puppet calls
+    # work unchanged in either copy.
+    src = os.path.join(P.VANILLA, "map_20131", "Assets", "GameAssets", "Serial", "Res", "Map",
+                       "Map_20131", "Map_20131_1", "ev_e_0285.json")
+    layer = json.load(open(src, encoding="utf-8"))
+    layer["name"] = "ev_e_0681"
+    # Map 263's default layer already uses field entity id 2 (its point-in). The WoB layer uses
+    # ids 1/2, so move Shadow to the next free id or the engine silently drops him.
+    for group in layer["layers"]:
+        for obj in group.get("objects", []):
+            props = {p["name"]: p for p in obj.get("properties", [])}
+            script = props.get("script_id", {}).get("value")
+            if script == 313:
+                props["entity_id"]["value"] = 9
+                props["script_id"]["value"] = 709              # this map's local sc_e_0681
+            elif script == 315:
+                props["action_id"]["value"] = 0                 # no sc_e_0285 dog script here
+                props["script_id"]["value"] = 0
+    rel = "map_20381/Assets/GameAssets/Serial/Res/Map/Map_20381/Map_20381_1/ev_e_0681.json"
     dest = os.path.join(out_root, *rel.split("/"))
     os.makedirs(os.path.dirname(dest), exist_ok=True)
     with open(dest, "w", encoding="utf-8") as f:

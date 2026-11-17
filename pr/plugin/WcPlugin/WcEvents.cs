@@ -291,7 +291,7 @@ namespace WorldsCollide.PR
 
         public static bool Msg_Prefix(Core c, ref int __result)
         {
-            if (!WcTest.Running)
+            if (!WcTestState.Running)
             {
                 try
                 {
@@ -331,7 +331,7 @@ namespace WorldsCollide.PR
 
         public static bool Select_Prefix(MainCore mc, ref int __result)
         {
-            if (!WcTest.Running) return true;
+            if (!WcTestState.Running) return true;
             int a = 0;                                                   // unasked: the first choice
             string why = "";
             if (TestAnswerKeys.Count > 0)
@@ -487,7 +487,7 @@ namespace WorldsCollide.PR
         // the new recruit in front
         public static bool Organize_Prefix(ref int __result)
         {
-            if (!WcTest.Running) return true;
+            if (!WcTestState.Running) return true;
             PartyPicks++;
             try
             {
@@ -524,7 +524,7 @@ namespace WorldsCollide.PR
             // (private in the game: by name)
             AccessTools.Method(typeof(Last.Map.FieldController), "ChangePartyEntityAsset")?.Invoke(fc, null);
             PartyRefreshes++;
-            if (WcTest.Running) PickScreenBlack = WcTest.ScreenBlack().Item1;
+            if (WcTestState.Running) PickScreenBlack = WcTest.ScreenBlack().Item1;
             var lead = UserDataManager.Instance()?.GetPartyMemberData();
             PickLeader = lead != null && lead.Count > 0 ? lead[0].characterStatusId : -1;
             Plugin.L.LogInfo($"[wc] party picked: leader {(lead != null && lead.Count > 0 ? lead[0].characterStatusId : -1)}");
@@ -1063,6 +1063,57 @@ namespace WorldsCollide.PR
 
         internal static bool IsRecruited(int statusId) => Flag(DataStorage.Category.kScenarioFlag4, Recruited + statusId) == 1;
 
+        // Early WC builds could leave an owned character without the private recruited bit used
+        // by character gates.  The PR's owned roster is authoritative for normal characters in a
+        // WC game (temporary story actors use status ids outside 1-14), so migrate those saves.
+        // This fixes gates such as Setzer's Kohlingen cafe without requiring the character to be
+        // in the active party or making the player recruit them a second time.
+        internal static void RepairRecruitedFlagsFromRoster()
+        {
+            if (!WcGame()) return;
+            var owned = UserDataManager.Instance()?.OwnedCharacterList;
+            if (owned == null) return;
+            var repaired = new List<int>();
+            foreach (var c in owned)
+            {
+                int id = c?.characterStatusId ?? 0;
+                if (id < 1 || id > 14 || IsRecruited(id)) continue;
+                SetWcFlag(Recruited + id, 1);
+                repaired.Add(id);
+            }
+            if (repaired.Count > 0)
+                Plugin.L.LogInfo($"[wc] recruited flags restored from owned roster: {string.Join(" ", repaired)}");
+        }
+
+        // A save loaded while already inside either PR copy of Kohlingen's inn can initialize its map before the
+        // save's WC flags have reached DataStorage.  The map script then takes its vanilla branch
+        // and omits the reward layer; unlike walking through the door, loading does not rerun it
+        // after WC_GAME and the recruited roster are restored.  Once the field is idle, rerun only
+        // this harmless map script when the open check's actor (sc_e_0285 / script 313) is absent.
+        internal static void RepairKohlingenCafe()
+        {
+            int map = UserDataManager.Instance()?.CurrentMapId ?? -1;
+            if (!WcGame() || (map != 98 && map != 263) ||
+                Flag(DataStorage.Category.kScenarioFlag4, 4) == 1 || !GateOpen("kohlingen") || EventBusy()) return;
+            var fc = UnityEngine.Object.FindObjectOfType<FieldMap>()?.fieldController;
+            if (fc == null) return;
+            for (int id = 0; id < 256; id++)
+            {
+                Last.Entity.Field.FieldEntity e = null;
+                try { e = fc.GetFieldEntity(id); } catch { }
+                try
+                {
+                    var pe = e?.Property?.TryCast<Last.Map.PropertyEvent>();
+                    int wanted = map == 263 ? 709 : 313;
+                    if (pe?.ScriptId == wanted && e.gameObject.activeInHierarchy) return;
+                }
+                catch { }
+            }
+            string script = map == 263 ? "sc_map_20381_1" : "sc_map_20131_1";
+            if (RunScript(script))
+                Plugin.L.LogInfo($"[wc] Kohlingen inn: restored the missing reward NPC layer after loading inside map {map}");
+        }
+
         // A character's first join in a WC game makes what WC's recruit makes (the SNES game, read
         // in Mesen: the start party at full HP, its level's HP and MP). The PR's JoinCharacter adds
         // two things of its own for a first-time joiner:
@@ -1121,7 +1172,7 @@ namespace WorldsCollide.PR
         // test runs: a character's level, HP and MP (base + the game's additional) after a step
         internal static void TraceHp(int statusId, string step)
         {
-            if (!WcTest.Running) return;
+            if (!WcTestState.Running) return;
             try
             {
                 var list = UserDataManager.Instance()?.OwnedCharacterList;
@@ -1568,7 +1619,7 @@ namespace WorldsCollide.PR
                         Plugin.L.LogInfo($"[wc] character {statusId} is already in the party");
                         return false;
                     }
-            bool changeAsset = !(WcTest.Running && WcTest.NoAssetChange);   // experiment (tests)
+            bool changeAsset = !(WcTestState.Running && WcTest.NoAssetChange);   // experiment (tests)
             TraceHp(statusId, "before JoinCharacter");
             Last.Interpreter.Instructions.SystemCall.Current.JoinCharacter(statusId, -1, (Last.Defaine.User.CorpsId)1, changeAsset, false, false);
             TraceHp(statusId, "JoinCharacter");

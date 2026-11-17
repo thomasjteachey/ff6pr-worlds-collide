@@ -79,7 +79,7 @@ namespace WorldsCollide.PR
 
         internal static void Track()
         {
-            if (FrameHook != null && WcTest.Running)
+            if (FrameHook != null && WcTestState.Running)
                 try { FrameHook(Time.frameCount); } catch (Exception e) { WcRunner.WarnOnce("ticks.framehook", e); }
             if (clocks.Count == 0) return;
             var battle = BattlePlugManager.Instance();
@@ -123,7 +123,7 @@ namespace WorldsCollide.PR
                 float dt = Mathf.Min(Time.deltaTime, 0.25f);
                 BattleTime += dt;
                 round.Advance(dt, visit);
-                if (WcTest.Running) WatchJumps();
+                if (WcTestState.Running) WatchJumps();
             }
             catch (Exception e) { WcRunner.WarnOnce("ticks", e); }
             finally { if (t0 != 0) WcPerf.Lap(12, "status-ticks", t0); }
@@ -213,7 +213,7 @@ namespace WorldsCollide.PR
 
         static void Note(int slot, string kind)
         {
-            if (WcTest.Running) Log.Add((BattleTime, slot, kind));
+            if (WcTestState.Running) Log.Add((BattleTime, slot, kind));
         }
 
         static void Landed(BattleUnitData u, string kind)

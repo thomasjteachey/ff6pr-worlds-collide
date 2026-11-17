@@ -146,7 +146,7 @@ namespace WorldsCollide.PR
                 if (battleActData.isCopiedAct) cmd = 25;                         // Mimic's own wait
                 if (!CommandWaits)                                               // test only: the game's own
                 {
-                    if (WcTest.Running && cmd == 1) ChantLog.Add((WcStatusTicks.BattleTime, u.Pointer, cmd, was));
+                    if (WcTestState.Running && cmd == 1) ChantLog.Add((WcStatusTicks.BattleTime, u.Pointer, cmd, was));
                     return;
                 }
                 if (!SnesCommandWait.TryGetValue(cmd, out int wait))
@@ -158,7 +158,7 @@ namespace WorldsCollide.PR
                 double secs = SnesWaitSeconds(wait, p.ConfirmedAgility(), false, 0, haste, slow);
                 __result = (float)(secs * speed);
                 CommandChants++;
-                if (WcTest.Running) ChantLog.Add((WcStatusTicks.BattleTime, u.Pointer, cmd, (float)secs));
+                if (WcTestState.Running) ChantLog.Add((WcStatusTicks.BattleTime, u.Pointer, cmd, (float)secs));
                 if (CommandChants <= 3)
                     Plugin.L.LogInfo($"[wc] ATB: command {cmd} (ability {ab.Id}) waits {secs:0.00} s, the SNES's {wait} (the game's chant {was:0.00})");
             }

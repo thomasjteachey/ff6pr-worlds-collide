@@ -80,7 +80,7 @@ namespace WorldsCollide.PR
                 shownAtTurn = Turns;
                 LinesShown++;
                 if (LinesSeen.Count < 200) LinesSeen.Add(k);
-                if (WcTest.Running) Plugin.L.LogInfo($"[wc] enemy AI: battle line {k} shown");
+                if (WcTestState.Running) Plugin.L.LogInfo($"[wc] enemy AI: battle line {k} shown");
             }
             catch (Exception e) { WcRunner.WarnOnce("enemy-ai-viewmes", e); }
         }
@@ -366,7 +366,7 @@ namespace WorldsCollide.PR
             if (q.Count == 0) q.Add((Nothing, null));   // an idle turn: the PR's own "nothing"
             Turns++;
             LastTurn = $"monster {snesId} slot {slot}: {string.Join("; ", acts)} => {Show(q)}";
-            if (WcTest.Running) Plugin.L.LogInfo("[wc] enemy AI turn: " + LastTurn);
+            if (WcTestState.Running) Plugin.L.LogInfo("[wc] enemy AI turn: " + LastTurn);
             if (q.Count == 1)
             {
                 c.SetActAbilityNormal(q[0].Item1, q[0].Item2, null);
@@ -436,7 +436,7 @@ namespace WorldsCollide.PR
             }
             Counters++;
             LastCounter = $"monster {snesId} slot {slot} hit by unit {who} (cmd {f.RetalCmd[slot]:x2}, attack {f.RetalAtk[slot]:x2}, elements {elem:x2}): {string.Join("; ", acts)} => {Show(q)}";
-            if (WcTest.Running) Plugin.L.LogInfo("[wc] enemy AI counter: " + LastCounter);
+            if (WcTestState.Running) Plugin.L.LogInfo("[wc] enemy AI counter: " + LastCounter);
             if (q.Count == 0) return false;
             var first = new List<(int, Il2CppReferenceArray<BattleUnitData>)> { q[0] };
             Rewrite(bc, MarkCounter, first, lines, false);
@@ -493,7 +493,7 @@ namespace WorldsCollide.PR
             }
             Finals++;
             LastFinal = $"monster {snesId} slot {slot}: {string.Join("; ", acts)} => {Show(q)}";
-            if (WcTest.Running) Plugin.L.LogInfo("[wc] enemy AI death: " + LastFinal);
+            if (WcTestState.Running) Plugin.L.LogInfo("[wc] enemy AI death: " + LastFinal);
             if (q.Count == 0) return false;
             var first = new List<(int, Il2CppReferenceArray<BattleUnitData>)> { q[0] };
             Rewrite(bc, MarkFinal, first, lines, false);

@@ -218,7 +218,7 @@ namespace WorldsCollide.PR
                 if (!Plugin.WcMode || WcSeeds.Active == null || __0?.Command?.Id != 11) return true;
                 var owned = Owner(__0);
                 if (!DirectlyAssigned(owned, 11)) return true;
-                if (ReplayAsBefore && WcTest.Running) { __result = __0; return false; }
+                if (ReplayAsBefore && WcTestState.Running) { __result = __0; return false; }
                 var made = ReplayMug(__instance, __0, owned.characterStatusId);
                 if (made == null) return true;   // no enemy can be mugged now: the game's own replay
                 __result = made;

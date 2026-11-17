@@ -35,10 +35,12 @@ namespace WorldsCollide.PR
     static class WcTest
     {
         static Dictionary<string, string> req;
-        enum Step { Off, Startup, Wait, Gen1, Gen2, Vanilla, Load, Loading, Battle, InBattle, NewGame, InNewGame, ToWor, ToFalconDeck, ToWob, Tzen, TzenBuy, TzenAgain, Plan, Done }
+        enum Step { Off, Startup, Wait, Gen1, Gen2, Vanilla, Load, Loading, OperaCheckpoint, Battle, InBattle, NewGame, InNewGame, ToWor, ToFalconDeck, ToWob, Tzen, TzenBuy, TzenAgain, Plan, Done }
         static Step step = Step.Off;
         internal static bool Running => step != Step.Off;   // until the game quits
         internal static bool NoAssetChange => req != null && req.GetValueOrDefault("noasset", "0") == "1";
+        internal static bool AllowsSave(int slot) => req != null && req.GetValueOrDefault("checkpoint", "") == "opera" &&
+            int.TryParse(req.GetValueOrDefault("slot", "20"), out int wanted) && slot == wanted;
         static float since = -1, stepAt;
         static readonly List<string> made = new List<string>();
         static int failures;
@@ -46,6 +48,9 @@ namespace WorldsCollide.PR
         static string lastReport = "";
         static float deckAt = -1;
         static List<(float, Func<bool>)> plan;
+        static SaveSlotData loadedSlotData;
+        static bool operaSaveStarted;
+        static int operaCheckpointPhase;
 
         // tools/wc_events.py CHECK_FLAGS
         static readonly Dictionary<string, int> CheckFlags = new Dictionary<string, int>
@@ -684,6 +689,23 @@ namespace WorldsCollide.PR
                 }));
             }
             return plan;
+        }
+
+        static List<(float, Func<bool>)> OperaTemplatePlan()
+        {
+            return new List<(float, Func<bool>)>
+            {
+                (0f, () => { Check(WcEvents.GotoMap(112, 1), "Opera template: warp to map 112"); return true; }),
+                (8f, () =>
+                {
+                    int map = UserDataManager.Instance()?.CurrentMapId ?? -1;
+                    var json = map == 112 ? SaveMapManager.Instance?.ToJson(false) : null;
+                    string path = Path.Combine(Plugin.Folder, "opera_map112.json");
+                    if (!string.IsNullOrEmpty(json)) File.WriteAllText(path, json);
+                    Check(!string.IsNullOrEmpty(json), $"Opera template: native map payload captured on map {map}");
+                    return false;
+                }),
+            };
         }
 
         static List<(float, Func<bool>)> RoomsPlan()
@@ -3547,32 +3569,6 @@ if (name == "enemy_ai")
                     (2, () => { var (b, s) = ScreenBlack(); Check(!b, $"fade self-test: faded in reads not black ({s})"); return true; }),
                 };
             }
-            if (name == "opera_roof")
-            {
-                // The post-performance disruption state on the rafters. The map initializer
-                // must place Ultros and his 4t weight (ev_e_0344 entities 5 and 6).
-                Func<bool> WarpRoof() => () => { Check(WcEvents.GotoMap(117, 1), "warp to the opera roof"); return true; };
-                return new List<(float, Func<bool>)>
-                {
-                    (0, () =>
-                    {
-                        DataStorage.Instance.Set(DataStorage.Category.kScenarioFlag1, 165, 1);
-                        DataStorage.Instance.Set(DataStorage.Category.kScenarioFlag1, 167, 1);
-                        DataStorage.Instance.Set(DataStorage.Category.kScenarioFlag1, 177, 0);
-                        return true;
-                    }),
-                    (0, WarpRoof()),
-                    (4, () =>
-                    {
-                        var map = UserDataManager.Instance()?.CurrentMapId;
-                        string ultros = FieldEntity(5), weight = FieldEntity(6);
-                        Plugin.L.LogInfo($"[wc test] opera roof: map {map}, Ultros {ultros}, 4t weight {weight}");
-                        Check(map == 117 && ultros == "+" && weight == "+",
-                              $"opera roof: Ultros and 4t weight are present (map {map}, entities 5/6 {ultros}/{weight})");
-                        return true;
-                    }),
-                };
-            }
             var seed = WcSeeds.Active;
             var (module, rn) = SubChecks.TryGetValue(name, out var sub) ? sub : (name, 0);
             if (!seed.Checks.TryGetValue(module, out var c)) { Check(false, $"the seed has no check {module}"); return null; }
@@ -3920,10 +3916,63 @@ if (name == "enemy_ai")
                     if (c.Gate > 0 && !WcEvents.IsRecruited(c.Gate)) { GateIs(false)(); Recruit(c.Gate)(); }
                     return true;
                 };
-                var plan = new List<(float, Func<bool>)>
+                var plan = new List<(float, Func<bool>)>();
+                if (name == "kohlingen")
                 {
-                    (0, Warp(map, 1)), (0, closedThenRecruit), (0, GateIs(true)), (6, Run(script)), (2, Expect(true)), (5, NotBlack()),
-                };
+                    // Enter while closed, as a save whose map initialized before its WC flags.
+                    // The PR duplicated the SNES's shared inn; exercise the WoR copy that exposed
+                    // this porting bug, including the loaded-inside repair path.
+                    plan.Add((0, Warp(263, 1)));
+                    plan.Add((3, () =>
+                    {
+                        // Model an older save: Setzer is owned, but its private WC gate bit is
+                        // absent.  The load-time roster migration must restore it.
+                        if (!WcEvents.IsRecruited(10)) WcEvents.Join(10);
+                        DataStorage.Instance.Set(DataStorage.Category.kScenarioFlag4, WcEvents.Recruited + 10, 0);
+                        WcEvents.RepairRecruitedFlagsFromRoster();
+                        Check(WcEvents.IsRecruited(10), "kohlingen: an owned Setzer repairs the old missing gate flag");
+                        WcEvents.RepairKohlingenCafe();
+                        return true;
+                    }));
+                    plan.Add((4, () =>
+                    {
+                        bool found = false;
+                        var fc = Object.FindObjectOfType<FieldMap>()?.fieldController;
+                        for (int id = 0; id < 256 && !found; id++)
+                        {
+                            Last.Entity.Field.FieldEntity e = null;
+                            try { e = fc?.GetFieldEntity(id); } catch { }
+                            try
+                            {
+                                var pe = e?.Property?.TryCast<Last.Map.PropertyEvent>();
+                                found = pe?.ScriptId == 709 && e.gameObject.activeInHierarchy;
+                            }
+                            catch { }
+                        }
+                        Check(found, "kohlingen: the WoR inn's reward NPC is present with recruited Setzer");
+                        return true;
+                    }));
+                }
+                else
+                {
+                    plan.Add((0, Warp(map, 1)));
+                    plan.Add((0, closedThenRecruit));
+                }
+                if (name == "kohlingen") script = "sc_e_0681";
+                plan.Add((0, GateIs(true)));
+                plan.Add((6, Run(script)));
+                plan.Add((2, Expect(true)));
+                plan.Add((5, NotBlack()));
+                if (name == "opera_house_wob")
+                    plan.Insert(plan.Count - 1, (0f, (Func<bool>)(() =>
+                    {
+                        var fc = Object.FindObjectOfType<FieldMap>()?.fieldController;
+                        TransportationInfo riding = null;
+                        try { riding = fc?.Last_Map_IEntityAccessor_GetCurrentTransportation(); } catch { }
+                        Check(UserDataManager.Instance()?.CurrentMapId == WcEvents.WobMap && riding?.Id == WcEvents.BlackjackId,
+                              $"opera-end: native Blackjack flight is active (map {UserDataManager.Instance()?.CurrentMapId}, vehicle {(riding == null ? "none" : riding.Id.ToString())})");
+                        return true;
+                    })));
                 if (name == "narshe_moogle_defense")
                     plan.Add((0, () =>
                     {
@@ -4013,6 +4062,9 @@ if (name == "enemy_ai")
             req = File.ReadAllLines(path).Where(l => l.Contains("="))
                 .ToDictionary(l => l.Substring(0, l.IndexOf('=')).Trim(), l => l.Substring(l.IndexOf('=') + 1).Trim());
             try { File.Delete(path); } catch { }
+            WcTestState.Running = true;
+            WcScreenState.Active = true;
+            WcScreen.Init(Plugin.FlagDefs);
             step = Step.Wait;
             Mute();
             Plugin.L.LogInfo($"[wc test] requested: {string.Join(", ", req.Select(kv => kv.Key + "=" + kv.Value))}");
@@ -4110,7 +4162,28 @@ if (name == "enemy_ai")
                     Plugin.L.LogInfo($"[wc test] on the title screen; WC mode {Plugin.WcMode}; active seed {prevActive ?? "none"}; " +
                                      $"monster 1 HP {MasterManager.Instance.GetData<Monster>(1)?.Hp}");
                     if (!Plugin.WcMode) { Check(false, "Worlds Collide isn't the active mod (Magicite import directory)"); Finish(); return; }
-                    if (req.ContainsKey("inspect"))
+                    if (req.GetValueOrDefault("maps", "0") == "1")
+                    {
+                        var mgr = SaveSlotManager.Instance();
+                        var rows = new List<string>();
+                        if (mgr?.SaveSlotDataList != null)
+                            foreach (var sd in mgr.SaveSlotDataList)
+                            {
+                                if (sd == null || string.IsNullOrEmpty(sd.TimeStamp)) continue;
+                                var match = System.Text.RegularExpressions.Regex.Match(sd.MapData ?? "", "\\\"mapId\\\"\\s*:\\s*(-?\\d+)");
+                                rows.Add($"{sd.Id}:{(match.Success ? match.Groups[1].Value : "?")}:{sd.CurrentArea}/{sd.CurrentLocation}");
+                            }
+                        var latest = mgr?.GetLatestSaveSlotData(false, false);
+                        if (latest != null)
+                        {
+                            var match = System.Text.RegularExpressions.Regex.Match(latest.MapData ?? "", "\\\"mapId\\\"\\s*:\\s*(-?\\d+)");
+                            rows.Add($"latest={latest.Id}:{(match.Success ? match.Groups[1].Value : "?")}:{latest.CurrentArea}/{latest.CurrentLocation}");
+                        }
+                        Plugin.L.LogInfo("[wc test] save maps: " + string.Join(" | ", rows));
+                        Finish();
+                        return;
+                    }
+                    if (req.ContainsKey("inspect") || req.ContainsKey("checkpoint"))
                     {
                         step = Step.Load;
                         return;
@@ -4209,6 +4282,7 @@ if (name == "enemy_ai")
                             if (slotData != null) Plugin.L.LogInfo($"[wc test] inspect requested slot was absent; latest is {slotData.Id}");
                         }
                         if (slotData == null) { Check(false, "no save to load"); Finish(); return; }
+                        loadedSlotData = slotData;
                         var title = Object.FindObjectOfType<Last.UI.KeyInput.TitleWindowController>();
                         if (title != null)
                         {
@@ -4238,6 +4312,28 @@ if (name == "enemy_ai")
                     if (Object.FindObjectOfType<FieldMap>() != null)
                     {
                         Check(true, $"save loaded to the field after the hook ({now - stepAt:0.0} s)");
+                        if (req.GetValueOrDefault("checkpoint", "") == "opera")
+                        {
+                            // A native map-112 payload is captured separately from a clean New Game;
+                            // map payloads are map-specific and changing mapId inside map 114's JSON
+                            // produces a save that the PR cannot restore.
+                            string template = Path.Combine(Plugin.Folder, "opera_map112.json");
+                            if (!File.Exists(template)) { Check(false, "Opera checkpoint: native map-112 template is missing"); Finish(); return; }
+                            var ds = DataStorage.Instance;
+                            foreach (int flag in new[] { 160, 161, 162, 163, 164, 165, 167, 174, 175, 176, 177 })
+                                ds?.Set(DataStorage.Category.kScenarioFlag1, flag, 0);
+                            ds?.Set(DataStorage.Category.kScenarioFlag4, 74, 0);
+                            ds?.Set(DataStorage.Category.kScenarioFlag4, 60, 0);
+                            int slot = int.TryParse(req.GetValueOrDefault("slot", "20"), out int wanted) ? wanted : 20;
+                            loadedSlotData.DataStorage = ds.Serialize();
+                            loadedSlotData.MapData = File.ReadAllText(template);
+                            loadedSlotData.Id = slot;
+                            var result = SaveSlotManager.Instance()?.Save(slot, loadedSlotData);
+                            Plugin.L.LogInfo($"[wc test] Opera checkpoint template save result: {result}");
+                            Check(result != null, $"Opera checkpoint saved to slot {slot}");
+                            Finish();
+                            return;
+                        }
                         if (req.ContainsKey("inspect"))
                         {
                             var done = new List<string>();
@@ -4277,6 +4373,47 @@ if (name == "enemy_ai")
                         Finish();
                     }
                     else if (now - stepAt > 150) { Check(false, "the save didn't reach the field in 150 s"); Finish(); }
+                    return;
+                case Step.OperaCheckpoint:
+                    if (operaCheckpointPhase == 0)
+                    {
+                        // Leave the completed Opera scene with its flags intact. Clearing them on
+                        // map 114 while its interpreter was still winding down prevented the native
+                        // transition from completing.
+                        if (now - stepAt < 3 || WcEvents.EventBusy()) return;
+                        Check(WcEvents.GotoMap(112, 1), "Opera checkpoint: warp to the Opera House entrance");
+                        operaCheckpointPhase = 1;
+                        stepAt = now;
+                        return;
+                    }
+                    if (Object.FindObjectOfType<FieldMap>() == null || (UserDataManager.Instance()?.CurrentMapId ?? -1) != 112) return;
+                    if (operaCheckpointPhase == 1)
+                    {
+                        // Now that map 112 owns the live map state, undo only the Opera story/check
+                        // flags. WC's New Game deliberately starts with 158/159/166, so keep those.
+                        var ds = DataStorage.Instance;
+                        foreach (int flag in new[] { 160, 161, 162, 163, 164, 165, 167, 174, 175, 176, 177 })
+                            ds?.Set(DataStorage.Category.kScenarioFlag1, flag, 0);
+                        ds?.Set(DataStorage.Category.kScenarioFlag4, 74, 0); // Perform In Opera objective
+                        ds?.Set(DataStorage.Category.kScenarioFlag4, 60, 0); // Opera disruption check
+                        operaCheckpointPhase = 2;
+                        stepAt = now;
+                        Plugin.L.LogInfo("[wc test] Opera checkpoint: entrance loaded; story flags reset");
+                        return;
+                    }
+                    // Let the native map transition finish constructing map-specific save state.
+                    if (now - stepAt < 3 || WcEvents.EventBusy() || operaSaveStarted) return;
+                    operaSaveStarted = true;
+                    {
+                        int slot = int.TryParse(req.GetValueOrDefault("slot", "20"), out int wanted) ? wanted : 20;
+                        Action<bool> saved = ok =>
+                        {
+                            Check(ok, $"Opera checkpoint saved to slot {slot}");
+                            Finish();
+                        };
+                        Plugin.L.LogInfo($"[wc test] Opera checkpoint: native save on map 112 to slot {slot}");
+                        SaveSlotManager.Instance()?.Save(slot, saved, false);
+                    }
                     return;
                 case Step.NewGame:
                     {
@@ -4472,6 +4609,13 @@ if (name == "enemy_ai")
                             if (req.TryGetValue("tour", out var tourWorld))
                             {
                                 plan = TourPlan(tourWorld == "wor");
+                                stepAt = now;
+                                step = Step.Plan;
+                                return;
+                            }
+                            if (req.GetValueOrDefault("template", "") == "opera")
+                            {
+                                plan = OperaTemplatePlan();
                                 stepAt = now;
                                 step = Step.Plan;
                                 return;

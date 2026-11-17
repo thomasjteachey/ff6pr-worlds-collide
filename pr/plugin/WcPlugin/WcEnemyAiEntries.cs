@@ -165,7 +165,7 @@ namespace WorldsCollide.PR
                 }
                 Entries++;
                 LastEntry = $"monster {snesId} slot {self}: {a} -> {string.Join(" ", did)}";
-                if (WcTest.Running) Plugin.L.LogInfo("[wc] enemy AI entry/exit: " + LastEntry);
+                if (WcTestState.Running) Plugin.L.LogInfo("[wc] enemy AI entry/exit: " + LastEntry);
             }
         }
 
@@ -234,7 +234,7 @@ namespace WorldsCollide.PR
                 if (unit == null) continue;
                 bm.EventCommand.AddConditionEnemy(unit.UniqueId, GoneCondition);
                 SetVisible(unit.UniqueId, false);
-                if (WcTest.Running) Plugin.L.LogInfo($"[wc] enemy AI: slot {s} (monster {m[0]}, cell {m[1]}) hidden from the start");
+                if (WcTestState.Running) Plugin.L.LogInfo($"[wc] enemy AI: slot {s} (monster {m[0]}, cell {m[1]}) hidden from the start");
             }
         }
     }

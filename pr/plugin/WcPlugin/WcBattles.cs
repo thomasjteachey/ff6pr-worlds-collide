@@ -125,7 +125,7 @@ namespace WorldsCollide.PR
         {
             try
             {
-                if (WcTest.Running) RecordAct(battleActData);
+                if (WcTestState.Running) RecordAct(battleActData);
                 if (!Active() || battleActData?.abilityList == null || battleActData.abilityList.Count == 0) return;
                 int ability = battleActData.abilityList[0]?.Id ?? 0;
                 // -lel: a lore an enemy uses (Lore abilities 140-163) is learned after the battle

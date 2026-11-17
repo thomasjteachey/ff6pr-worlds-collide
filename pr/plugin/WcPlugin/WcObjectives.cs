@@ -33,6 +33,9 @@ namespace WorldsCollide.PR
         {
             if (UnityEngine.Time.unscaledTime < nextPoll) return;
             nextPoll = UnityEngine.Time.unscaledTime + 1f;
+            // Nothing below is useful at the title screen or before a WC save/new game has
+            // restored its marker. Several of these first calls force large IL2CPP type graphs.
+            if (WcSeeds.Active == null || !Plugin.WcMode || F4(WcEvents.WcGameFlag) != 1) return;
             try { WcItems.Apply(); } catch (Exception e) { WcRunner.WarnOnce("weapons", e); }
             try { WcBattles.StartQueued(); } catch (Exception e) { WcRunner.WarnOnce("queued-battle", e); }
             if (polls % 2 == 0)

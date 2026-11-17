@@ -35,7 +35,8 @@ PAIRS = {
     (115, 0x10): [(f"map_20090/{_M}/Map_20090/Map_20090/ev_e_0097.json", 25)],    # gau_father_house, Shadow
     (150, 0x10): [(f"map_20340/{_M}/Map_20340/Map_20340/ev_e_0650.json", 60)],    # mobliz_wor, Terra
     (152, 0x10): [(f"map_30440/{_M}/Map_30440/Map_30440/ev_e_0189.json", 423)],   # phantom_train, the ghost
-    (191, 0x10): [(f"map_20131/{_M}/Map_20131/Map_20131_1/ev_e_0285.json", 10)],  # kohlingen, Shadow
+    (191, 0x10): [(f"map_20131/{_M}/Map_20131/Map_20131_1/ev_e_0285.json", 10),   # kohlingen, Shadow
+                  (f"map_20381/{_M}/Map_20381/Map_20381_1/ev_e_0681.json", 10)],
     (208, 0x13): [(f"map_30631/{_M}/Map_30631/Map_30631_5/ev_e_0773.json", 16)],  # owzer_mansion, Relm
     (278, 0x10): [(f"map_30791/{_M}/Map_30791/Map_30791_8/ev_e_0865.json", 3)],   # zone_eater, Gogo
     (305, 0x11): [(f"map_20330/{_M}/Map_20330/Map_20330/ev_e_0636_1.json", 167)], # collapsing_house, Sabin
@@ -50,6 +51,12 @@ PAIRS[(22, 0x25)] = PAIRS[(22, 0x18)]                       # narshe_battle's se
 for _m, _n in ((371, 0x11), (372, 0x11), (373, 0x10), (375, 0x1C)):   # esper_mountain, Relm in each room
     PAIRS[(_m, _n)] = [(f"map_30561/{_M}/Map_30561/Map_30561_2/ev_e_0547.json", 17),
                        (f"map_30561/{_M}/Map_30561/Map_30561_2/ev_e_0546.json", 28)]
+
+# The PR's WoR Kohlingen layer is vanilla Setzer, but WC's baseline replaces it with a copy of
+# the WoB check layer. A seed that re-skins that copy must start from the same source too.
+KOHLINGEN_WOB = f"map_20131/{_M}/Map_20131/Map_20131_1/ev_e_0285.json"
+KOHLINGEN_WOR = f"map_20381/{_M}/Map_20381/Map_20381_1/ev_e_0681.json"
+BASES = {KOHLINGEN_WOR: KOHLINGEN_WOB}
 
 # the PR's map art (mapobject ids): a PR character's NPC sprite, and WC's other sprites
 CHARACTER_NPC = {**{c: 119 + c for c in range(1, 15)}, 15: 136, 16: 140, 17: 139, 31: 141, 33: 138}
@@ -93,9 +100,21 @@ def apply(dump, flags, port_dir, log):
     written = []
     for rel, objs in sorted(edits.items()):
         dest = os.path.join(port_dir, *rel.split("/"))
-        src = dest if os.path.exists(dest) else os.path.join(P.VANILLA, *rel.split("/"))
+        src = dest if os.path.exists(dest) else os.path.join(P.VANILLA, *BASES.get(rel, rel).split("/"))
         with open(src, encoding="utf-8") as f:
             doc = json.load(f)
+        if rel == KOHLINGEN_WOR:
+            doc["name"] = "ev_e_0681"
+            for group in doc.get("layers", []):
+                for obj in group.get("objects", []):
+                    props = {p["name"]: p for p in obj.get("properties", [])}
+                    script = props.get("script_id", {}).get("value")
+                    if script == 313:
+                        props["entity_id"]["value"] = 9
+                        props["script_id"]["value"] = 709
+                    elif script == 315:
+                        props["action_id"]["value"] = 0
+                        props["script_id"]["value"] = 0
         n = 0
         for layer in doc.get("layers", []) or []:
             for o in layer.get("objects", []) or []:

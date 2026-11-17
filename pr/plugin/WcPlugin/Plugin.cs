@@ -16,10 +16,11 @@ namespace WorldsCollide.PR
     public class Plugin : BasePlugin
     {
         public const string Guid = "ff6mod.worldscollide";
-        public const string Version = "0.6.2";
+        public const string Version = "0.6.3";
         internal static ManualLogSource L;
         internal static string Folder;
         internal static bool WcMode;
+        internal static WcFlagSet FlagDefs;
 
         public override void Load()
         {
@@ -70,6 +71,7 @@ namespace WorldsCollide.PR
                 return;
             }
             Lap("flags");
+            FlagDefs = defs;
             var harmony = new Harmony(Guid);
             WcInput.Patch(harmony);
             InputDiag.Patch(harmony);
@@ -80,10 +82,9 @@ namespace WorldsCollide.PR
             Lap("seed hooks");
             // The rest waits for the game's first frames (WcRunner, one part a frame), so the console
             // before the game window is shorter (the user, 2026-11-12: "the command prompt before the
-            // game is the thing taking forever"): the screen's setup (its first touch loads Unity's
-            // GUI types, ~1.2 s) and the gameplay hooks. Nothing they hook runs before the title,
-            // seconds later; WcRunner's Update and OnGUI wait until they're all in.
-            Defer("screen", () => WcScreen.Init(defs));
+            // game is the thing taking forever"): gameplay hooks wait here, while the WC screen
+            // now waits until it is actually opened. Nothing they hook runs before the title,
+            // seconds later; WcRunner's Update and OnGUI wait until the hooks are all in.
             Defer("title menu", () => WcTitleMenu.Patch(harmony));
             Defer("events", () => WcEvents.Patch(harmony));
             Defer("rewards", () => WcRewards.Patch(harmony));
@@ -100,7 +101,10 @@ namespace WorldsCollide.PR
                 ("autobattle", WcAutobattle.Patch), ("ability scaling", WcAbilityScaling.Patch), ("atb", WcAtb.Patch), ("status ticks", WcStatusTicks.Patch), ("encounters", WcEncounters.Patch), ("entrances", WcEntrances.Patch), ("enemy ai", WcEnemyAi.Patch),
             })
                 Defer(name, () => patch(harmony), $"{name} hooks failed, those options are off");
-            WcTest.Init();
+            // WcTest is intentionally not touched in a normal launch: its large IL2CPP type
+            // costs about six seconds to initialize on the Deck. The cheap file check lives here.
+            if (File.Exists(Path.Combine(BepInEx.Paths.BepInExRootPath, "wc_test.request")))
+                WcTest.Init();
             LiveData.InitSelfTest();     // only when BepInEx/live_apply.request exists
             Lap("tests");
             var (py, script, err) = WcGenerator.Resolve();
@@ -139,6 +143,8 @@ namespace WorldsCollide.PR
     public class WcRunner : MonoBehaviour
     {
         public WcRunner(IntPtr ptr) : base(ptr) { }
+        static int sceneCheck;
+        static bool onTitle;
 
         void Update()
         {
@@ -153,15 +159,17 @@ namespace WorldsCollide.PR
                 PadFix.Update(); t = WcPerf.Lap(0, "padfix", t);
                 InputDiag.Update(); t = WcPerf.Lap(1, "inputlog", t);
                 WcSeeds.Update(); t = WcPerf.Lap(2, "seeds", t);
+                if (++sceneCheck % 10 == 1) onTitle = GameScene.OnTitle();
+                WcSeeds.UpdateNewGame(onTitle);
                 WcRecruits.Update();
-                WcScreen.Poll(); t = WcPerf.Lap(3, "screen-poll", t);
+                if (WcScreenState.Active) WcScreen.Poll(); t = WcPerf.Lap(3, "screen-poll", t);
                 WcObjectives.Poll(); t = WcPerf.Lap(4, "poll", t);
-                WcScreen.Update(); t = WcPerf.Lap(5, "screen", t);
+                if (WcScreenState.Active) WcScreen.Update(); t = WcPerf.Lap(5, "screen", t);
                 WcScaling.Update(); t = WcPerf.Lap(6, "scaling", t);
                 WcEnemyAi.Update(); t = WcPerf.Lap(11, "enemy-ai", t);
                 WcStatusTicks.Track();
                 WcAutobattle.Watch();
-                WcTest.Update(); WcPerf.Lap(7, "test", t);
+                if (WcTestState.Running) WcTest.Update(); WcPerf.Lap(7, "test", t);
                 LiveData.UpdateSelfTest();
                 WcPerf.Frame();
             }
@@ -172,6 +180,7 @@ namespace WorldsCollide.PR
         {
             if (!Plugin.Started) return;   // the screen isn't set up yet
             long t = WcPerf.Now();
+            if (!WcScreenState.Active) return;
             try { WcScreen.Draw(); }
             catch (Exception e) { WarnOnce("draw", e); }
             finally { WcPerf.Lap(8, "gui", t); }
