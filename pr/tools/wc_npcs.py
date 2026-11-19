@@ -19,6 +19,7 @@ Rock (Gungho's table), Imperial Camp's Cyan, Mobliz's other Terras, Deathgaze's 
 import json
 import os
 
+import kitpath  # noqa: E402,F401  (the modding kit's tools, when it's this repository's kit/ submodule)
 import prdata as P
 
 _M = "Assets/GameAssets/Serial/Res/Map"

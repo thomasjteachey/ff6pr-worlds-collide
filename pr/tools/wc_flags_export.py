@@ -10,6 +10,7 @@ choice rows. Presets come from mods/worlds-collide-presets.json.
 WC's own build-wc-flag-metadata.py drops the mutually exclusive groups (argparse leaves
 them untitled), which is why this exists.
 """
+import kitpath  # noqa: E402,F401  (the modding kit's tools, when it's this repository's kit/ submodule)
 import json
 import os
 import sys

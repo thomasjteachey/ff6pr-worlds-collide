@@ -15,6 +15,7 @@ WC's input is tools/wc_romfree.py's stand-ins (tools/wc_parity.py: the same seed
 
 At seed time load() gives the input as the ROM's 3 MB with the regions filled, zeros elsewhere.
 """
+import kitpath  # noqa: E402,F401  (the modding kit's tools, when it's this repository's kit/ submodule)
 import json
 import os
 import struct

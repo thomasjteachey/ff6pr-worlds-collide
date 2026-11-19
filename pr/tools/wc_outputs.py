@@ -6,6 +6,7 @@ and wc_run.py's dumps (dev tool for the ROM-free generator, with tools/wc_trace.
 The tables are the ones the porter reads (ff6snes.py / the port_* modules); SNES content WC only
 rewrites (dialogue, sprites, maps, AI, game code) isn't compared: the port doesn't read it.
 """
+import kitpath  # noqa: E402,F401  (the modding kit's tools, when it's this repository's kit/ submodule)
 import glob
 import json
 import os

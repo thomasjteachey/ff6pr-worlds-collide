@@ -7,6 +7,7 @@ identical); this wrapper only records Events.mod()'s result once WC has made it:
 name, character gate and rewards (SNES ids: character 0-13, esper 0-26, item 0-255), plus the
 start party. wc_seed.py turns that into PR ids for the plugin (start party, check rewards).
 """
+import kitpath  # noqa: E402,F401  (the modding kit's tools, when it's this repository's kit/ submodule)
 import json
 import os
 import sys

@@ -1,4 +1,0 @@
-# the PR's random battles: the step counter, its range and per-ground subtraction, relic effects
-# (WC parity, 2026-11-11: SNES danger counter vs the PR's steps)
-Last\.Map\.EncounterLot\$\$
-Serial\.Template\.Management\.SpcialFlagProvider\$\$(IsEncount|GetEncountValue)$

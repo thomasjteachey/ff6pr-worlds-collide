@@ -7,8 +7,10 @@ __pycache__/
 pr/vanilla/
 pr/build/
 pr/cache/
-pr/data/wc_base.bin
+pr/mods/
+pr/plugin/PrKit/Games.props
 rom/
 build/
 *.sfc
 *.smc
+pr/data/wc_base.bin

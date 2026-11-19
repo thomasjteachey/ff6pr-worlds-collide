@@ -27,6 +27,7 @@ And undead in battle (seeds made before 2026-11-12 cleared only the species bit 
 bosses stayed undead in battle): monster_flag_group_id of the monster rows whose undead bit says
 otherwise (port.flag_group_with) in monster.csv; nothing new is added.
 """
+import kitpath  # noqa: E402,F401  (the modding kit's tools, when it's this repository's kit/ submodule)
 import argparse
 import csv
 import hashlib

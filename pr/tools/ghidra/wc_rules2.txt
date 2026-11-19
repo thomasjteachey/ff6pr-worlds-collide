@@ -1,3 +1,0 @@
-# Control's status roll (-scis)
-Last\.Battle\.Function\.AddConditionFunction\$\$
-Last\.Battle\.Function\.UserAddConditionFunction\$\$

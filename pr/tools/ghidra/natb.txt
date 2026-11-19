@@ -1,5 +1,0 @@
-# ATB update loop: where status timers advance (for nATB)
-BattleProgressATB\$\$UpdateNextCondiiton$
-BattleProgressATB\$\$UpdateGauge$
-BattleProgressATB\$\$Update$
-BattleProgressATB\$\$UpdateAlways$

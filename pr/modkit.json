@@ -17,37 +17,6 @@
     "  readme_note   extra paragraph in the package README"
   ],
   "mods": {
-    "bnw": {
-      "name": "BraveNewWorld",
-      "game": "ff6",
-      "title": "Brave New World 3.0 for FINAL FANTASY VI Pixel Remaster",
-      "plugin": {
-        "project": "plugin/BnwPlugin",
-        "files": [
-          [
-            "plugin/BnwPlugin/bin/Release/net6.0/BraveNewWorld.PR.dll",
-            "BraveNewWorld.PR.dll"
-          ],
-          [
-            "mods/BraveNewWorld/bnw_data.json",
-            "bnw_data.json"
-          ]
-        ]
-      },
-      "magicite": "mods/BraveNewWorld",
-      "magicite_skip": [
-        "bnw_data.json"
-      ],
-      "exclusive": "ff6-game-data",
-      "deploy": [
-        "bash",
-        "tools/deploy.sh",
-        "--bnw"
-      ],
-      "version_file": "mods/BraveNewWorld/bnw_data.json",
-      "version_key": "version",
-      "readme_note": "This is a mod of its own: don't install it beside the project's other mod (Brave New World and\nWorlds Collide each change the same game data). Start a new game after installing."
-    },
     "wc": {
       "name": "WorldsCollide",
       "game": "ff6",
@@ -107,41 +76,6 @@
         "--wc"
       ],
       "readme_note": "Playing: on the title screen, choose \"Worlds Collide\". Pick a preset or paste flags from the\nwebsite (Ctrl+V), type a seed or leave a random one, then \"Generate and play this seed\" and start a\nNew Game. Saves remember their seed. Seeds match the Worlds Collide website's for the same seed and\nflags. Worlds Collide is by AtmaTek and its contributors (MIT license:\nBepInEx/WorldsCollide/generator/wc/LICENSE.txt).\n\nThis is a mod of its own: don't install it beside the project's other mod (Brave New World and\nWorlds Collide each change the same game data). Start a new game after installing."
-    },
-    "hd2d": {
-      "name": "HD2D",
-      "game": "ff6",
-      "title": "HD-2D look for the Pixel Remaster",
-      "plugin": {
-        "project": "plugin/Hd2dPlugin",
-        "files": [
-          [
-            "plugin/Hd2dPlugin/bin/Release/net6.0/HD2D.PR.dll",
-            "HD2D.PR.dll"
-          ],
-          [
-            "hd2d/out/hd2d.bundle",
-            "hd2d.bundle"
-          ]
-        ]
-      },
-      "readme_note": "Works beside any other mod (it only changes how the picture is drawn). Shaders: pr/hd2d/build_bundle.sh."
-    },
-    "battleoptions": {
-      "name": "BattleOptions",
-      "game": "ff6",
-      "title": "Battle Options for the FINAL FANTASY Pixel Remaster",
-      "version": "0.2.1",
-      "plugin": {
-        "project": "plugin/BattleOptionsPlugin",
-        "files": [
-          [
-            "plugin/BattleOptionsPlugin/bin/Release/net6.0/BattleOptions.PR.dll",
-            "BattleOptions.PR.dll"
-          ]
-        ]
-      },
-      "readme_note": "For FINAL FANTASY IV, V and VI Pixel Remaster. Settings in the game's Config menu: Battle Mode gets Pause (Wait, and all battle time stops while you\nchoose a command or an action plays out: ATB gauges, cast times, status timers), plus Enemy ATB and, in FF IV/VI, Cast Bars. Works beside the\nunmodded game and other mods (Brave New World, Worlds Collide, HD-2D); no game data is changed."
     }
   }
 }

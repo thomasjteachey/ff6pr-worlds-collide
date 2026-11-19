@@ -16,6 +16,7 @@ A run is wc_run.py's (WC's own main, unchanged, with our event recording) plus:
 Two runs with the same draws, start to end, made the same decisions; with the same outputs the
 porter reads, the same seed (the ROM-free generator is held to this against the real ROM).
 """
+import kitpath  # noqa: E402,F401  (the modding kit's tools, when it's this repository's kit/ submodule)
 import collections
 import json
 import os

@@ -5,6 +5,7 @@ without one) on the next start.
 
   .venv/Scripts/python tools/wc_test_reset.py [ACTIVE_SEED_ID]
 """
+import kitpath  # noqa: E402,F401  (the modding kit's tools, when it's this repository's kit/ submodule)
 import json
 import os
 import shutil

@@ -7,6 +7,7 @@ Runs tools/wc_seed.py with FF6_WC_ROMFREE=0 and =1 and compares every file the p
 (master tables, messages, files/), wc_seed.json (all but its timestamps) and WC's log (all but
 the lines naming its files and time). Exit 0 when they're the same.
 """
+import kitpath  # noqa: E402,F401  (the modding kit's tools, when it's this repository's kit/ submodule)
 import filecmp
 import json
 import os

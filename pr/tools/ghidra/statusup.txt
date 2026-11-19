@@ -1,3 +1,0 @@
-# After-battle learning (Biggs and Wedge learned every spell after BNW's first battle)
-Last\.Systems\.StatusUpProvider\$\$ExecutionLearning$
-Last\.Systems\.StatusUpProvider\$\$GetLearningAbility$

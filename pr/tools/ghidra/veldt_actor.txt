@@ -1,1 +1,0 @@
-Last\.Interpreter\.Instructions\.SystemCall\.Current\$\$(ChangeEnemyPartyGau)$

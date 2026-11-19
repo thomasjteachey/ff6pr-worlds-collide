@@ -21,10 +21,12 @@ On the title screen choose **Worlds Collide**, pick a preset or paste flags, the
 - `pr/plugin/WcPlugin`: the BepInEx plugin (the in-game seed screen, live data apply, WC's
   events, objectives, the track menu, WC's battle rules and the monster AI WC writes).
 - `pr/tools`: the generator, run in the game with a bundled Python: WC's own code (the
-  `mods/worlds-collide` submodule, untouched) on the ROM's data tables, then the porter that
-  turns its output into Pixel Remaster data. `pr/PORTING.md` is the full development log,
-  `pr/MODDING.md` the tooling guide.
-- No ROM and no game files: `pr/tools/wc_gamedata.py` + `pr/tools/pr_bundle.py` make the copies
+  `mods/worlds-collide` submodule, untouched) on the ROM's data tables, then the kit's porter
+  that turns its output into Pixel Remaster data.
+- `kit/`: the [modding kit](https://github.com/thomasjteachey/ff6pr-kit) this mod builds on (a
+  submodule): the porter, the build/package/deploy tools, the harnesses. `kit/pr/PORTING.md`
+  is the project's full development log, `kit/pr/MODDING.md` the tooling guide.
+- No ROM and no game files: `pr/tools/wc_gamedata.py` + the kit's `pr_bundle.py` make the copies
   the mod works from on the player's machine at first start.
 
 ## Build
@@ -34,9 +36,10 @@ v1.0 SNES ROM (`rom/vanilla/Final Fantasy III (USA).sfc`, for WC's data tables; 
 
     git clone --recurse-submodules <this repo>
     cd pr && python -m venv .venv && .venv/Scripts/pip install -r requirements.txt
-    .venv/Scripts/python tools/extract.py --game "<your FF6 PR folder>"     # pr/vanilla
-    bash tools/deploy.sh --wc --pc                                         # build + install
-    .venv/Scripts/python tools/package_mod.py wc                           # build/dist zip
+    .venv/Scripts/python ../kit/pr/tools/extract.py --game "<your FF6 PR folder>"   # pr/vanilla
+    bash ../kit/pr/tools/deploy.sh --wc --pc                                       # build + install
+    .venv/Scripts/python ../kit/pr/tools/package_mod.py wc                         # build/dist zip
+    .venv/Scripts/python -m unittest tests.test_wc                                 # offline tests
 
 The plugin builds against your game's BepInEx (`-p:GameDir=<folder>` if it isn't
 `D:\SteamLibrary\steamapps\common\FINAL FANTASY VI PR`).

@@ -36,6 +36,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 PR = os.path.dirname(HERE)
 PROJECT = os.path.dirname(PR)
 sys.path.insert(0, HERE)
+import kitpath  # noqa: E402,F401  (the modding kit's tools, when it's this repository's kit/ submodule)
 import prdata as P  # noqa: E402
 import wc_live as L  # noqa: E402
 
@@ -57,8 +58,8 @@ EXE_SKIP = {"pythonw.exe"}
 # ones build() runs in the bundle; generator_tools() adds everything they import or start, so dev
 # tools (the game harness, the publish and SNES test scripts) stay out of the player zip
 ENTRY_TOOLS = ["wc_seed", "wc_gamedata", "pr_script", "port_chests", "wc_live"]
-# Brave New World's own exports: reachable only through profiles.BraveNewWorld, never run by WC
-OTHER_MODS = {"bnw_plugin_data", "port_bnw"}
+# Brave New World's own modules: reachable only through its profile (profiles.PROFILES["bnw"]), never run by WC
+OTHER_MODS = {"bnw_plugin_data", "port_bnw", "profile_bnw"}
 
 
 def copytree(src, dst, skip_dirs=(), skip_files=()):
@@ -91,17 +92,26 @@ def python_runtime(dst):
     return f"Python {sys.version.split()[0]} from {base}"
 
 
+def tool_dirs():
+    """{module: folder} for every tool script: this folder's and, when the modding kit is this
+    repository's kit/ submodule, the kit's (kitpath.TOOLS); this folder's win."""
+    out = {}
+    for d in [x for x in (kitpath.TOOLS, HERE) if x]:
+        out.update({f[:-3]: d for f in os.listdir(d) if f.endswith(".py")})
+    return out
+
+
 def generator_tools():
     """pr/tools modules the generator needs: ENTRY_TOOLS plus every module of this folder they
     import (anywhere in the file, lazy imports too) or name as a script ("wc_run.py": wc_seed starts it)."""
-    local = {f[:-3] for f in os.listdir(HERE) if f.endswith(".py")}
+    local = tool_dirs()
     seen, todo = set(), list(ENTRY_TOOLS)
     while todo:
         mod = todo.pop()
         if mod in seen:
             continue
         seen.add(mod)
-        with open(os.path.join(HERE, mod + ".py"), encoding="utf-8") as fh:
+        with open(os.path.join(local[mod], mod + ".py"), encoding="utf-8") as fh:
             tree = ast.parse(fh.read())
         for n in ast.walk(tree):
             if isinstance(n, ast.Import):
@@ -125,9 +135,10 @@ def build(out):
     tools = os.path.join(gen, "tools")
     os.makedirs(tools)
     needed = generator_tools()
+    where = tool_dirs()
     for mod in needed:
-        shutil.copy2(os.path.join(HERE, mod + ".py"), tools)
-    notes.append(f"{len(needed)} of {len(glob.glob(os.path.join(HERE, '*.py')))} tool scripts")
+        shutil.copy2(os.path.join(where[mod], mod + ".py"), tools)
+    notes.append(f"{len(needed)} of {len(where)} tool scripts")
     copytree(WC, os.path.join(gen, "wc"), skip_dirs={"__pycache__", ".git", ".github"}, skip_files=["*.sfc", "*.smc"])
     for d in VANILLA_DIRS:
         copytree(os.path.join(P.VANILLA, d), os.path.join(gen, "vanilla", d), skip_dirs={"__pycache__"})

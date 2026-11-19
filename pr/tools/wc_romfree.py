@@ -15,6 +15,7 @@ SNES content our port never reads (it ports WC's choices: tools/wc_run.py's dump
 
 Used by tools/wc_run.py when WC_ROMFREE=1 (patches(), applied as each WC module loads).
 """
+import kitpath  # noqa: E402,F401  (the modding kit's tools, when it's this repository's kit/ submodule)
 import random
 
 

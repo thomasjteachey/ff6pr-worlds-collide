@@ -28,6 +28,7 @@ import warnings
 HERE = os.path.dirname(os.path.abspath(__file__))
 PR = os.path.dirname(HERE)
 sys.path.insert(0, os.path.join(PR, "tools"))
+import kitpath  # noqa: E402,F401  (the modding kit's tools, when it's this repository's kit/ submodule)
 import pr_script as S  # noqa: E402
 import wc_events as E  # noqa: E402
 

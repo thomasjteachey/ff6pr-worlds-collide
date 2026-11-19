@@ -9,6 +9,7 @@ copied over; a slot both know differently keeps each side's own (reported). "act
 
   python tools/wc_sync_seeds.py PC_SEEDS_DIR DECK_HOST DECK_SEEDS_DIR [--dry-run]
 """
+import kitpath  # noqa: E402,F401  (the modding kit's tools, when it's this repository's kit/ submodule)
 import io
 import json
 import os

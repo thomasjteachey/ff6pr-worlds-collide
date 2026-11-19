@@ -1,3 +1,6 @@
+[submodule "kit"]
+	path = kit
+	url = https://github.com/thomasjteachey/ff6pr-kit.git
 [submodule "mods/worlds-collide"]
 	path = mods/worlds-collide
 	url = https://github.com/ff6wc/WorldsCollide.git

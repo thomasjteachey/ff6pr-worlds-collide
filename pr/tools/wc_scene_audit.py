@@ -47,6 +47,7 @@ import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
+import kitpath  # noqa: E402,F401  (the modding kit's tools, when it's this repository's kit/ submodule)
 import prdata as P  # noqa: E402
 import pr_script as S  # noqa: E402
 import wc_events as W  # noqa: E402

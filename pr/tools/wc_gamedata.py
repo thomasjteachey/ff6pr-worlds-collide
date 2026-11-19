@@ -30,6 +30,7 @@ generator/vanilla/.complete last:
 
 Layout: this file is generator/tools/ (in the bundle) or pr/tools/ (in the project).
 """
+import kitpath  # noqa: E402,F401  (the modding kit's tools, when it's this repository's kit/ submodule)
 import argparse
 import difflib
 import glob

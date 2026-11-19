@@ -1,3 +1,0 @@
-# WC enemy AI entries/exits (2026-11-12): the PR's AddEnemy (20) and monster Escape (16) functions
-Last\.Battle\.Function\.BattleFunction20\$\$(CreateEnemy|GetUniqueId|HitCalc|IsMaxUniqueId|FixedTarget|GoetiaEnemyCallCheck)$
-Last\.Battle\.Function\.BattleFucntion16FF6\$\$(ExecuteEscape|HitCalc|IsEscape|FixedTarget|UpdateParameter)$

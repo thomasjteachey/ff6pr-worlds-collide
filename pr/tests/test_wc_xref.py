@@ -36,6 +36,7 @@ PR = os.path.dirname(HERE)
 TOOLS = os.path.join(PR, "tools")
 WC = os.path.join(PR, "..", "mods", "worlds-collide")
 sys.path.insert(0, TOOLS)
+import kitpath  # noqa: E402,F401  (the modding kit's tools, when it's this repository's kit/ submodule)
 import ff6snes as SN  # noqa: E402
 import idmap as M  # noqa: E402
 import prdata as P  # noqa: E402

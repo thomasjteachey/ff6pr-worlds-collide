@@ -6,6 +6,7 @@ Each line "name<TAB>flags": WC's argparse must accept the flags; "preset X" line
 parse to the same options as "preset-original X" (the preset as written).
 """
 import os
+import kitpath  # noqa: E402,F401  (the modding kit's tools, when it's this repository's kit/ submodule)
 import shlex
 import sys
 

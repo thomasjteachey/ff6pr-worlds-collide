@@ -1,2 +1,0 @@
-# why EventProcedure.EventRunScript refuses (tests start scripts with it)
-Last\.Map\.EventProcedure\$\$EventRunScript$

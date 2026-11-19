@@ -1,3 +1,0 @@
-# GP Rain: where the PR computes and charges its cost
-UniqueUpdateParameterProvider\$\$HitCalcGilThrow$
-UniqueUpdateParameterProvider\$\$HitCalc$

@@ -23,6 +23,7 @@ import tempfile
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import kitpath  # noqa: E402,F401  (the modding kit's tools, when it's this repository's kit/ submodule)
 import prdata as P  # noqa: E402
 from snes_harness import Snes  # noqa: E402
 

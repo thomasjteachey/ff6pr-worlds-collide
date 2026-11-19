@@ -1,4 +1,0 @@
-# event VM: how instructions report done / wait (Select, Msg, the main loop)
-Last\.Interpreter\.Instructions\.External\.Message\$\$Select$
-Last\.Interpreter\.MainCore\$\$Execute$
-Last\.Interpreter\.Instructions\.External\.Vehicle\$\$OnTheVehicle$

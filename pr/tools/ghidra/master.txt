@@ -1,3 +1,0 @@
-Last\.Data\.Master\.MasterBase\$\$
-Last\.Data\.Master\.Monster\$\$(CreateMaster|\.ctor|GetKeyIntKey)
-Last\.Data\.Master\.MasterManager\$\$(MasterParse|UpdateParse|CreateElementInstance)

@@ -19,6 +19,7 @@ PR = os.path.dirname(HERE)
 TOOLS = os.path.join(PR, "tools")
 WC = os.path.join(PR, "..", "mods", "worlds-collide")
 sys.path.insert(0, TOOLS)
+import kitpath  # noqa: E402,F401  (the modding kit's tools, when it's this repository's kit/ submodule)
 import prdata as P  # noqa: E402
 import wc_basedata  # noqa: E402
 import wc_parity  # noqa: E402
