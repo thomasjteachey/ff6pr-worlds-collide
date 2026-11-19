@@ -88,10 +88,10 @@ namespace WorldsCollide.PR
         }
 
         internal static int Keep = 30;
-        static string Root => Path.Combine(Plugin.Folder, "seeds");
+        static string Root => WcDataDir.Seeds;
         static string StatePath => Path.Combine(Root, "state.json");
         static string ModDir => MagiciteDir.FolderPath("WorldsCollide");
-        static string BaselineDir => Path.Combine(Plugin.Folder, "baseline");
+        static string BaselineDir => WcDataDir.Baseline;
 
         public static Seed Active;
         static string[] activeFiles = Array.Empty<string>();

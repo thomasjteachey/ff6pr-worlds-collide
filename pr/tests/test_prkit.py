@@ -292,6 +292,10 @@ class ScaffoldPackageDeploy(unittest.TestCase):
             script = deploy.Deployer(a, out=self.log.append).deck_script(full=True)
         self.assertIn("--exclude=BepInEx/plugins/Alpha/saves", script)
         self.assertIn("mv BepInEx/plugins/Beta BepInEx/mod-shelf/Beta", script)
+        # the Deck's own settings stay: config files only where it has none, even with --full
+        self.assertIn('tar -cf - -C "$PC" BepInEx/config | ssh "$HOST" "tar -xf - --skip-old-files', script)
+        self.assertIn("--exclude=BepInEx/config BepInEx ", script)
+        self.assertEqual(script.count("BepInEx/config"), 2, "config sent only by the --skip-old-files tar")
         self.assertNotIn("D:/", script.split("REMOTE")[0].split("tar -cf")[1] if "tar -cf" in script else "")
         try:
             bash = deploy.bash_exe()

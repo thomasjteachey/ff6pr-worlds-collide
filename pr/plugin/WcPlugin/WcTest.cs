@@ -4254,7 +4254,7 @@ if (name == "enemy_ai")
                     {
                         var err = WcSeeds.Apply(null);
                         Check(err == null, $"back to the game's own data: {err ?? WcSeeds.LastApply}");
-                        var monster = File.ReadAllLines(Path.Combine(Plugin.Folder, "baseline", "vanilla_data", LiveData.MasterDir, "monster.csv"));
+                        var monster = File.ReadAllLines(Path.Combine(WcDataDir.Baseline, "vanilla_data", LiveData.MasterDir, "monster.csv"));
                         int hpCol = Array.IndexOf(monster[0].Split(','), "hp");
                         var first = monster[1].Split(',');
                         Check(MasterManager.Instance.GetData<Monster>(int.Parse(first[0]))?.Hp.ToString() == first[hpCol],

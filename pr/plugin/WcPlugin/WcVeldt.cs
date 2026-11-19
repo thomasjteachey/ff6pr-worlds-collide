@@ -57,7 +57,7 @@ namespace WorldsCollide.PR
             var map = new Dictionary<int, int>();
             foreach (var path in new[]
             {
-                Path.Combine(Plugin.Folder, "generator", "tools", "formation_party.json"),
+                Path.Combine(WcDataDir.Generator, "tools", "formation_party.json"),
                 string.IsNullOrEmpty(WcGenerator.ProjectDir) ? null : Path.Combine(WcGenerator.ProjectDir, "pr", "tools", "formation_party.json"),
             })
             {

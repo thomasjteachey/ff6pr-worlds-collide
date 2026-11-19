@@ -32,6 +32,10 @@ MAGICITE="FINAL FANTASY VI_Data/StreamingAssets/Magicite"
 SHELF="BepInEx/mod-shelf"
 HD2D="BepInEx/plugins/HD2D"
 MAGICITE_CFG="BepInEx/config/silvris.magicite.cfg"
+# Worlds Collide's generator, baseline and seeds live in BepInEx/WorldsCollide, outside the plugin
+# folder (WcDataDir.cs: BepInEx lists every folder under plugins at each failed assembly lookup,
+# ~6.5 s each on the Deck with them there). wc_data_script moves an older install's copies there.
+WC_DATA="BepInEx/WorldsCollide"
 
 mod=""; do_pc=1; do_deck=1; full=0
 for a in "$@"; do
@@ -73,6 +77,29 @@ fi
 EOF
 }
 
+# the game's side of the WC data move, as a shell script run in the game folder (PC and Deck):
+# generator, baseline and seeds under the plugin folder (or its shelf) move to BepInEx/WorldsCollide
+# where it has none yet; a part it already has leaves the old copy in BepInEx/wc-seed-backups.
+# Nothing is deleted (deploy then mirrors generator and baseline over the moved copies).
+wc_data_script() {
+  cat <<'EOF'
+set -e
+mkdir -p BepInEx/WorldsCollide
+stamp=$(date +%Y%m%d-%H%M%S)
+for p in BepInEx/plugins/WorldsCollide BepInEx/mod-shelf/WorldsCollide; do
+  for part in generator baseline seeds; do
+    [ -d "$p/$part" ] || continue
+    if [ ! -d "BepInEx/WorldsCollide/$part" ]; then
+      mv "$p/$part" "BepInEx/WorldsCollide/$part"; echo "[deploy]   WC $part moved to BepInEx/WorldsCollide"
+    else
+      mkdir -p "BepInEx/wc-seed-backups/plugin-folder-$stamp"
+      mv "$p/$part" "BepInEx/wc-seed-backups/plugin-folder-$stamp/$part"; echo "[deploy]   old WC $part kept in BepInEx/wc-seed-backups/plugin-folder-$stamp"
+    fi
+  done
+done
+EOF
+}
+
 if [ $do_pc = 1 ]; then
   if tasklist //FI "IMAGENAME eq FINAL FANTASY VI.exe" 2>/dev/null | grep -qi "FINAL FANTASY"; then
     say "the game is running on this PC: close it first"; exit 1
@@ -86,9 +113,10 @@ if [ $do_pc = 1 ]; then
     (cd "$PR" && .venv/Scripts/python tools/wc_flags_export.py >/dev/null)
     (cd "$PR/plugin/WcPlugin" && dotnet build -c Release -p:Deploy=true -nologo -v q | grep -E " error |Build succeeded" || true)
     (cd "$PR" && .venv/Scripts/python tools/wc_bundle.py | tail -1)
+    (cd "$PC_GAME" && wc_data_script | bash)
     set +e
     for part in generator baseline; do
-      MSYS_NO_PATHCONV=1 robocopy "$(cygpath -w "$PR/build/WorldsCollide/plugin/$part")" "$(cygpath -w "$PC_GAME/$PLUGIN/$part")" /MIR /NJH /NJS /NP /NFL /NDL >/dev/null
+      MSYS_NO_PATHCONV=1 robocopy "$(cygpath -w "$PR/build/WorldsCollide/plugin/$part")" "$(cygpath -w "$PC_GAME/$WC_DATA/$part")" /MIR /NJH /NJS /NP /NFL /NDL >/dev/null
       [ $? -lt 8 ] || { say "robocopy failed ($part)"; exit 1; }
     done
     set -e
@@ -116,8 +144,10 @@ if [ $do_deck = 1 ]; then
   if [ $full = 1 ] || ! ssh "$DECK" "[ -d '$DECK_GAME/BepInEx/core' ]"; then
     say "Deck: sending BepInEx (core, interop, .NET runtime, loader)"
     tar -cf - -C "$PC_GAME" --exclude=BepInEx/LogOutput.log --exclude=BepInEx/ErrorLog.log \
-        --exclude=BepInEx/plugins --exclude="$SHELF" BepInEx dotnet winhttp.dll doorstop_config.ini \
+        --exclude=BepInEx/plugins --exclude="$SHELF" --exclude=BepInEx/config BepInEx dotnet winhttp.dll doorstop_config.ini \
       | ssh "$DECK" "tar -xf - -C '$DECK_GAME'"
+    # config files only where the Deck has none (its own settings stay, even with --full)
+    tar -cf - -C "$PC_GAME" BepInEx/config | ssh "$DECK" "tar -xf - --skip-old-files -C '$DECK_GAME'"
   fi
   # BepInEx's loader (winhttp.dll) only runs if Wine is told to prefer the game's copy
   ssh "$DECK" python3 - < "$PR/tools/deck_winhttp_override.py" || say "Deck: winhttp override not set (see above)"
@@ -126,11 +156,20 @@ if [ $do_deck = 1 ]; then
   # this mod's plugin and Magicite folders replace the Deck's (WC's seeds stay: synced below)
   ssh "$DECK" "cd '$DECK_GAME' && find '$PLUGIN' -mindepth 1 -maxdepth 1 ! -name seeds -exec rm -rf {} + 2>/dev/null; rm -rf '$MAGICITE/$mod' '$HD2D'"
   extra=""; [ -d "$PC_GAME/$HD2D" ] && extra="$HD2D"
-  tar -cf - -C "$PC_GAME" --exclude="$PLUGIN/seeds" --exclude="$MAGICITE_CFG" "$PLUGIN" $extra BepInEx/config "$MAGICITE/$mod" \
+  if [ "$mod" = WorldsCollide ]; then
+    # WC's generator and baseline from the PC's data folder, over the Deck's (its seeds: synced below)
+    wc_data_script | ssh "$DECK" "cd '$DECK_GAME' && bash"
+    extra="$extra $WC_DATA/generator $WC_DATA/baseline"
+  fi
+  tar -cf - -C "$PC_GAME" --exclude="$PLUGIN/seeds" "$PLUGIN" $extra "$MAGICITE/$mod" \
     | ssh "$DECK" "tar -xf - -C '$DECK_GAME'"
+  # BepInEx/config: only files the Deck doesn't have yet (a mod's first .cfg). Settings chosen on
+  # the Deck (in-game options such as Battle Options' Pause) are never replaced by the PC's.
+  tar -cf - -C "$PC_GAME" --exclude="$MAGICITE_CFG" BepInEx/config \
+    | ssh "$DECK" "tar -xf - --skip-old-files -C '$DECK_GAME'"
   if [ "$mod" = WorldsCollide ]; then
     # Worlds Collide seeds and their save slots, both ways (Steam Cloud carries only the saves)
-    (cd "$PR" && MSYS_NO_PATHCONV=1 .venv/Scripts/python tools/wc_sync_seeds.py "$(cygpath -w "$PC_GAME/$PLUGIN/seeds")" "$DECK" "$DECK_GAME/$PLUGIN/seeds") \
+    (cd "$PR" && MSYS_NO_PATHCONV=1 .venv/Scripts/python tools/wc_sync_seeds.py "$(cygpath -w "$PC_GAME/$WC_DATA/seeds")" "$DECK" "$DECK_GAME/$WC_DATA/seeds") \
       || say "Deck: seed sync failed (see above)"
   fi
   ssh "$DECK" "cd '$DECK_GAME' && echo \"[deploy] Deck now has: \$(ls BepInEx/plugins | tr '\n' ' ')| \$(find '$MAGICITE/$mod' -type f | wc -l) $mod mod files\""

@@ -56,7 +56,7 @@ namespace WorldsCollide.PR
             var here = Plugin.Folder;
             var py = PythonSetting;
             var script = ScriptSetting;
-            var bundle = Path.Combine(here, "generator");
+            var bundle = WcDataDir.Generator;
             if (string.IsNullOrEmpty(py) && File.Exists(Path.Combine(bundle, "python", "python.exe")))
                 py = Path.Combine(bundle, "python", "python.exe");
             if (string.IsNullOrEmpty(script) && File.Exists(Path.Combine(bundle, "tools", "wc_seed.py")))

@@ -10,7 +10,8 @@ import os
 import shutil
 import sys
 
-SEEDS = r"D:\SteamLibrary\steamapps\common\FINAL FANTASY VI PR\BepInEx\plugins\WorldsCollide\seeds"
+# BepInEx/WorldsCollide/seeds since 2026-11-18 (WcDataDir.cs); the plugin folder before
+SEEDS = r"D:\SteamLibrary\steamapps\common\FINAL FANTASY VI PR\BepInEx\WorldsCollide\seeds"
 
 
 def main():

@@ -85,7 +85,7 @@ def request_text(settings):
     return "".join(f"{k}={v}\n" for k, v in settings.items())
 
 
-def run(game_id, harness=False, minutes=30, until=None, settings=None, dry_run=False, out=print):
+def run(game_id, harness=False, minutes=30, until=None, settings=None, dry_run=False, out=print, graphics=False):
     g = games.get(game_id)
     if not g.installed:
         out(f"[run] {g.title} PR isn't installed")
@@ -98,7 +98,8 @@ def run(game_id, harness=False, minutes=30, until=None, settings=None, dry_run=F
     if harness:
         req["harness"] = "1"
     req.setdefault("minutes", str(minutes))
-    args = [g.exe, "-batchmode", "-nographics"]
+    # graphics: still no window (batch mode), but the game renders, so it can save screenshots
+    args = [g.exe, "-batchmode"] if graphics else [g.exe, "-batchmode", "-nographics"]
     if dry_run:
         out(f"[run] would write {os.path.join(g.bepinex, REQUEST)}:\n{request_text(req)}[run] would start: {' '.join(args)} (hidden)")
         return 0

@@ -104,6 +104,9 @@ namespace WorldsCollide.PR
                 int f = Time.frameCount;
                 if (f == lastFrame) return;
                 lastFrame = f;
+                // another mod holding the battle's time this frame (Battle Options' Pause skips this
+                // update; its prefix runs first and writes the frame here): the clock waits too
+                if (AppDomain.CurrentDomain.GetData("pr.battle.timeHeldFrame") is int held && held == f) return;
                 var battle = BattlePlugManager.Instance();
                 if (battle == null || !battle.IsBattle()) return;
                 t0 = WcPerf.Now();

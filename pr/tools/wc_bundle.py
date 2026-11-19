@@ -6,7 +6,7 @@ Worlds Collide, our porter, the PR data it reads, the ROM) and the baselines.
 OUT_DIR/plugin/    -> BepInEx/plugins/WorldsCollide/ (deploy.sh adds the DLL + wc_flags.json)
   generator/python/      CPython, copied from this PC's install (the venv's base; no download):
                          runs on Windows and under Proton on the Steam Deck
-  generator/tools/       the porter (pr/tools/*.py)
+  generator/tools/       the porter: the pr/tools scripts the generator runs or imports (generator_tools)
   generator/wc/          Worlds Collide, its own code as released
   generator/vanilla/     the PR data the porter reads (part of pr/vanilla)
   generator/data/wc_base.bin  the ROM's data tables WC reads (ROM-free since 2026-11-06)
@@ -21,10 +21,12 @@ OUT_DIR/magicite/WorldsCollide/ -> StreamingAssets/Magicite/WorldsCollide (wc_li
 
 --check: make a seed with the bundled Python alone (fresh environment) to prove it works.
 """
+import ast
 import fnmatch
 import glob
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -47,7 +49,14 @@ VANILLA_GLOBS = ["map_*/**/entity_default.json"]
 # not needed to run Python scripts that only use the standard library
 LIB_SKIP = {"site-packages", "test", "tests", "tkinter", "idlelib", "turtledemo", "ensurepip", "lib2to3",
             "pydoc_data", "__pycache__", "venv", "unittest", "distutils"}
-DLL_SKIP = ["_tkinter*", "tcl*", "tk*", "*.ico", "*.cat"]
+# CPython's own test extensions (_testcapi, _ctypes_test, ...): nothing imports them outside its test suite
+DLL_SKIP = ["_tkinter*", "tcl*", "tk*", "*.ico", "*.cat", "_test*", "_ctypes_test*"]
+# the plugin starts python.exe with no window (WcGenerator.cs, WcGameData.cs): pythonw.exe is unused
+EXE_SKIP = {"pythonw.exe"}
+# the scripts the plugin runs (WcGenerator.cs: wc_seed.py; WcGameData.cs: wc_gamedata.py) and the
+# ones build() runs in the bundle; generator_tools() adds everything they import or start, so dev
+# tools (the game harness, the publish and SNES test scripts) stay out of the player zip
+ENTRY_TOOLS = ["wc_seed", "wc_gamedata", "pr_script", "port_chests", "wc_live"]
 
 
 def copytree(src, dst, skip_dirs=(), skip_files=()):
@@ -69,7 +78,7 @@ def python_runtime(dst):
     base = sys.base_prefix
     os.makedirs(dst, exist_ok=True)
     for f in os.listdir(base):
-        if f.lower().endswith((".exe", ".dll")) and not f.lower().startswith(("tcl", "tk")):
+        if f.lower().endswith((".exe", ".dll")) and not f.lower().startswith(("tcl", "tk")) and f.lower() not in EXE_SKIP:
             shutil.copy2(os.path.join(base, f), os.path.join(dst, f))
     copytree(os.path.join(base, "DLLs"), os.path.join(dst, "DLLs"), skip_files=DLL_SKIP)
     copytree(os.path.join(base, "Lib"), os.path.join(dst, "Lib"), skip_dirs=LIB_SKIP)
@@ -80,6 +89,31 @@ def python_runtime(dst):
     return f"Python {sys.version.split()[0]} from {base}"
 
 
+def generator_tools():
+    """pr/tools modules the generator needs: ENTRY_TOOLS plus every module of this folder they
+    import (anywhere in the file, lazy imports too) or name as a script ("wc_run.py": wc_seed starts it)."""
+    local = {f[:-3] for f in os.listdir(HERE) if f.endswith(".py")}
+    seen, todo = set(), list(ENTRY_TOOLS)
+    while todo:
+        mod = todo.pop()
+        if mod in seen:
+            continue
+        seen.add(mod)
+        with open(os.path.join(HERE, mod + ".py"), encoding="utf-8") as fh:
+            tree = ast.parse(fh.read())
+        for n in ast.walk(tree):
+            if isinstance(n, ast.Import):
+                names = [a.name for a in n.names]
+            elif isinstance(n, ast.ImportFrom) and n.level == 0 and n.module:
+                names = [n.module]
+            elif isinstance(n, ast.Constant) and isinstance(n.value, str) and re.fullmatch(r"\w+\.py", n.value):
+                names = [n.value[:-3]]
+            else:
+                continue
+            todo += [m.split(".")[0] for m in names if m.split(".")[0] in local]
+    return sorted(seen)
+
+
 def build(out):
     t0 = time.time()
     shutil.rmtree(out, ignore_errors=True)
@@ -88,8 +122,10 @@ def build(out):
     notes = [python_runtime(os.path.join(gen, "python"))]
     tools = os.path.join(gen, "tools")
     os.makedirs(tools)
-    for f in glob.glob(os.path.join(HERE, "*.py")):
-        shutil.copy2(f, tools)
+    needed = generator_tools()
+    for mod in needed:
+        shutil.copy2(os.path.join(HERE, mod + ".py"), tools)
+    notes.append(f"{len(needed)} of {len(glob.glob(os.path.join(HERE, '*.py')))} tool scripts")
     copytree(WC, os.path.join(gen, "wc"), skip_dirs={"__pycache__", ".git", ".github"}, skip_files=["*.sfc", "*.smc"])
     for d in VANILLA_DIRS:
         copytree(os.path.join(P.VANILLA, d), os.path.join(gen, "vanilla", d), skip_dirs={"__pycache__"})

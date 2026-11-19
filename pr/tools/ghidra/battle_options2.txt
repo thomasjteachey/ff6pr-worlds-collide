@@ -1,0 +1,5 @@
+# Battle Options mod (2026-11-18): the Config menu's Reset (popup answer) and who adds to the ATB order stack
+Last\.UI\.KeyInput\.ConfigActualDetailsControllerBase\$\$(SwitchPopupAfterProcess|ShowPopupWindow)$
+Last\.UI\.KeyInput\.ConfigActualDetailsControllerBase\$\$<SwitchPopupAfterProcess>
+Last\.Management\.ConfigClient\$\$
+Last\.Battle\.BattleProgressATB\$\$(UpdateNextCondiiton|SetActData|ActExectionEndDelegate|UpdateUI)$

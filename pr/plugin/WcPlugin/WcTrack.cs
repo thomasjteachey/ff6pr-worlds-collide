@@ -39,7 +39,7 @@ namespace WorldsCollide.PR
                 checks = new List<TrackCheck>();
                 try
                 {
-                    var path = Path.Combine(Plugin.Folder, "baseline", "wc_track.json");
+                    var path = Path.Combine(WcDataDir.Baseline, "wc_track.json");
                     using var doc = JsonDocument.Parse(File.ReadAllText(path));
                     foreach (var c in doc.RootElement.GetProperty("checks").EnumerateArray())
                         checks.Add(new TrackCheck

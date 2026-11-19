@@ -26,6 +26,10 @@ class Mod:
         self.plugin_project = plugin.get("project")
         self.plugin_files = [tuple(x) for x in plugin.get("files", [])]
         self.plugin_dirs = [tuple(x) for x in plugin.get("dirs", [])]
+        # where the plugin's "dirs" go in the game folder: the plugin folder, or a folder of the mod's
+        # own outside BepInEx/plugins (WC: BepInEx/WorldsCollide, since BepInEx lists every folder
+        # under plugins at each failed assembly lookup: big data trees there make the game slow to start)
+        self.data_dir = (plugin.get("data_dir") or "").strip("/")
         self.magicite = doc.get("magicite")
         self.magicite_skip = set(doc.get("magicite_skip", []))
         self.exclusive = doc.get("exclusive")

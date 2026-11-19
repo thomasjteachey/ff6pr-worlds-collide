@@ -16,7 +16,7 @@ namespace WorldsCollide.PR
     public class Plugin : BasePlugin
     {
         public const string Guid = "ff6mod.worldscollide";
-        public const string Version = "0.6.3";
+        public const string Version = "0.6.4";
         internal static ManualLogSource L;
         internal static string Folder;
         internal static bool WcMode;
@@ -34,6 +34,7 @@ namespace WorldsCollide.PR
                 lapClock.Restart();
             }
             Folder = Path.GetDirectoryName(typeof(Plugin).Assembly.Location) ?? ".";
+            WcDataDir.Init();   // generator, baseline, seeds: in BepInEx/WorldsCollide, not under plugins (WcDataDir.cs)
             LiveData.Info = s => L.LogInfo(s);
             LiveData.Warn = s => L.LogWarning(s);
             WcGenerator.PythonSetting = Config.Bind("Generator", "Python", "",

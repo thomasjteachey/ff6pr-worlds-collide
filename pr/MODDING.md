@@ -145,6 +145,12 @@ every PR):
   anything else use `Game.Require` or `Hooks.TypeByName("Serial.FF5....")`.
 - UI found in a screen's first frame has stale positions (it slides in), and anything added under a
   layout group becomes a layout item: parent new UI to an existing text (PORTING.md, the EL display).
+- The game's build strips the Unity code it doesn't use. The interop DLLs still list it, so it
+  compiles, but the call throws `Method unstripping failed`. IMGUI's `GUI.DrawTexture` and
+  `GUI.DrawTextureWithTexCoords` are stripped: draw with `GUI.Box(rect, content, style)` where
+  `style.normal.background` is the texture (Battle Options' EnemyAtb, the WC flags screen).
+  A no-graphics headless run never paints, so it can't catch this. `kit.py check <mod>` reads the
+  built DLL and names every stripped method it calls (needs `ilspycmd`).
 
 ## Testing
 

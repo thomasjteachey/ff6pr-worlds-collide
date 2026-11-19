@@ -46,6 +46,8 @@ def readme(m):
     parts = []
     if m.has_plugin:
         parts.append(f"BepInEx/plugins/{m.name}")
+    if m.data_dir and m.plugin_dirs:
+        parts.append(m.data_dir)
     if m.magicite:
         parts.append(f"{m.game.title}_Data/StreamingAssets/Magicite/{m.name}")
     removal = " and\n".join(parts) if parts else "its files"
@@ -132,7 +134,7 @@ def package(mod_id, out=None, root=PR):
         leave = {p[len(name) + 1:] for p in m.package_leave_out if p.startswith(name + "/")}
         if name in m.package_leave_out:
             continue
-        entries += _tree(m.path(src), f"{plugin}/{name}", leave_out=leave)
+        entries += _tree(m.path(src), f"{m.data_dir or plugin}/{name}", leave_out=leave)
     if m.magicite and m.package_magicite:
         entries += _tree(m.path(m.magicite), magicite, m.magicite_skip)
     vanilla = m.game.vanilla

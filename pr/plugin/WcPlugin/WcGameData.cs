@@ -21,7 +21,7 @@ namespace WorldsCollide.PR
 
         public static void EnsureSetUp()
         {
-            var gen = Path.Combine(Plugin.Folder, "generator");
+            var gen = WcDataDir.Generator;
             var manifest = Path.Combine(gen, "gamedata.json");
             if (!File.Exists(manifest)) return;     // a build from before the manifest: it carries the files
             string id;

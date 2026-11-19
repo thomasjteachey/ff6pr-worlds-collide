@@ -43,7 +43,7 @@ import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 GEN = os.path.dirname(HERE)                 # generator/ (in the project: pr/)
-PLUGIN = os.path.dirname(GEN)               # BepInEx/plugins/WorldsCollide
+PLUGIN = os.path.dirname(GEN)               # BepInEx/WorldsCollide, the data folder (WcDataDir.cs)
 MANIFEST = "gamedata.json"
 RECIPE = "gamedata_recipe.json"
 SHIPPED = "gamedata"                        # generator/gamedata/<target>/<path>: our own files

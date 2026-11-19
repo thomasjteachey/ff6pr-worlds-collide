@@ -14,8 +14,9 @@ tools/deploy.sh) runs that instead. Otherwise:
          ("keep" folders stay), and Magicite/<Mod> mirrors the built folder.
   Deck   (ssh host "deck", keys in pageant; PRKIT_DECK_HOST to change) the same game under Proton:
          BepInEx itself on the first push or with --full, Wine told to load BepInEx's winhttp.dll
-         (tools/deck_winhttp_override.py), the same shelving, then the plugin folder,
-         BepInEx/config and the Magicite folder. The game must be closed there too.
+         (tools/deck_winhttp_override.py), the same shelving, then the plugin folder and the
+         Magicite folder. BepInEx/config files go only where the Deck has none (a mod's first
+         .cfg): settings chosen on the Deck stay, even with --full. The game must be closed there too.
 """
 import os
 import shlex
@@ -123,8 +124,9 @@ class Deployer:
                     dst = os.path.join(plugin, *name.split("/"))
                     os.makedirs(os.path.dirname(dst), exist_ok=True)
                     shutil.copy2(m.path(src), dst)
-                for src, name in m.plugin_dirs:
-                    shutil.copytree(m.path(src), os.path.join(plugin, *name.split("/")), dirs_exist_ok=True)
+                base = os.path.join(g.install, *m.data_dir.split("/")) if m.data_dir else plugin
+                for src, name in m.plugin_dirs:   # data_dir: a folder of the mod's own outside plugins (mods.py)
+                    shutil.copytree(m.path(src), os.path.join(base, *name.split("/")), dirs_exist_ok=True)
         if m.magicite:
             self.say(f"{'would mirror' if self.dry else 'mirror'} {m.magicite} -> {magicite}")
             if not self.dry:
@@ -157,7 +159,7 @@ class Deployer:
             f"if {cond}; then",
             '  say "Deck: sending BepInEx (core, interop, .NET runtime, loader, Magicite)"',
             '  tar -cf - -C "$PC" --exclude=BepInEx/LogOutput.log --exclude=BepInEx/ErrorLog.log '
-            '--exclude=BepInEx/plugins --exclude=BepInEx/mod-shelf ' + " ".join(base) +
+            '--exclude=BepInEx/plugins --exclude=BepInEx/mod-shelf --exclude=BepInEx/config ' + " ".join(base) +
             ' | ssh "$HOST" "tar -xf - -C ' + q(deck) + '"',
             '  (cd "$PC" && tar -cf - $(ls BepInEx/plugins/Magicite.dll BepInEx/plugins/Magicite.bundle BepInEx/plugins/Syldra.dll 2>/dev/null)) '
             '| ssh "$HOST" "tar -xf - -C ' + q(deck) + '"',
@@ -178,13 +180,19 @@ class Deployer:
         lines.append('ssh "$HOST" bash <<\'REMOTE\'')
         lines += remote
         lines.append("REMOTE")
-        parts = ["BepInEx/config"]
+        parts = []
         if m.has_plugin:
             parts.append(plugin)
+            if m.data_dir:
+                parts += [f"{m.data_dir}/{name}" for _, name in m.plugin_dirs]
         if m.magicite:
             parts.append(f"{mg}/{m.name}")
         excludes = " ".join(f"--exclude={q(plugin + '/' + k)}" for k in m.keep)
-        lines.append(f'tar -cf - -C "$PC" {excludes} {" ".join(q(p) for p in parts)} | ssh "$HOST" "tar -xf - -C {q(deck)}"')
+        if parts:
+            lines.append(f'tar -cf - -C "$PC" {excludes} {" ".join(q(p) for p in parts)} | ssh "$HOST" "tar -xf - -C {q(deck)}"')
+        # BepInEx/config: only files the Deck doesn't have yet. Settings chosen on the Deck (a mod's
+        # in-game options) are never replaced by the PC's.
+        lines.append(f'tar -cf - -C "$PC" BepInEx/config | ssh "$HOST" "tar -xf - --skip-old-files -C {q(deck)}"')
         lines.append(f'say "Deck: {m.name} installed"')
         return "\n".join(lines) + "\n"
 

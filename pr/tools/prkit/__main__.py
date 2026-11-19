@@ -16,7 +16,7 @@ import os
 import subprocess
 import sys
 
-from . import PR, TOOLS, bepinex, data, deploy, games, headless, magicite, mods, package, scaffold
+from . import PR, TOOLS, bepinex, data, deploy, games, headless, magicite, mods, package, scaffold, stripped
 
 
 def cmd_games(a):
@@ -78,6 +78,21 @@ def cmd_check(a):
             for n in notes:
                 print("note", n)
         bad += len(problems)
+    dlls = [m.path(src) for src, _ in m.plugin_files if src.lower().endswith(".dll") and os.path.exists(m.path(src))]
+    if dlls and not stripped.available():
+        print("stripped calls: not checked (no ilspycmd: dotnet tool install -g ilspycmd)")
+    elif dlls:
+        try:
+            g = m.game
+            for dll in dlls:
+                found = stripped.check(dll, g)
+                for type_name, names in found:
+                    print(f"PROBLEM {os.path.basename(dll)} calls {type_name}.{', '.join(names)}: stripped from "
+                          f"the game's build (throws 'Method unstripping failed')")
+                print(f"{os.path.basename(dll)}: " + (f"{len(found)} types with stripped calls" if found else "no stripped Unity calls"))
+                bad += len(found)
+        except Exception as e:   # the game isn't installed here, etc.
+            print(f"stripped calls: not checked ({e})")
     return 1 if bad else 0
 
 
