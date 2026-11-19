@@ -162,6 +162,10 @@ namespace WorldsCollide.PR
             // Older saves can own a character but lack WC's private gate bit.  Roster ownership
             // is enough to restore that bit; this is independent of starting-average-level.
             WcEvents.RepairRecruitedFlagsFromRoster();
+            // Recruits from before WcSpells: drop a PR built-in spell (Terra's Cure / Fire) that
+            // nothing in the seed could have taught. Field only, like the roster repair.
+            if (WcEvents.Flag(DataStorage.Category.kScenarioFlag4, WcEvents.WcGameFlag) == 1 && Plugin.WcMode && !WcEvents.EventBusy())
+                WcSpells.RepairBuiltIns();
             WcEvents.RepairKohlingenCafe();
             if (!On("-sal")) return;
             try

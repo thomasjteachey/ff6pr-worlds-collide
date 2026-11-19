@@ -1125,12 +1125,29 @@ class WcScripts(unittest.TestCase):
         self.assertNotIn([1, -2, 19, 20, 21],
                          [m["operands"]["iValues"][:5] for m in party["Mnemonics"] if m["mnemonic"] == "OrganizePartySlot"])
 
+        # The user's Deck, 2026-11-19: Mog in the active party was put in party 2 as well. With
+        # WC:moogle_party's answer (SCRATCH 1: Mog is in party 1) guest 21 takes his place there.
+        def parties(mog_in_party_1):
+            st2, _ = self.new_game()
+            run = Run(party, st2, syscalls={
+                "WC:moogle_party": lambda s: s.set(E.WC_FLAGS, E.SCRATCH, 1 if mog_in_party_1 else 0)})
+            return [tuple(t[2][:5]) for t in run.trace if t[1] == "OrganizePartySlot"]
+        self.assertEqual(parties(False), [(2, 11, 22, 23, 24), (3, 25, 26, 27, 28)], "Mog's own party otherwise")
+        self.assertEqual(parties(True), [(2, 21, 22, 23, 24), (3, 25, 26, 27, 28)], "Mog in one party only")
+
+        # The user's Deck, 2026-11-19 ("i lost mog"): vanilla's moogles-leave call kept only party
+        # 1's leader and made Mog unselectable, and the one-party picker opened without him. Party
+        # 1 is noted before that call and put back after it, before the reward and the picker.
         ending = self.script("sc_e_0018_2")
-        end_calls = [(i, m["operands"]["sValues"][0]) for i, m in enumerate(ending["Mnemonics"])
-                     if m["mnemonic"] == "SysCall"]
-        dismissed = next(i for i, call in end_calls if call.startswith("メンバー離脱"))
-        restored = next(i for i, call in end_calls if call == "WC:moogle_party_restore")
-        self.assertGreater(restored, dismissed, "recruited Mog returns after the guest moogles leave")
+        st3, _ = self.new_game()
+        end = Run(ending, st3)
+        order = [t[3][0] if t[1] == "SysCall" else t[1] for t in end.trace if t[1] in ("SysCall", "Msg")]
+        noted, dismissed = order.index("WC:moogle_party_end"), next(i for i, c in enumerate(order) if str(c).startswith("メンバー離脱"))
+        restored, picker = order.index("WC:moogle_party_restore"), order.index(E.PARTY_MENU)
+        self.assertLess(noted, dismissed, "party 1 is noted before the moogles leave")
+        self.assertGreater(restored, dismissed, "party 1 and Mog are restored after the moogles leave")
+        self.assertLess(restored, order.index("Msg"), "restored before the reward's line")
+        self.assertLess(restored, picker, "restored before the one-party picker opens")
 
     def test_tritoch_beaten_leaves_the_lone_wolf_chase_in_the_wob(self):
         # The user's Deck, 2026-11-14: "killing tritech blocks me from doing the moogle lone wolf

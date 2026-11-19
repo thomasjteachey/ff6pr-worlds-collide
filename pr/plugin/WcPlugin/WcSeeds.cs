@@ -30,6 +30,7 @@ namespace WorldsCollide.PR
             public List<Objective> Objectives = new List<Objective>();
             public List<(string Name, int Party)> Bosses = new List<(string, int)>();   // WC's boss objectives, PR monster parties
             public List<int> SpellTable = new List<int>();     // "Learn Spells": WC's random order, PR ability ids
+            public bool NaturalLv1;                            // its learning rows include a Terra learner's level-1 spell (WcSpells)
             public List<int> ForgetTable = new List<int>();    // "Forget Spells": its own order
             public Dictionary<string, int> Timers = new Dictionary<string, int>();   // -etr: seconds by countdown script
             public Dictionary<int, int[]> Battles = new Dictionary<int, int[]>();
@@ -285,6 +286,7 @@ namespace WorldsCollide.PR
                     foreach (var x in ftb.EnumerateArray()) s.ForgetTable.Add(x.GetInt32());
                 if (r.TryGetProperty("spell_table", out var stb))
                     foreach (var x in stb.EnumerateArray()) s.SpellTable.Add(x.GetInt32());
+                if (r.TryGetProperty("natural_lv1", out var nl1)) s.NaturalLv1 = nl1.ValueKind == JsonValueKind.True;
                 if (r.TryGetProperty("ability_scaling", out var asc) && asc.ValueKind == JsonValueKind.Object)
                     s.Scaling = new AbilityScaling
                     {

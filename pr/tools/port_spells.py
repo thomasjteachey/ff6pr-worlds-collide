@@ -424,8 +424,11 @@ class LearningPorter:
                     continue
                 ids_by_job = {learner + 1: moved}
                 self.log(f"  {who}'s natural magic -> SNES character {learner} (job {learner + 1})")
-            if learner == 0:
-                spells = [x for x in spells if x[1] > 1]  # PR gives Terra her lv1 spell up front
+            if learner == 0 and "WC_FLAGS" not in os.environ:
+                # PR gives Terra her lv1 spell up front (BNW). Not in a WC seed (tools/wc_seed.py
+                # sets WC_FLAGS): its lists are random, so a level-1 spell needs its row, and the
+                # plugin drops the PR's built-in Cure/Fire where the seed doesn't teach them (WcSpells)
+                spells = [x for x in spells if x[1] > 1]
             for job, ids in ids_by_job.items():
                 ids = list(ids)
                 while len(ids) < len(spells):

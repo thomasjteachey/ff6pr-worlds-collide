@@ -22,9 +22,8 @@ SKIP_FILES = {"Games.props"}
 
 README = """# Battle Options for the FINAL FANTASY Pixel Remaster
 
-Three battle settings in the game's own **Config** menu, for FINAL FANTASY VI Pixel Remaster
-(Steam). An add-on: it changes no game data and installs beside the unmodded game or other mods
-(Brave New World, Worlds Collide, HD-2D).
+Battle settings in the game's own **Config** menu, for FINAL FANTASY IV, V and VI Pixel Remaster
+(Steam). An add-on: it changes no game data and installs beside the unmodded game or other mods.
 
 | Setting | Choices | What it does |
 |---|---|---|
@@ -55,10 +54,12 @@ Remove it by deleting `BepInEx/plugins/BattleOptions`.
   the cast bar; saves untouched). Pause and the cast bars apply after Worlds Collide's SNES ATB rates
   and command waits; Worlds Collide 0.6.4's status clock waits with Pause. Built to sit beside Brave New World too (its own Wait Gauge: the Cast Bars
   setting decides whether it shows), not yet run together.
-- **FINAL FANTASY IV and V PR**: the mod names only the engine code the Pixel Remasters share and
-  finds each game's own Config and ATB classes by name, so it loads there, but it hasn't been tested
-  in those games. FF V has no Cast Bars row (every command acts at once there); FF IV's cast bars
-  measure the game's own countdown, since it has no separate wait-time table.
+- **FINAL FANTASY IV PR**: tested in the in-game Config and battle. Pause, Cast Bars and Enemy ATB
+  load; enemy gauges track live ATB and disappear with the enemy. FF IV's cast bars measure the
+  game's own countdown, since it has no separate wait-time table.
+- **FINAL FANTASY V PR**: tested in the in-game Config and battle. Pause held enemy ATB, cast time
+  and status timers while a command was open, and Enemy ATB tracked the enemy and disappeared with
+  it. FF V intentionally has no Cast Bars row because its commands act immediately.
 - FINAL FANTASY I-III PR have no ATB: the mod stays off there.
 
 ## Build

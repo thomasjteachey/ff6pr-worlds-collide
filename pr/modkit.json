@@ -131,7 +131,7 @@
       "name": "BattleOptions",
       "game": "ff6",
       "title": "Battle Options for the FINAL FANTASY Pixel Remaster",
-      "version": "0.1.4",
+      "version": "0.2.1",
       "plugin": {
         "project": "plugin/BattleOptionsPlugin",
         "files": [
@@ -141,7 +141,7 @@
           ]
         ]
       },
-      "readme_note": "Settings in the game's Config menu: Battle Mode gets Pause (Wait, and all battle time stops while you\nchoose a command or an action plays out: ATB gauges, cast times, status timers), plus Cast Bars and Enemy ATB rows after Battle Messages. Works beside the\nunmodded game and other mods (Brave New World, Worlds Collide, HD-2D); no game data is changed."
+      "readme_note": "For FINAL FANTASY IV, V and VI Pixel Remaster. Settings in the game's Config menu: Battle Mode gets Pause (Wait, and all battle time stops while you\nchoose a command or an action plays out: ATB gauges, cast times, status timers), plus Enemy ATB and, in FF IV/VI, Cast Bars. Works beside the\nunmodded game and other mods (Brave New World, Worlds Collide, HD-2D); no game data is changed."
     }
   }
 }

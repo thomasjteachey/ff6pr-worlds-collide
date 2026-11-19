@@ -372,7 +372,9 @@ def main():
                  + shlex.split(flags), WC, log)
     if ROMFREE:
         S.MEMORY[os.path.abspath(rom)] = S.rom_bytes(rom)   # WC's working bytes, for the port
-    info = {"seed": a.seed, "flags": flags.strip(), "preset": a.preset, "hash": ""}
+    # natural_lv1: a Terra learner's level-1 spell has its learning row (port_spells.py; WcSpells
+    # keeps the PR's built-in Cure for a learner Terra only in seeds made before that)
+    info = {"seed": a.seed, "flags": flags.strip(), "preset": a.preset, "hash": "", "natural_lv1": True}
     for line in wc_out.splitlines():
         if line.startswith("Hash"):
             info["hash"] = line.split(None, 1)[1].strip()

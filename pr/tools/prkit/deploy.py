@@ -22,6 +22,7 @@ import os
 import shlex
 import shutil
 import subprocess
+import tempfile
 
 from . import PR, TOOLS, games, mods
 
@@ -207,7 +208,15 @@ class Deployer:
         if self.dry:
             self.say("would run on Git Bash:\n" + script)
             return
-        r = subprocess.run([bash_exe(), "-s"], input=script, text=True)
+        # From a file, never stdin: the script's first ssh would read the rest of the script from a
+        # shared stdin and bash would end there, exit 0, having pushed nothing (it did until 2026-11-19).
+        fd, path = tempfile.mkstemp(prefix="prkit-deck-", suffix=".sh")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as f:
+                f.write(script)
+            r = subprocess.run([bash_exe(), msys_path(path)], stdin=subprocess.DEVNULL)
+        finally:
+            os.remove(path)
         if r.returncode != 0:
             raise DeployError("the Deck push failed (see above)")
 

@@ -481,6 +481,8 @@ namespace WorldsCollide.PR
         internal static int PickRecruit = -1, PartyRefreshes, PartyPicks;
         internal static bool RewardScreenBlack, PickScreenBlack;   // tests: the screen at the reward line and after the pick
         internal static int PickLeader = -1;                       // tests: the leader right after the pick
+        internal static List<int> PickOpenedOn;                    // tests: the party the picker opened on
+        internal static bool PickMogSelectable;                    // tests: Mog's eligibility then
 
         // the party select screen (OrganizeOneParty, as the pick after a character reward opens
         // it): a headless test can't work a menu, so a test run stands in for the player, who puts
@@ -491,6 +493,9 @@ namespace WorldsCollide.PR
             PartyPicks++;
             try
             {
+                PickOpenedOn = UserDataManager.Instance()?.GetPartyMemberData()?.ToArray().Select(p => p.characterStatusId).ToList();
+                PickMogSelectable = UserDataManager.Instance()?.OwnedCharacterList?.ToArray()
+                    .Any(o => o != null && o.characterStatusId == Mog && o.IsEnableCorps) == true;
                 var list = UserDataManager.Instance()?.corpsList;
                 int cid = Last.Interpreter.Instructions.SystemCall.Current.GetCharacterIdFromStatusId(PickRecruit);
                 int at = -1;
@@ -560,7 +565,8 @@ namespace WorldsCollide.PR
                 case "party_refresh": PartyRefresh(); return;
                 case "moogle_party_save": SaveMoogleDefenseParty(); return;
                 case "moogle_party": SetMoogleDefenseParty(); return;
-                case "moogle_party_restore": RestoreMoogleDefenseMog(false); return;
+                case "moogle_party_end": NoteMoogleDefenseEndParty(); return;
+                case "moogle_party_restore": EndMoogleDefense(); return;
                 case "item": ChestItem(int.Parse(args[1]), args.Length > 2 ? int.Parse(args[2]) : 1); return;
                 case "reward": Reward(args[1], args.Length > 2 ? int.Parse(args[2]) : 0, mc); return;
                 case "gate": Gate(args[1]); return;
@@ -635,10 +641,18 @@ namespace WorldsCollide.PR
             Plugin.L.LogInfo($"[wc] moogle defense: saved party [{string.Join(" ", MoogleDefenseParty)}]");
         }
 
+        // Party 1 = the saved party, then guest moogles 19.. up to four. Vanilla's next line puts
+        // Mog (status 11) in party 2; when recruited Mog is already in party 1, he would be in two
+        // parties at once. Then party 1 takes at most guests 19-20 (a lone Mog: a party of three)
+        // and SCRATCH = 1 tells the script to give party 2 guest 21 in his place.
         static void SetMoogleDefenseParty()
         {
+            SetWcFlag(Scratch, 0);
             var members = MoogleDefenseParty.Take(4).ToList();
-            for (int status = 19; members.Count < 4 && status <= 28; status++)
+            int mogId = Last.Interpreter.Instructions.SystemCall.Current.GetCharacterIdFromStatusId(Mog);
+            bool mogInParty = mogId > 0 && members.Contains(mogId);
+            int lastGuest = mogInParty ? 20 : 28;
+            for (int status = 19; members.Count < 4 && status <= lastGuest; status++)
             {
                 int id = Last.Interpreter.Instructions.SystemCall.Current.GetCharacterIdFromStatusId(status);
                 if (id > 0 && !members.Contains(id)) members.Add(id);
@@ -652,19 +666,128 @@ namespace WorldsCollide.PR
             for (int i = 0; i < members.Count; i++)
                 corps.SetSlot(UserDataManager.CorpsSlot.Slot1, i, members[i]);
             corps.SwitchSlot(UserDataManager.CorpsSlot.Slot1);
-            Plugin.L.LogInfo($"[wc] moogle defense: party 1 [{string.Join(" ", members)}]");
+            if (mogInParty) SetWcFlag(Scratch, 1);
+            Plugin.L.LogInfo($"[wc] moogle defense: party 1 [{string.Join(" ", members)}]{(mogInParty ? ", Mog's party takes guest 21" : "")}");
         }
 
-        // Vanilla treats Mog as part of the temporary moogle roster and dismisses status 11 with
-        // statuses 19-28 at the end. In WC, Mog is a real recruited character (and this check's
-        // gate), so put him back after the guests leave. A defense autosave is made after the
-        // defense-start flag but before the check-complete flag; either flag proves the Mog gate
-        // was met. fieldRepair waits until no event is running, while the ending calls this inline.
+        const int Mog = 11;
+        static bool IsGuestMoogle(int statusId) => statusId >= 19 && statusId <= 28;
+
+        static int StatusOf(int characterId)
+        {
+            var owned = UserDataManager.Instance()?.OwnedCharacterList;
+            if (owned != null)
+                foreach (var c in owned)
+                    if (c != null && c.Id == characterId) return c.characterStatusId;
+            return -1;
+        }
+
+        // A corps slot's members: the live list when it is the active slot, else the stored one.
+        static List<Last.Data.User.Corps> SlotMembers(UserDataManager.CorpsSlot slot)
+        {
+            var ud = UserDataManager.Instance();
+            if (ud == null) return new List<Last.Data.User.Corps>();
+            if (ud.CorpsSlotIndex == (int)slot && ud.corpsList != null) return ud.corpsList.ToArray().ToList();
+            var slots = ud.corpsSlots;
+            if (slots != null && slots.ContainsKey((int)slot) && slots[(int)slot] != null) return slots[(int)slot].ToArray().ToList();
+            return new List<Last.Data.User.Corps>();
+        }
+
+        // Party 1 as the Marshal's fight left it, without the guest moogles: noted just before
+        // vanilla's moogles-leave call (sc_e_0018_2 ms[13]), which keeps only party 1's leader.
+        static readonly List<(int id, Last.Defaine.User.CorpsId row)> MoogleDefenseEndParty = new List<(int, Last.Defaine.User.CorpsId)>();
+
+        static void NoteMoogleDefenseEndParty()
+        {
+            MoogleDefenseEndParty.Clear();
+            try
+            {
+                foreach (var c in SlotMembers(UserDataManager.CorpsSlot.Slot1))
+                    if (c != null && c.CharacterId > 0 && !IsGuestMoogle(StatusOf(c.CharacterId)))
+                        MoogleDefenseEndParty.Add((c.CharacterId, c.Id));
+            }
+            catch (Exception e) { Plugin.L.LogWarning($"[wc] moogle defense: noting party 1: {e.Message}"); }
+            Plugin.L.LogInfo($"[wc] moogle defense: party 1 before the moogles leave [{string.Join(" ", MoogleDefenseEndParty.Select(m => StatusOf(m.id)))}] " +
+                             $"(active slot {UserDataManager.Instance()?.CorpsSlotIndex})");
+        }
+
+        // The moogles have left (vanilla's call): undo what it did to WC's party before the
+        // reward and the one-party picker. Mog selectable again (or joined, if vanilla dropped
+        // him), the guest moogles out of every slot and the roster, party 1 as noted.
+        static void EndMoogleDefense()
+        {
+            try
+            {
+                if (!WcGame()) return;
+                var owned = UserDataManager.Instance()?.OwnedCharacterList;
+                Last.Data.User.OwnedCharacterData mog = null;
+                if (owned != null)
+                    foreach (var c in owned)
+                        if (c != null && c.characterStatusId == Mog) mog = c;
+                if (mog != null && !mog.IsEnableCorps) mog.IsEnableCorps = true;
+                int removed = RemoveGuestMoogles();
+                var corps = CorpsClient.Instance();
+                var party = MoogleDefenseEndParty.Where(m => StatusOf(m.id) > 0).ToList();
+                if (party.Count > 0)
+                {
+                    var now = SlotMembers(UserDataManager.CorpsSlot.Slot1);
+                    for (int i = now.Count - 1; i >= 0; i--)
+                        corps.RemoveSlot(UserDataManager.CorpsSlot.Slot1, i);
+                    for (int i = 0; i < party.Count && i < 4; i++)
+                        corps.SetSlot(UserDataManager.CorpsSlot.Slot1, i, party[i].id, party[i].row);
+                    corps.SwitchSlot(UserDataManager.CorpsSlot.Slot1);
+                }
+                bool joined = mog == null && IsRecruited(Mog) && Join(Mog);
+                MoogleDefenseEndParty.Clear();
+                var active = UserDataManager.Instance()?.GetPartyMemberData()?.ToArray().Select(p => p.characterStatusId) ?? new int[0];
+                Plugin.L.LogInfo($"[wc] moogle defense over: party 1 [{string.Join(" ", active)}], Mog " +
+                                 $"{(mog != null ? $"selectable {mog.IsEnableCorps}" : joined ? "joined again" : "not recruited")}, {removed} guest moogles removed");
+            }
+            catch (Exception e) { WcRunner.WarnOnce("moogle-defense-end", e); }
+        }
+
+        // The ten temporary moogles (status 19-28): out of every corps slot, then out of the
+        // roster. SecedeCharacter needs a live event MainCore (it throws from the field update),
+        // so this edits the slots and the owned list directly; none may be in the active party.
+        static int RemoveGuestMoogles()
+        {
+            var owned = UserDataManager.Instance()?.OwnedCharacterList;
+            if (owned == null) return 0;
+            var guestIds = new HashSet<int>();
+            for (int i = 0; i < owned.Count; i++)
+                if (owned[i] != null && IsGuestMoogle(owned[i].characterStatusId)) guestIds.Add(owned[i].Id);
+            if (guestIds.Count == 0) return 0;
+            try
+            {
+                var corps = CorpsClient.Instance();
+                var slots = UserDataManager.Instance()?.corpsSlots;
+                if (slots != null)
+                    foreach (var pair in slots)
+                        for (int i = pair.Value.Count - 1; i >= 0; i--)
+                            if (pair.Value[i] != null && guestIds.Contains(pair.Value[i].CharacterId))
+                                corps.RemoveSlot((UserDataManager.CorpsSlot)pair.Key, i);
+            }
+            catch (Exception e) { Plugin.L.LogWarning($"[wc] moogle defense: stale guest corps cleanup: {e.Message}"); }
+            int removed = 0;
+            for (int i = owned.Count - 1; i >= 0; i--)
+                if (owned[i] != null && IsGuestMoogle(owned[i].characterStatusId))
+                {
+                    owned.RemoveAt(i);
+                    removed++;
+                }
+            return removed;
+        }
+
+        // Saves from before EndMoogleDefense: vanilla treats Mog as part of the temporary moogle
+        // roster and dismisses status 11 with statuses 19-28 at the end. In WC, Mog is a real
+        // recruited character (and this check's gate), so the field update puts him back. A
+        // defense autosave is made after the defense-start flag but before the check-complete
+        // flag; either flag proves the Mog gate was met. fieldRepair waits for an idle field.
         internal static void RestoreMoogleDefenseMog(bool fieldRepair = true)
         {
             try
             {
-                const int Mog = 11, MoogleDefenseCheck = 62;
+                const int MoogleDefenseCheck = 62;
                 bool defenseStarted = Flag(DataStorage.Category.kScenarioFlag1, 13) == 1;
                 bool defenseDone = Flag(DataStorage.Category.kScenarioFlag4, MoogleDefenseCheck) == 1;
                 if (!WcGame() || (!IsRecruited(Mog) && !defenseStarted && !defenseDone)) return;
@@ -686,41 +809,10 @@ namespace WorldsCollide.PR
                 if (active != null)
                     foreach (var c in active)
                         if (c != null && c.characterStatusId >= 19 && c.characterStatusId <= 28) activeGuests = true;
-                if (fieldRepair && defenseDone && hasGuests && !activeGuests)
-                {
-                    var guestIds = new HashSet<int>();
-                    for (int i = 0; i < owned.Count; i++)
-                    {
-                        var c = owned[i];
-                        if (c != null && c.characterStatusId >= 19 && c.characterStatusId <= 28)
-                            guestIds.Add(c.Id);
-                    }
-                    // SecedeCharacter requires a live event MainCore and throws when a repair runs
-                    // from the field update. Remove guest references from every saved corps slot,
-                    // then from the authoritative owned list. None can be active at this point.
-                    try
-                    {
-                        var corps = CorpsClient.Instance();
-                        var slots = UserDataManager.Instance()?.corpsSlots;
-                        if (slots != null)
-                            foreach (var pair in slots)
-                                for (int i = pair.Value.Count - 1; i >= 0; i--)
-                                    if (pair.Value[i] != null && guestIds.Contains(pair.Value[i].CharacterId))
-                                        corps.RemoveSlot((UserDataManager.CorpsSlot)pair.Key, i);
-                    }
-                    catch (Exception e) { Plugin.L.LogWarning($"[wc] moogle defense: stale guest corps cleanup: {e.Message}"); }
-                    int removed = 0;
-                    for (int i = owned.Count - 1; i >= 0; i--)
-                    {
-                        var c = owned[i];
-                        if (c != null && c.characterStatusId >= 19 && c.characterStatusId <= 28)
-                        {
-                            owned.RemoveAt(i);
-                            removed++;
-                        }
-                    }
-                    Plugin.L.LogInfo($"[wc] moogle defense: removed {removed} stale guest moogles from loaded save");
-                }
+                // (No longer reached by a defense played now: its end, EndMoogleDefense, does this
+                // before the reward. Once it ran here while the end's party picker was open.)
+                if (fieldRepair && defenseDone && hasGuests && !activeGuests && !EventBusy())
+                    Plugin.L.LogInfo($"[wc] moogle defense: removed {RemoveGuestMoogles()} stale guest moogles from loaded save");
                 // SecedeMoogles also marks Mog ineligible for corps selection. His owned record
                 // can therefore survive while the party organizer silently filters him out.
                 if (fieldRepair && defenseDone && mog != null && !mog.IsEnableCorps)
@@ -918,6 +1010,7 @@ namespace WorldsCollide.PR
                     SetWcFlag(Recruited + characterStatusId, 1);
                     if (first) FreshRecruit(characterStatusId);         // WC's recruit, not the PR's extras
                     if (first) WcRecruits.Joined(characterStatusId);   // -sal: the first time only (WC's recruit)
+                    if (first) WcSpells.Recruit(characterStatusId);    // its natural magic at that level, no PR built-ins
                     StartSpells(characterStatusId);
                     StartName(characterStatusId);
                     WcObjectives.Joined(characterStatusId);
@@ -1068,21 +1161,46 @@ namespace WorldsCollide.PR
         // WC game (temporary story actors use status ids outside 1-14), so migrate those saves.
         // This fixes gates such as Setzer's Kohlingen cafe without requiring the character to be
         // in the active party or making the player recruit them a second time.
+        // Only a selectable character counts: the PR's opening creates Terra (with Biggs and
+        // Wedge), and WC's start makes that party leave (wc_start's member-leave calls), so a
+        // seed without Terra in its start party still owns her, unselectable and never joined.
+        // Counting her (seed gaadl68ix7j4, start party [5 3 12]) opened her character gates,
+        // added her to the recruit count and -sal's average, and made her real recruit later
+        // skip WC's recruit (FreshRecruit and -sal: her 4 extra Magitek moves stayed). Not while
+        // an event runs either: WC's start sets WC_GAME a few instructions before that leave.
         internal static void RepairRecruitedFlagsFromRoster()
         {
-            if (!WcGame()) return;
+            if (!WcGame() || EventBusy()) return;
             var owned = UserDataManager.Instance()?.OwnedCharacterList;
             if (owned == null) return;
             var repaired = new List<int>();
             foreach (var c in owned)
             {
                 int id = c?.characterStatusId ?? 0;
-                if (id < 1 || id > 14 || IsRecruited(id)) continue;
+                if (id < 1 || id > 14 || !c.IsEnableCorps || IsRecruited(id)) continue;
                 SetWcFlag(Recruited + id, 1);
                 repaired.Add(id);
             }
             if (repaired.Count > 0)
                 Plugin.L.LogInfo($"[wc] recruited flags restored from owned roster: {string.Join(" ", repaired)}");
+            UnflagOpeningTerra();
+        }
+
+        // Saves the old repair already touched: the opening's Terra flagged recruited without ever
+        // joining. Only that unmistakable case: not a starter, unselectable while no event runs,
+        // and still the opening's 8 Magitek moves (a WC recruit's FreshRecruit drops 4 of them and
+        // only "Magitek Upgrade", not completed here, teaches them back)
+        static void UnflagOpeningTerra()
+        {
+            var owned = UserDataManager.Instance()?.OwnedCharacterList;
+            if (owned == null || !IsRecruited(1) || WcSeeds.Active == null || WcSeeds.Active.StartCharacters.Contains(1) ||
+                WcObjectives.Completed("Magitek Upgrade")) return;
+            Last.Data.User.OwnedCharacterData terra = null;
+            foreach (var c in owned) if (c != null && c.characterStatusId == 1) terra = c;
+            if (terra == null || terra.IsEnableCorps ||
+                !WcObjectives.MagitekBasic.Concat(WcObjectives.MagitekTerra).All(id => WcSkills.Knows(terra, id))) return;
+            SetWcFlag(Recruited + 1, 0);
+            Plugin.L.LogInfo("[wc] recruited flag cleared: Terra is the opening's, never recruited (unselectable, all 8 Magitek moves)");
         }
 
         // A save loaded while already inside either PR copy of Kohlingen's inn can initialize its map before the

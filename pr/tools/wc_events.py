@@ -3058,11 +3058,24 @@ def moogle_defense_party():
     """The defense's parties (sc_e_0017_7): no Locke joining. SNES WC keeps every member of the
     active party and fills only its empty slots with moogles; the PR used to keep only its leader.
     Save the party before the guest moogles join, then let the plugin compose party 1 from it.
-    Mog's party and the third party stay vanilla."""
+    The third party stays vanilla; so does Mog's, unless recruited Mog is already in party 1
+    (WC:moogle_party sets SCRATCH): vanilla would put him in party 2 as well (the user's Deck,
+    2026-11-19), so guest moogle 21, which party 1 then leaves unused, takes his place."""
     sc = S.load("sc_e_0017_7")
     ms = sc["Mnemonics"]
     assert ms[12]["operands"]["sValues"][0].endswith("ロック") and ms[14]["operands"]["iValues"][:5] == [1, 2, 19, 20, 21], \
         "moogle parties changed"
+    assert ms[17]["mnemonic"] == "OrganizePartySlot" and ms[17]["operands"]["iValues"][:5] == [2, 11, 22, 23, 24], \
+        "Mog's moogle party changed"
+    no_mog = copy.deepcopy(ms[17])
+    no_mog["label"] = ""
+    no_mog["operands"]["iValues"][1] = 21
+    S.hook(sc, 17, "wc_party2", [
+        if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
+        if_flag(WC_FLAGS, SCRATCH, 0, "@vanilla"),
+        no_mog,
+        S.op("Jump", i=[17]),
+    ])
     skip_at(sc, 12)
     S.hook(sc, 13, "wc_save_party", [
         if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
@@ -3080,17 +3093,25 @@ def moogle_defense_party():
 def moogle_defense():
     """After the Marshal (sc_e_0018_2, map 318): the moogles leave, then the seed's reward; no
     Locke/Terra party and escape story (ScenarioFlag1 14 = the defense over, as sc_e_0018_5 sets
-    it); recruited Mog is restored after vanilla dismisses the temporary moogle roster; multi-party
-    off and one party picked (as after Narshe's battle), back in the mines."""
+    it); multi-party off and one party picked (as after Narshe's battle), back in the mines.
+    Vanilla's moogles-leave call (ms[13]) empties party 1 behind its leader and makes Mog
+    unselectable, so the picker opened without him (the user's Deck, 2026-11-19: "i lost mog").
+    Party 1 is noted before that call; afterwards the plugin puts it back as it was, Mog
+    selectable again and the guest moogles gone, and the picker starts from it."""
     sc = S.load("sc_e_0018_2")
     ms = sc["Mnemonics"]
     assert ms[13]["operands"]["sValues"][0].startswith("メンバー離脱") and ms[14]["operands"]["iValues"][:3] == [1, 2, 1], \
         "Marshal end changed"
     one_party = S.copy_ops(S.load("sc_e_0259_5"), 57, 64)
     assert ms[10]["mnemonic"] == "FadeOut", "Marshal end fade moved"
+    S.hook(sc, 13, "wc_note_party", [
+        if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
+        S.op("SysCall", s=["WC:moogle_party_end"]),
+        S.op("Jump", i=["@vanilla"]),
+    ])
     S.hook(sc, 14, "wc_reward", [
         if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
-        S.op("SysCall", s=["WC:moogle_party_restore"]),  # vanilla's previous call also dismissed recruited Mog
+        S.op("SysCall", s=["WC:moogle_party_restore"]),  # party 1 back, Mog selectable, guests gone
         fade_in(),                                    # faded out at ms[10]: the reward's line shows
     ] + give("narshe_moogle_defense", [("ScenarioFlag1", 14)]) + [
         reset("ScenarioFlag3", 41),

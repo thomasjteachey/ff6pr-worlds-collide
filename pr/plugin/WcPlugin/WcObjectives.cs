@@ -115,7 +115,7 @@ namespace WorldsCollide.PR
             ["Auto Overcast"] = Last.Defaine.ConditionType.DoomZonbie, ["Auto Dog Block"] = (Last.Defaine.ConditionType)618,
         };
 
-        static bool Completed(string result)
+        internal static bool Completed(string result)
         {
             var s = WcSeeds.Active;
             if (s == null) return false;

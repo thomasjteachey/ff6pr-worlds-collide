@@ -1492,6 +1492,120 @@ namespace WorldsCollide.PR
             return new List<(float, Func<bool>)> { (2f, start), (8f, swing) };
         }
 
+        static List<Learning> LearningRows()
+        {
+            var rows = new List<Learning>();
+            foreach (var kv in MasterManager.Instance.GetList<Learning>()) if (kv.Value != null) rows.Add(kv.Value);
+            return rows;
+        }
+
+        // WC's natural magic (WcSpells): a recruit knows the seed's natural magic up to its level
+        // and nothing else (-scan / -warp / a completed "Learn Spells" aside). Empty lists = right.
+        static (List<int> Unearned, List<int> Missing, List<int> Known) SpellState(Last.Data.User.OwnedCharacterData c)
+        {
+            var natural = WcSpells.Natural(c, c.Parameter.ConfirmedLevel());
+            var allowed = new HashSet<int>(natural);
+            allowed.UnionWith(WcSpells.Granted());
+            var known = new List<int>();
+            if (c.OwnedAbilityList != null)
+                foreach (var a in c.OwnedAbilityList)
+                    if (a?.Ability != null && WcSpells.IsSpell(a.Ability.Id) && a.SkillLevel > 0) known.Add(a.Ability.Id);
+            return (known.Where(id => !allowed.Contains(id)).ToList(), natural.Where(id => !WcSkills.Knows(c, id)).OrderBy(x => x).ToList(), known);
+        }
+
+        static string SpellText(Last.Data.User.OwnedCharacterData c)
+        {
+            var (unearned, missing, known) = SpellState(c);
+            return $"{c.characterStatusId} (L{c.Parameter.ConfirmedLevel()}, job {c.JobId}): knows [{string.Join(" ", known.OrderBy(x => x))}]" +
+                   (unearned.Count > 0 ? $", not its natural magic [{string.Join(" ", unearned)}]" : "") +
+                   (missing.Count > 0 ? $", missing [{string.Join(" ", missing)}]" : "");
+        }
+
+        // Every character recruited (all 14, in turn), each checked as it joins; then a save
+        // recruited before WcSpells: Terra given back the PR's Cure / Fire, the field repair takes
+        // what no owned esper / gear / natural magic teaches, and keeps a spell an owned esper does
+        static List<(float, Func<bool>)> SpellsPlan()
+        {
+            var plan = new List<(float, Func<bool>)>();
+            Last.Data.User.OwnedCharacterData Char(int id) =>
+                UserDataManager.Instance().OwnedCharacterList.ToArray().FirstOrDefault(c => c != null && c.characterStatusId == id);
+            // spells=<level> above 1: the starters raised to it first, so -sal's recruits join there
+            // (what the PR builds in at a higher level; the user's Celes knew several spells)
+            int raise = int.TryParse(req.GetValueOrDefault("spells", "1"), out var lvl) ? lvl : 1;
+            plan.Add((1, () =>
+            {
+                if (raise > 1)
+                    for (int id = 1; id <= 14; id++)
+                        if (WcEvents.IsRecruited(id) && Char(id) is var st && st != null) WcRecruits.RaiseTo(st, raise);
+                var bad = new List<string>();
+                for (int id = 1; id <= 14; id++)
+                {
+                    if (!WcEvents.IsRecruited(id)) WcEvents.Join(id);
+                    var c = Char(id);
+                    if (c == null) { bad.Add($"{id} missing"); continue; }
+                    var (unearned, missing, _) = SpellState(c);
+                    string line = SpellText(c);
+                    Plugin.L.LogInfo("[wc test]   spells " + line);
+                    if (unearned.Count > 0 || missing.Count > 0) bad.Add(line);
+                }
+                Check(bad.Count == 0, $"spells: every recruit knows exactly its natural magic{(bad.Count > 0 ? ": " + string.Join("; ", bad) : "")}");
+                var terra = Char(1);
+                if (terra != null)
+                {
+                    var natural = WcSpells.Natural(terra, terra.Parameter.ConfirmedLevel());
+                    bool cure = WcSkills.Knows(terra, 31), fire = WcSkills.Knows(terra, 40);
+                    Check(cure == natural.Contains(31) && fire == natural.Contains(40),
+                          $"spells: Terra knows Cure {cure} / Fire {fire}, as the seed's natural magic says ({natural.Contains(31)} / {natural.Contains(40)})");
+                }
+                return true;
+            }));
+            plan.Add((1, () =>
+            {
+                // every character the PR builds spells into (WcSpells.BuiltIn), as an old save has it
+                var udm = UserDataManager.Instance();
+                var mm = MasterManager.Instance;
+                var stones = udm.OwnedMagicStoneList;
+                var rows = LearningRows();
+                var granted = WcSpells.Granted();
+                bool Teaches(Learning l, int spell) => mm.GetData<Content>(l.ContentId)?.TypeValue == spell;
+                foreach (var kv in WcSpells.BuiltIn)
+                {
+                    var c = Char(kv.Key);
+                    if (c == null) { Check(false, $"spells: no character {kv.Key}"); continue; }
+                    var natural = WcSpells.Natural(c, c.Parameter.ConfirmedLevel());
+                    foreach (var id in kv.Value) WcSkills.Teach(c, id);
+                    WcSpells.RepairBuiltIns();
+                    var report = new List<string>();
+                    bool ok = true;
+                    foreach (var id in kv.Value)
+                    {
+                        bool keep = natural.Contains(id) || granted.Contains(id) ||
+                                    rows.Any(l => (l.TypeId == 4 || (l.TypeId == 2 && stones.Contains(l.Value1))) && Teaches(l, id));
+                        bool has = WcSkills.Knows(c, id);
+                        ok &= has == keep;
+                        report.Add($"{id} {has} (keep {keep})");
+                    }
+                    Check(ok, $"spells: an old save's character {kv.Key} with the PR's built-in spells keeps only what the seed could teach: {string.Join(", ", report)}");
+                    // owning an esper that teaches one: the character may have learned it there, so it stays
+                    int spell = kv.Value[0];
+                    int esper = rows.Where(l => l.TypeId == 2 && Teaches(l, spell)).Select(l => l.Value1).FirstOrDefault();
+                    if (esper > 0 && !stones.Contains(esper) && !natural.Contains(spell) && !granted.Contains(spell))
+                    {
+                        WcSkills.Teach(c, spell);
+                        stones.Add(esper);
+                        WcSpells.RepairBuiltIns();
+                        Check(WcSkills.Knows(c, spell), $"spells: character {kv.Key}'s {spell} kept while esper {esper} (teaches it) is owned");
+                        stones.Remove(esper);
+                        WcSpells.RepairBuiltIns();
+                        bool gear = rows.Any(l => l.TypeId == 4 && Teaches(l, spell));
+                        Check(WcSkills.Knows(c, spell) == gear, $"spells: without that esper, character {kv.Key}'s {spell} goes again ({WcSkills.Knows(c, spell)})");
+                    }
+                }
+                return true;
+            }));
+            return plan;
+        }
+
         // the option batch of 2026-11-06 (needs a seed with -sal -srr/-slr/-sdr -rnl -eer -eu -stra
         // -dda -ari -scan -frw): each in place, as the game would call it
         static List<(float, Func<bool>)> FeaturePlan()
@@ -3747,6 +3861,105 @@ if (name == "enemy_ai")
                     (2, Run("sc_e_0128_1")), (2, Expect(true)), (5, NotBlack()), (1, entrance), (0, Warp(350, 1)), (4, plain),
                 };
             }
+            if (name == "narshe_moogle_defense" && req.ContainsKey("mogparty"))
+            {
+                // The user's Deck, 2026-11-19 ("i lost mog after doing the moogle defense check"):
+                // Mog in a full active party, the defense accepted at Arvis's, then straight to the
+                // Marshal's end (sc_e_0018_2: the six soldiers and the Marshal's fight skipped).
+                // Party 1 must be the original four throughout, Mog in no second defense party,
+                // and the party the one-party picker opens on (its screen stood in for) and keeps
+                // is the original one, Mog selectable, with no guest moogle left anywhere.
+                int F1(int i) => WcEvents.Flag(DataStorage.Category.kScenarioFlag1, i);
+                List<int> Statuses(IEnumerable<Last.Data.User.Corps> corps)
+                {
+                    var owned = UserDataManager.Instance()?.OwnedCharacterList;
+                    var byId = new Dictionary<int, int>();
+                    if (owned != null) foreach (var o in owned) if (o != null) byId[o.Id] = o.characterStatusId;
+                    return corps?.Where(x => x != null).Select(x => byId.TryGetValue(x.CharacterId, out var s) ? s : -x.CharacterId).ToList() ?? new List<int>();
+                }
+                List<int> Slot(UserDataManager.CorpsSlot s)
+                {
+                    var ud = UserDataManager.Instance();
+                    if (ud?.corpsSlots == null || !ud.corpsSlots.ContainsKey((int)s)) return new List<int>();
+                    return Statuses(ud.corpsSlots[(int)s].ToArray());
+                }
+                List<int> Active() => UserDataManager.Instance()?.GetPartyMemberData()?.ToArray().Select(p => p.characterStatusId).ToList() ?? new List<int>();
+                string Main()
+                {
+                    try { return SceneManager.Instance?.GetCurrentSubSceneManager()?.TryCast<SubSceneManagerMainGame>()?.GetCurrentState().ToString() ?? "?"; }
+                    catch (Exception e) { return "? " + e.Message; }
+                }
+                Last.Data.User.OwnedCharacterData MogData() =>
+                    UserDataManager.Instance()?.OwnedCharacterList?.ToArray().FirstOrDefault(o => o != null && o.characterStatusId == 11);
+                var original = new List<int>();
+                int waits = 0;
+                bool ended = false;
+                Func<bool> inDefense = null, afterEnd = null;
+                inDefense = () =>
+                {
+                    bool ready = UserDataManager.Instance()?.CurrentMapId == 318 && F1(13) == 1 && !WcEvents.EventBusy() && Main() == "Player";
+                    if (!ready && ++waits < 90) { plan.Insert(0, (1f, inDefense)); return true; }
+                    Check(ready, $"mogparty: the defense started (map {UserDataManager.Instance()?.CurrentMapId}, ScenarioFlag1 13 {F1(13)}, main {Main()})");
+                    var p1 = Active();
+                    var p2 = Slot(UserDataManager.CorpsSlot.Slot2);
+                    var p3 = Slot(UserDataManager.CorpsSlot.Slot3);
+                    Plugin.L.LogInfo($"[wc test] mogparty: defense parties [{string.Join(" ", p1)}] / [{string.Join(" ", p2)}] / [{string.Join(" ", p3)}] (active slot {UserDataManager.Instance()?.CorpsSlotIndex})");
+                    Check(p1.SequenceEqual(original), $"mogparty: party 1 is the original party [{string.Join(" ", original)}]: [{string.Join(" ", p1)}]");
+                    Check(!p2.Contains(11) && !p3.Contains(11), $"mogparty: Mog is in party 1 only (party 2 [{string.Join(" ", p2)}], party 3 [{string.Join(" ", p3)}])");
+                    Check(p2.SequenceEqual(new[] { 21, 22, 23, 24 }), $"mogparty: guest 21 takes Mog's place in party 2: [{string.Join(" ", p2)}]");
+                    WcEvents.PickRecruit = original[0];                        // the picker's stand-in keeps the party
+                    WcEvents.PickOpenedOn = null;
+                    waits = 0;
+                    return true;
+                };
+                afterEnd = () =>
+                {
+                    bool done = F4(flag) == 1 && !WcEvents.EventBusy() && Main() == "Player";
+                    if (!done && ++waits < 60) { plan.Insert(0, (1f, afterEnd)); return true; }
+                    ended = true;
+                    var owned = UserDataManager.Instance()?.OwnedCharacterList?.ToArray().Where(o => o != null).Select(o => o.characterStatusId).ToList() ?? new List<int>();
+                    var slots = new[] { UserDataManager.CorpsSlot.Slot1, UserDataManager.CorpsSlot.Slot2, UserDataManager.CorpsSlot.Slot3 }.SelectMany(Slot).ToList();
+                    var mog = MogData();
+                    var now = Active();
+                    Plugin.L.LogInfo($"[wc test] mogparty: after the end: party [{string.Join(" ", now)}], at the picker [{string.Join(" ", WcEvents.PickOpenedOn ?? new List<int>())}] " +
+                                     $"(Mog selectable there {WcEvents.PickMogSelectable}), owned [{string.Join(" ", owned)}], slots [{string.Join(" ", slots)}], map {UserDataManager.Instance()?.CurrentMapId}");
+                    Check(done, $"mogparty: the check rewarded and the field free (check flag {F4(flag)}, busy {WcEvents.EventBusy()}, main {Main()})");
+                    Check(WcEvents.PickOpenedOn != null && WcEvents.PickOpenedOn.SequenceEqual(original),
+                          $"mogparty: the one-party picker opens on the original party [{string.Join(" ", original)}]: [{string.Join(" ", WcEvents.PickOpenedOn ?? new List<int>())}]");
+                    Check(WcEvents.PickMogSelectable, "mogparty: Mog is selectable when the picker opens");
+                    Check(now.SequenceEqual(original), $"mogparty: the party after the defense is the original party: [{string.Join(" ", now)}]");
+                    Check(mog != null && mog.IsEnableCorps, $"mogparty: Mog owned and selectable afterwards ({(mog == null ? "missing" : "selectable " + mog.IsEnableCorps)})");
+                    Check(!owned.Any(s => s >= 19 && s <= 28) && !slots.Any(s => s >= 19 && s <= 28),
+                          $"mogparty: no guest moogle owned or in a party (owned [{string.Join(" ", owned)}], slots [{string.Join(" ", slots)}])");
+                    return true;
+                };
+                return new List<(float, Func<bool>)>
+                {
+                    (0, () =>
+                    {
+                        DataStorage.Instance.Set(DataStorage.Category.kScenarioFlag2, 41, 0);
+                        DataStorage.Instance.Set(DataStorage.Category.kScenarioFlag2, 97, 0);
+                        Recruit(11)();
+                        if (!Active().Contains(11)) WcEvents.Join(11);
+                        return true;
+                    }),
+                    (2, () =>
+                    {
+                        original = Active();
+                        Plugin.L.LogInfo($"[wc test] mogparty: party [{string.Join(" ", original)}], Mog recruited {WcEvents.IsRecruited(11)}");
+                        Check(original.Count == 4 && original.Contains(11), $"mogparty: a full party with Mog: [{string.Join(" ", original)}]");
+                        WcEvents.TestAnswers.Clear();
+                        WcEvents.TestAnswers.Enqueue(0);                       // (Yes.)
+                        return original.Count > 0;
+                    }),
+                    (0, Warp(17, 18)),
+                    (3, () => WcEvents.RunScript("sc_e_0017_5")),
+                    (3, inDefense),
+                    (0, () => WcEvents.RunScript("sc_e_0018_2")),
+                    (3, afterEnd),
+                    (0, () => { Check(ended, "mogparty: reached the end"); return true; }),
+                };
+            }
             if (name == "narshe_moogle_defense" && req.ContainsKey("play"))
             {
                 // The moogle defense played from Arvis's house, as SNES WC: Mog joined (the gate),
@@ -4500,6 +4713,33 @@ if (name == "enemy_ai")
                                 Check(tekOk, $"MagiTek dealt to [{string.Join(" ", seed.Magitek)}]: {string.Join("; ", rep)}");
                             }
                             var terra = udm.OwnedCharacterList.ToArray().FirstOrDefault(c => c != null && c.characterStatusId == 1);
+                            // only the seed's starters are recruited: the opening's Terra stays owned
+                            // (unselectable) when she isn't one, and the roster repair once flagged her
+                            // (seed gaadl68ix7j4, start party [5 3 12])
+                            var recruited = Enumerable.Range(1, 14).Where(WcEvents.IsRecruited).ToList();
+                            Check(recruited.OrderBy(i => i).SequenceEqual(seed.StartCharacters.OrderBy(i => i)),
+                                  $"recruited at the start = the seed's starters: [{string.Join(" ", recruited)}]" +
+                                  (terra != null ? $" (Terra owned, selectable {terra.IsEnableCorps})" : ""));
+                            // the starters know exactly the seed's natural magic for their level (WcSpells:
+                            // the PR builds Cure / Fire into Terra whoever learns her list)
+                            var spellsBad = new List<string>();
+                            foreach (var c in udm.OwnedCharacterList)
+                            {
+                                if (c == null || c.characterStatusId < 1 || c.characterStatusId > 14 || !WcEvents.IsRecruited(c.characterStatusId)) continue;
+                                var (unearned, missing, _) = SpellState(c);
+                                Plugin.L.LogInfo("[wc test]   start spells " + SpellText(c));
+                                if (unearned.Count > 0 || missing.Count > 0) spellsBad.Add(SpellText(c));
+                            }
+                            Check(spellsBad.Count == 0, $"the starters know exactly their natural magic{(spellsBad.Count > 0 ? ": " + string.Join("; ", spellsBad) : "")}");
+                            if (terra != null && !seed.StartCharacters.Contains(1))
+                            {
+                                // a save the old repair touched: the flag goes again, once the field is idle
+                                DataStorage.Instance.Set(DataStorage.Category.kScenarioFlag4, WcEvents.Recruited + 1, 1);
+                                bool busy = WcEvents.EventBusy();
+                                WcEvents.RepairRecruitedFlagsFromRoster();
+                                Check(!WcEvents.IsRecruited(1), $"the opening's Terra, flagged by an old repair, is un-flagged (event busy {busy})");
+                                DataStorage.Instance.Set(DataStorage.Category.kScenarioFlag4, WcEvents.Recruited + 1, 0);
+                            }
                             if (terra != null && WcEvents.IsRecruited(1))
                             {
                                 bool Has(int id) => WcSkills.Knows(terra, id);
@@ -4658,6 +4898,13 @@ if (name == "enemy_ai")
                             if (req.GetValueOrDefault("atma", "0") == "1")
                             {
                                 plan = AtmaPlan();
+                                stepAt = now;
+                                step = Step.Plan;
+                                return;
+                            }
+                            if (req.GetValueOrDefault("spells", "0") != "0")
+                            {
+                                plan = SpellsPlan();
                                 stepAt = now;
                                 step = Step.Plan;
                                 return;
