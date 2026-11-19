@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using WorldsCollide.PR;
+using PrKit.Ff6;
 
 // A battle for the interpreter to look at: 3 characters, monsters in slots, statuses, HP, variables,
 // what hit whom. Deterministic random numbers.

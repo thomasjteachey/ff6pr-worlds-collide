@@ -1,5 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- Offline tests for the plugin's FF6 AI interpreter (WcPlugin/SnesAi.cs) on WC's real monster
+  <!-- Offline tests for the plugin's FF6 AI interpreter (the kit's PrKit/Ff6/SnesAi.cs) on WC's real monster
        scripts. No game. Run from this folder: dotnet run -c Release [wc_ai_bytes.json] -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -9,7 +9,13 @@
     <Nullable>disable</Nullable>
     <ImplicitUsings>disable</ImplicitUsings>
   </PropertyGroup>
+  <!-- the interpreter is the modding kit's: PrKit beside this folder (the project), else in the
+       kit/ submodule (ff6pr-worlds-collide) -->
+  <PropertyGroup>
+    <KitFf6>$(MSBuildThisFileDirectory)..\PrKit\Ff6\</KitFf6>
+    <KitFf6 Condition="!Exists('$(KitFf6)SnesAi.cs')">$(MSBuildThisFileDirectory)..\..\..\kit\pr\plugin\PrKit\Ff6\</KitFf6>
+  </PropertyGroup>
   <ItemGroup>
-    <Compile Include="..\WcPlugin\SnesAi.cs" />
+    <Compile Include="$(KitFf6)SnesAi.cs" />
   </ItemGroup>
 </Project>

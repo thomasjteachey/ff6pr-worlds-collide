@@ -283,7 +283,7 @@ def find_game(start):
 
 
 def magicite_dir(game, data):
-    """Magicite's import directory (BepInEx/config/silvris.magicite.cfg, as plugin/Shared/MagiciteDir.cs)."""
+    """Magicite's import directory (BepInEx/config/silvris.magicite.cfg, as the kit's plugin/PrKit/MagiciteDir.cs)."""
     value = "%StreamingAssets%/Magicite"
     try:
         with open(os.path.join(game, MAGICITE_CFG), encoding="utf-8") as f:

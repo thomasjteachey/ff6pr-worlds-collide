@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Last.Battle;
+using PrKit.Ff6;   // SnesAi: the kit's FF6 AI interpreter
 
 namespace WorldsCollide.PR
 {

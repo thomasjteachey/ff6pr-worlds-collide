@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using Ff6Mod.Shared;
+using PrKit;
 using Il2CppSystem.Input;
 using UnityEngine;
 using Device = Il2CppSystem.Input.KeyConfig.KeyValue.InputDeviceType;

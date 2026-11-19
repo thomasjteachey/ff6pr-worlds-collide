@@ -25,7 +25,6 @@ WC_URL = "https://github.com/ff6wc/WorldsCollide.git"
 
 PARTS = [
     ("pr/plugin/WcPlugin", ["**"]),
-    ("pr/plugin/Shared", ["**"]),
     ("pr/plugin/Wc.Tests", ["**"]),
     ("pr/plugin/WcAi.Tests", ["**"]),
     ("pr/tools", R.WC_TOOLS + ["wc_publish.py"]),

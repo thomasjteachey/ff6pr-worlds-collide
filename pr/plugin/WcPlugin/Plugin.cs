@@ -3,7 +3,7 @@ using System.IO;
 using BepInEx;
 using BepInEx.Logging;
 using BepInEx.Unity.IL2CPP;
-using Ff6Mod.Shared;
+using PrKit;
 using HarmonyLib;
 using UnityEngine;
 
@@ -20,6 +20,7 @@ namespace WorldsCollide.PR
         internal static ManualLogSource L;
         internal static string Folder;
         internal static bool WcMode;
+        internal static FeatureHost Features;   // the kit's features (SingleGamepad)
         internal static WcFlagSet FlagDefs;
 
         public override void Load()
@@ -35,8 +36,7 @@ namespace WorldsCollide.PR
             }
             Folder = Path.GetDirectoryName(typeof(Plugin).Assembly.Location) ?? ".";
             WcDataDir.Init();   // generator, baseline, seeds: in BepInEx/WorldsCollide, not under plugins (WcDataDir.cs)
-            LiveData.Info = s => L.LogInfo(s);
-            LiveData.Warn = s => L.LogWarning(s);
+            Kit.Init(Log, "Worlds Collide");   // the modding kit (plugin/PrKit): LiveData, MagiciteDir, SingleGamepad
             WcGenerator.PythonSetting = Config.Bind("Generator", "Python", "",
                 "python.exe for the seed generator. Empty: the bundled one (generator/python), else ProjectDir's pr/.venv.").Value.Trim();
             WcGenerator.ScriptSetting = Config.Bind("Generator", "Script", "",
@@ -44,9 +44,6 @@ namespace WorldsCollide.PR
             WcGenerator.ProjectDir = Config.Bind("Generator", "ProjectDir", "",
                 "The ff6-mod project folder, for a development PC without the bundle.").Value.Trim();
             WcSeeds.Keep = Config.Bind("Seeds", "Keep", 30, "How many generated seeds to keep (seeds that saves use are always kept).").Value;
-            PadFix.Enabled = Config.Bind("Input", "SingleGamepad", true,
-                "When the game sees the same controller as more than one gamepad (Steam Deck / Proton: every press counted twice), " +
-                "keep one and disable the others. Every mod mode.").Value;
             WcEvents.SkipStory = Config.Bind("Story", "SkipDialogue", true,
                 "In a Worlds Collide game, skip the story's lines in event scenes, as WC does (townsfolk, menus' questions, " +
                 "rewards and WC's own messages stay).").Value;
@@ -74,6 +71,11 @@ namespace WorldsCollide.PR
             Lap("flags");
             FlagDefs = defs;
             var harmony = new Harmony(Guid);
+            // one controller, one input on the Steam Deck ([Input] SingleGamepad; was WC's PadFix)
+            // (WC's self-tests are its own: WcTest, -WcTest; the kit's prkit_test requests aren't WC's)
+            Features = new FeatureHost(Config, harmony) { TestRuns = false };
+            Features.Add(new SingleGamepad());
+            Features.ApplyAll();
             WcInput.Patch(harmony);
             InputDiag.Patch(harmony);
             Lap("input");
@@ -157,7 +159,7 @@ namespace WorldsCollide.PR
             try
             {
                 long t = WcPerf.Now();
-                PadFix.Update(); t = WcPerf.Lap(0, "padfix", t);
+                Plugin.Features?.Update(); t = WcPerf.Lap(0, "kit", t);
                 InputDiag.Update(); t = WcPerf.Lap(1, "inputlog", t);
                 WcSeeds.Update(); t = WcPerf.Lap(2, "seeds", t);
                 if (++sceneCheck % 10 == 1) onTitle = GameScene.OnTitle();

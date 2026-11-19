@@ -3,9 +3,10 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
-using Ff6Mod.Shared;
+using PrKit;
 using HarmonyLib;
 using Last.Management;
+using PrKit.Ff6;   // SnesAi: the kit's FF6 AI interpreter
 
 namespace WorldsCollide.PR
 {

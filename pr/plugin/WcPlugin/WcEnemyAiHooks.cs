@@ -6,6 +6,7 @@ using Il2CppInterop.Runtime.InteropTypes.Arrays;
 using Last.Battle;
 using Last.Interpreter;
 using UnityEngine;
+using PrKit.Ff6;   // SnesAi: the kit's FF6 AI interpreter
 
 namespace WorldsCollide.PR
 {

@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using Ff6Mod.Shared;
+using PrKit;
 using Last.Battle;
 using Last.Data.Master;
 using Last.Data.User;
@@ -11,6 +11,7 @@ using Last.Management;
 using Last.Map;
 using UnityEngine;
 using Object = UnityEngine.Object;
+using PrKit.Ff6;   // SnesAi: the kit's FF6 AI interpreter
 
 namespace WorldsCollide.PR
 {
@@ -4284,11 +4285,7 @@ if (name == "enemy_ai")
         }
 
         // silent run: the game's sound engine (SEAD) and Unity's audio at volume 0, every frame
-        static void Mute()
-        {
-            try { SEAD.API.seadSetMasterVolume(0f, 0f); } catch { }
-            try { AudioListener.volume = 0f; } catch { }
-        }
+        static void Mute() => TestRun.Mute();   // the modding kit's
 
         static bool OnTitle() =>
             Object.FindObjectOfType<Last.UI.KeyInput.TitleWindowController>() != null ||
@@ -5155,7 +5152,7 @@ if (name == "enemy_ai")
                 Check(WcScreen.Open, "title menu: choosing the entry opens the screen");
                 var nav = WcScreen.NavTest();
                 Check(nav == "B:list p0 Down:list p1 A:rows p1 RB:rows p2 B:list p2 B:closed list p2", "controller flow: " + nav);
-                Check(true, "devices: " + (PadFix.Check() is var devs && devs.Length > 0 ? devs : "none"));
+                Check(true, "devices: " + ((Plugin.Features?.Get<SingleGamepad>()?.Scan() ?? "") is var devs && devs.Length > 0 ? devs : "none"));
                 var pad = WcInput.PadCheck();
                 Check(!pad.Contains("FAILED"), "input: " + pad);
                 WcScreen.Show(false);
