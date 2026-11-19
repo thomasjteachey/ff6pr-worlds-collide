@@ -397,6 +397,7 @@ namespace WorldsCollide.PR
             {
                 var files = SwapFiles(s);
                 string data;
+                if (s != null) RepairDiceAccuracy(s.Dir);
                 if (s != null) data = LiveData.Apply(s.Dir).ToString();
                 else
                 {
@@ -417,6 +418,42 @@ namespace WorldsCollide.PR
                 Plugin.L.LogError($"[wc] apply failed: {e}");
                 return e.Message;
             }
+        }
+
+        // Seeds made by 0.6.3-0.6.5 copied the SNES hit-rate byte onto every weapon, but Dice and
+        // Fixed Dice keep their number of dice there (2, 3), and the PR rolls a physical hit
+        // against it (CalcExecuteFF6.PhysicalExecution): they hit about 2% of the time. Their PR
+        // accuracy is 100, as the generator writes them since 0.6.6. The seed's own weapon table
+        // is fixed in place, once; accuracy isn't saved, so saves are unaffected.
+        static readonly int[] DiceWeapons = { 83, 84 };   // PR ids of Dice, Fixed Dice (SNES 0x51, 0x52)
+
+        static void RepairDiceAccuracy(string seedDir)
+        {
+            var path = Path.Combine(seedDir, LiveData.MasterDir, "weapon.csv");
+            if (!File.Exists(path)) return;
+            try
+            {
+                var text = File.ReadAllText(path);
+                var newline = text.Contains("\r\n") ? "\r\n" : "\n";
+                var lines = text.Split(new[] { newline }, StringSplitOptions.None);
+                if (lines.Length == 0) return;
+                int col = Array.IndexOf(lines[0].Split(','), "accuracy_rate");
+                if (col < 0) return;
+                var fixedIds = new List<int>();
+                for (int i = 1; i < lines.Length; i++)
+                {
+                    var cells = lines[i].Split(',');
+                    if (cells.Length <= col || !int.TryParse(cells[0], out int id) || !DiceWeapons.Contains(id)) continue;
+                    if (!int.TryParse(cells[col], out int acc) || acc >= 10) continue;
+                    cells[col] = "100";
+                    lines[i] = string.Join(",", cells);
+                    fixedIds.Add(id);
+                }
+                if (fixedIds.Count == 0) return;
+                File.WriteAllText(path, string.Join(newline, lines));
+                Plugin.L.LogInfo($"[wc] seed weapon table: dice accuracy back to 100 ({string.Join(", ", fixedIds)})");
+            }
+            catch (Exception e) { Plugin.L.LogWarning($"[wc] dice accuracy repair skipped: {e.Message}"); }
         }
 
         // copy the seed's chest maps / AI scripts into the Magicite folder, and the baseline

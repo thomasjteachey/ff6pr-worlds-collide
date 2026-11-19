@@ -43,6 +43,10 @@ PARTS = [
     ("mods", ["worlds-collide-presets.json"]),
 ]
 SKIP_DIRS = {"bin", "obj", "__pycache__", ".vs", ".git"}
+# Other mods' own tools stay out of WC's repository (the user, 2026-11-19: "make sure WC and BNW
+# are different repositories"): Brave New World's and Battle Options' (which has its own repo).
+OTHER_MODS = {"port_bnw.py", "bnw_plugin_data.py", "probe_check.py", "probe_headless.ps1",
+              "battle_options_test.py", "bo_publish.py"}
 SKIP_EXT = (".sfc", ".smc", ".pyc", ".bin", ".dll", ".exe", ".pdb", ".zip", ".log")
 
 README = """# Worlds Collide for FINAL FANTASY VI Pixel Remaster
@@ -119,7 +123,8 @@ def files():
         if patterns != ["**"]:      # files of that folder itself
             for f in sorted(os.listdir(root)):
                 p = os.path.join(root, f)
-                if os.path.isfile(p) and not f.lower().endswith(SKIP_EXT) and any(fnmatch.fnmatch(f, x) for x in patterns):
+                if (os.path.isfile(p) and not f.lower().endswith(SKIP_EXT) and f not in OTHER_MODS
+                        and any(fnmatch.fnmatch(f, x) for x in patterns)):
                     yield p, f"{src}/{f}"
             continue
         for r, dirs, fs in os.walk(root):

@@ -200,3 +200,38 @@ def party_formation():
         if p not in out or p == f + 1:
             out[p] = f
     return out
+
+
+def equipment_content_ids():
+    """{("weapon" | "armor", PR row id): PR content id} for every weapon and armor."""
+    out = {}
+    for r in P.Table("content"):
+        if r["type_id"] in ("2", "3"):
+            out[("weapon" if r["type_id"] == "2" else "armor", int(r["type_value"]))] = int(r["id"])
+    return out
+
+
+def equipment(rom):
+    """(item, PR kind, PR id) for every SNES weapon/armor slot of a ROM (an ff6snes.Rom)."""
+    import ff6snes as S
+    out = []
+    for it in S.items(rom):
+        m = item(it.id)
+        if m and m[0] in ("weapon", "armor") and 1 <= (it.raw[0] & 7) <= 5:  # still equipment in this ROM
+            out.append((it, m[0], m[1]))
+    return out
+
+
+def select_equipment(equip, rule, content):
+    """The equipment matching a rule: ("bit", byte, bit) of the SNES item data, or ("special", n...)
+    for weapons whose special effect (byte 27, high nibble) is one of n. Each as
+    {"item_id": PR id, "content_id": PR content id, "name": SNES name}."""
+    kind = rule[0]
+    picked = []
+    for it, k, pid in equip:
+        raw = it.raw
+        if kind == "bit" and raw[rule[1]] >> rule[2] & 1:
+            picked.append((it, k, pid))
+        elif kind == "special" and k == "weapon" and (raw[27] >> 4) in rule[1:]:
+            picked.append((it, k, pid))
+    return [{"item_id": pid, "content_id": content.get((k, pid), 0), "name": it.name.strip()} for it, k, pid in picked]

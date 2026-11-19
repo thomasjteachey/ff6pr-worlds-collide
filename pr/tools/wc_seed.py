@@ -482,10 +482,9 @@ def main():
                                             if d[at + size * e + 10] != van_bonus[e]]}
             # the weapons that allow Runic / Bushido (SNES weapon byte 19 bit 7 / bit 1; -stra: all):
             # PR weapon content ids, vanilla's and the seed's (the plugin sets the PR's two lists)
-            import bnw_plugin_data as BD
             rom_wc = S.Rom(rom)
             van_rom = S.Rom(P.VANILLA_ROM)
-            info["command_weapons"] = {cmd: {k: [x["content_id"] for x in BD._select(BD._equipment(r), ("bit", 19, bit), BD._content_ids())]
+            info["command_weapons"] = {cmd: {k: [x["content_id"] for x in M.select_equipment(M.equipment(r), ("bit", 19, bit), M.equipment_content_ids())]
                                              for k, r in (("vanilla", van_rom), ("seed", rom_wc))}
                                        for cmd, bit in (("runic", 7), ("bushido", 1))}
             # WC's -ari (the auction's normal items random): its GetItem item in each sale (Cherub Down,

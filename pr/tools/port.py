@@ -186,6 +186,11 @@ def port_sell(tables):
     return changed
 
 
+def is_dice(item):
+    """A dice weapon (special effect 9): its hit-rate byte holds the number of dice."""
+    return item.type == "weapon" and item.raw[27] >> 4 == 9
+
+
 def port_items(van, bnw, tables, jobs):
     changed = {"weapon": set(), "armor": set(), "item": set()}
     skipped = []
@@ -200,7 +205,10 @@ def port_items(van, bnw, tables, jobs):
         # their 0..255 hit-rate byte (normally 120..255). This is baseline parity, not
         # only a mod delta, so copy it even when WC left the rest of a weapon unchanged.
         # Without it, physical attacks miss far more often than they do in SNES WC.
-        if table == "weapon":
+        # Not for dice (special effect 9, Dice and Fixed Dice): their byte is the number of
+        # dice (vanilla and BNW c2.asm DiceHelp: "hitrate (contains # of dice)"), 2 and 3, so
+        # they keep the PR's own accuracy.
+        if table == "weapon" and not is_dice(ib):
             setv(row, "accuracy_rate", ib.hit_or_mdef, ch)
         if iv.raw == ib.raw:
             continue

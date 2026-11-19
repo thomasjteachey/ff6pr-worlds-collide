@@ -248,12 +248,13 @@ class WcXref(unittest.TestCase):
 
     def test_weapon_accuracy(self):
         """Every weapon keeps the SNES game's hit rate. The PR baseline gives every weapon
-        100 accuracy, which made WC physical attacks miss much more often against Evade."""
+        100 accuracy, which made WC physical attacks miss much more often against Evade.
+        Dice and Fixed Dice keep the PR's: their byte is the number of dice (2, 3)."""
         weapons = self.table("weapon")
         bad = []
         for item in SN.items(self.rom):
             mapped = M.item(item.id)
-            if not mapped or mapped[0] != "weapon":
+            if not mapped or mapped[0] != "weapon" or item.raw[27] >> 4 == 9:
                 continue
             got = int(weapons[mapped[1]]["accuracy_rate"])
             if got != item.hit_or_mdef:

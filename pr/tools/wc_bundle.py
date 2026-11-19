@@ -57,6 +57,8 @@ EXE_SKIP = {"pythonw.exe"}
 # ones build() runs in the bundle; generator_tools() adds everything they import or start, so dev
 # tools (the game harness, the publish and SNES test scripts) stay out of the player zip
 ENTRY_TOOLS = ["wc_seed", "wc_gamedata", "pr_script", "port_chests", "wc_live"]
+# Brave New World's own exports: reachable only through profiles.BraveNewWorld, never run by WC
+OTHER_MODS = {"bnw_plugin_data", "port_bnw"}
 
 
 def copytree(src, dst, skip_dirs=(), skip_files=()):
@@ -110,7 +112,7 @@ def generator_tools():
                 names = [n.value[:-3]]
             else:
                 continue
-            todo += [m.split(".")[0] for m in names if m.split(".")[0] in local]
+            todo += [m.split(".")[0] for m in names if m.split(".")[0] in local and m.split(".")[0] not in OTHER_MODS]
     return sorted(seen)
 
 
