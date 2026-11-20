@@ -2825,6 +2825,43 @@ class WcEncounterRates(unittest.TestCase):
         self.assertEqual(self.table("WobZoneCode"), want)
         self.assertIn(f"Zone10Forest = {forest};", self.src)
 
+    def test_kit_rules_agree(self):
+        """The kit's rules read from the vanilla ROM (tools/port_encounter_rates.py, what BNW's port exports
+        for its own ROM) give WC's tables: the same PR sets off normal, and on every PR world-map cell that
+        counts steps the same code from the zone and the ground's terrain group as WC's zone table with its
+        zone 10 forest; the vanilla roll and party odds."""
+        import port_encounter_rates as R
+        import prdata as P
+        r = R.rules(self.rom, self.rom, "vanilla", log=lambda *a: None)
+        self.assertEqual({int(k): v for k, v in r["set_codes"].items()}, self.table("SetCode"))
+        self.assertEqual((r["roll"], r["party_odds"]), ({"add": 0, "range": 256}, {"world": R.VANILLA_ODDS, "map": R.VANILLA_ODDS}))
+        wob, forest = self.table("WobZoneCode"), int(re.search(r"Zone10Forest = (\d+);", self.src).group(1))
+        areas = {int(a["encount_area_grid_number"]): a for a in P.Table("encount_area")}
+        steps = {int(f["id"]): int(f["subtract_steps"]) for f in P.Table("foot_information")}
+        cells, bad = 0, []
+        for w, n in R.PR_WORLDS.items():
+            d = R._map_dir(n)
+            if not os.path.exists(os.path.join(d, "encount_grid.json")):
+                self.skipTest("no extracted PR world maps")
+            grid = json.load(open(os.path.join(d, "encount_grid.json"), encoding="utf-8"))["cells"]
+            ground = json.load(open(os.path.join(d, "attribute.json"), encoding="utf-8"))["layers"][0]["data"]
+            for i, c in enumerate(grid):
+                ft, row = ground[i], areas.get(int(c))
+                if row is None or not 1 <= ft <= 32 or not steps.get(ft):
+                    continue
+                s = int(row[f"foot{ft:02d}_monster_set"])
+                if s <= 128:   # sets 1-128: no parties
+                    continue
+                z = (i // 256 // 32) * 8 + (i % 256) // 32
+                g = int(r["foot_group"][str(w)].get(str(ft), 0))
+                kit = (r["world_zones"][str(w)][z] >> (2 * (3 - g))) & 3
+                wc = (0 if z == 10 and s == forest else wob.get(z, 0)) if w == 1 else 0
+                cells += 1
+                if kit != wc:
+                    bad.append((w, z, ft, s, kit, wc))
+        self.assertGreater(cells, 20000)
+        self.assertEqual(bad[:10], [])
+
     def test_means_in_the_check(self):
         def mean(r):
             alive, dg, m, n = 1.0, 0, 0.0, 0
