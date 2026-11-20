@@ -16,7 +16,7 @@ namespace WorldsCollide.PR
     public class Plugin : BasePlugin
     {
         public const string Guid = "ff6mod.worldscollide";
-        public const string Version = "0.6.6";
+        public const string Version = "0.6.7";
         internal static ManualLogSource L;
         internal static string Folder;
         internal static bool WcMode;
@@ -71,6 +71,12 @@ namespace WorldsCollide.PR
             Lap("flags");
             FlagDefs = defs;
             var harmony = new Harmony(Guid);
+            // WC's own saves, apart from vanilla's (the user, 2026-11-19), synced by Steam Cloud (PrKit/ModSaves.cs)
+            if (WcMode)
+            {
+                ModSaves.IsTestRun = () => WcTestState.Running || TestRun.Running;
+                ModSaves.Apply(harmony, "WorldsCollide");
+            }
             // one controller, one input on the Steam Deck ([Input] SingleGamepad; was WC's PadFix)
             // (WC's self-tests are its own: WcTest, -WcTest; the kit's prkit_test requests aren't WC's)
             Features = new FeatureHost(Config, harmony) { TestRuns = false };

@@ -54,7 +54,7 @@ namespace WorldsCollide.PR
             // WC's Coliseum by wagered item content id: (vanilla party, vanilla reward, WC party or 0, WC reward, hidden, WC monster)
             public Dictionary<int, int[]> Coliseum = new Dictionary<int, int[]>();
             public AbilityScaling Scaling;   // -ase / -asr: WC's spell tiers, picked as monsters act (WcAbilityScaling)
-            public SnesAiData SnesAi;        // every monster's WC script, run by WcEnemyAi
+            public SnesAiData SnesAi;        // every monster's WC script (the kit's SnesAiData), run by WcEnemyAi
             public int Rows;
             public double Seconds;
         }
@@ -67,26 +67,6 @@ namespace WorldsCollide.PR
             public double Factor;
             public bool Random;
             public int[][][] Tiers = Array.Empty<int[][]>();
-        }
-
-        // the seed's snes_ai (tools/port_ai.py snes_ai_data): SNES monster id -> its WC AI script (main and
-        // counter sections), its Battle / special abilities; SNES attack index -> PR ability; battle lines
-        public sealed class SnesAiData
-        {
-            public Dictionary<int, byte[]> Scripts = new Dictionary<int, byte[]>();
-            public Dictionary<int, int> Battle = new Dictionary<int, int>(), Special = new Dictionary<int, int>();
-            public int[] Attacks = Array.Empty<int>(), Items = Array.Empty<int>();
-            public Dictionary<int, string[]> Messages = new Dictionary<int, string[]>();      // own text (no PR line)
-            public Dictionary<int, string[]> MessageKeys = new Dictionary<int, string[]>();   // the PR's own lines
-            public HashSet<int> Plugin = new HashSet<int>();   // SNES ids whose turns the plugin runs (the shim)
-            public Dictionary<int, int[]> PartySlots = new Dictionary<int, int[]>();   // party -> SNES slot of cells 1-9 (-1 none)
-            public Dictionary<int, int> Copies = new Dictionary<int, int>();   // PR monster copy -> the SNES monster it stands for
-            // WC's items and commands as PR abilities (port_ai.item_abilities): SNES item -> ability, command -> ability
-            public Dictionary<int, int> ItemUse = new Dictionary<int, int>(), Throws = new Dictionary<int, int>(), Commands = new Dictionary<int, int>();
-            // party -> each SNES slot's member: {SNES id, cell, shown at start (1/0), the PR party lists it (1/0)}, or null
-            public Dictionary<int, int[][]> PartyMembers = new Dictionary<int, int[][]>();
-            public Dictionary<int, int> Weak = new Dictionary<int, int>();          // SNES monster -> weak element bits
-            public Dictionary<int, int> Formations = new Dictionary<int, int>();    // PR party -> SNES formation
         }
 
         internal static int Keep = 30;
@@ -300,42 +280,7 @@ namespace WorldsCollide.PR
                             .ToArray(),
                     };
                 if (r.TryGetProperty("snes_ai", out var sai) && sai.ValueKind == JsonValueKind.Object)
-                {
-                    var d = new SnesAiData();
-                    static byte[] Hex(string h)
-                    {
-                        var bytes = new byte[h.Length / 2];
-                        for (int i = 0; i < bytes.Length; i++) bytes[i] = Convert.ToByte(h.Substring(2 * i, 2), 16);
-                        return bytes;
-                    }
-                    foreach (var p in sai.GetProperty("scripts").EnumerateObject()) d.Scripts[int.Parse(p.Name)] = Hex(p.Value.GetString() ?? "");
-                    foreach (var p in sai.GetProperty("battle").EnumerateObject()) d.Battle[int.Parse(p.Name)] = p.Value.GetInt32();
-                    foreach (var p in sai.GetProperty("special").EnumerateObject()) d.Special[int.Parse(p.Name)] = p.Value.GetInt32();
-                    d.Attacks = sai.GetProperty("attacks").EnumerateArray().Select(x => x.GetInt32()).ToArray();
-                    if (sai.TryGetProperty("items", out var its2)) d.Items = its2.EnumerateArray().Select(x => x.GetInt32()).ToArray();
-                    if (sai.TryGetProperty("weak", out var wk))
-                        foreach (var p in wk.EnumerateObject()) d.Weak[int.Parse(p.Name)] = p.Value.GetInt32();
-                    if (sai.TryGetProperty("formations", out var fm))
-                        foreach (var p in fm.EnumerateObject()) d.Formations[int.Parse(p.Name)] = p.Value.GetInt32();
-                    if (sai.TryGetProperty("party_members", out var pm))
-                        foreach (var p in pm.EnumerateObject())
-                            d.PartyMembers[int.Parse(p.Name)] = p.Value.EnumerateArray()
-                                .Select(x => x.ValueKind == JsonValueKind.Array ? x.EnumerateArray().Select(v => v.GetInt32()).ToArray() : null).ToArray();
-                    foreach (var (key, map) in new[] { ("item_use", d.ItemUse), ("throws", d.Throws), ("commands", d.Commands) })
-                        if (sai.TryGetProperty(key, out var im))
-                            foreach (var p in im.EnumerateObject()) map[int.Parse(p.Name)] = p.Value.GetInt32();
-                    if (sai.TryGetProperty("copies", out var cp))
-                        foreach (var p in cp.EnumerateObject()) d.Copies[int.Parse(p.Name)] = p.Value.GetInt32();
-                    if (sai.TryGetProperty("party_slots", out var ps))
-                        foreach (var p in ps.EnumerateObject()) d.PartySlots[int.Parse(p.Name)] = p.Value.EnumerateArray().Select(x => x.GetInt32()).ToArray();
-                    if (sai.TryGetProperty("plugin", out var pl))
-                        foreach (var x in pl.EnumerateArray()) d.Plugin.Add(x.GetInt32());
-                    if (sai.TryGetProperty("message_keys", out var mk))
-                        foreach (var p in mk.EnumerateObject()) d.MessageKeys[int.Parse(p.Name)] = p.Value.EnumerateArray().Select(x => x.GetString() ?? "").ToArray();
-                    if (sai.TryGetProperty("messages", out var msg))
-                        foreach (var p in msg.EnumerateObject()) d.Messages[int.Parse(p.Name)] = p.Value.EnumerateArray().Select(x => x.GetString() ?? "").ToArray();
-                    s.SnesAi = d;
-                }
+                    s.SnesAi = SnesAiData.Parse(sai);   // the kit's (PrKit/Ff6/SnesAiData.cs)
                 if (r.TryGetProperty("bosses", out var bs))
                     foreach (var b in bs.EnumerateArray()) s.Bosses.Add((b.GetProperty("name").GetString(), b.GetProperty("party").GetInt32()));
                 if (r.TryGetProperty("objectives", out var objs))

@@ -17,5 +17,6 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="$(KitFf6)SnesAi.cs" />
+    <Compile Include="$(KitFf6)SnesAiData.cs" />
   </ItemGroup>
 </Project>

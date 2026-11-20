@@ -51,7 +51,10 @@ sealed class FakeBattle : ISnesAiBattle
     public int RetalItem(int unit) => RetalItm;
     public int RetalElemTarget(int unit) => RetalElemUnit;
     public int RetalElements(int unit) => RetalElem;
-    public int PrevAttacker(int unit) => -1;
+    public int RetalFlags(int unit) => RetalFlagBits;
+    public int RetalFlagBits;
+    public int PrevAttacker(int unit) => Prev;
+    public int Prev = -1;
     public int TargettingTarget(int unit) => -1;
     public void ClearTargettingTarget(int unit) { }
 
@@ -158,17 +161,95 @@ static class Program
         Check(d.Count == 1 && d[0].Op == SnesAiOp.EntryExit && d[0].B1 == 0x0C && d[0].B2 == 0x01 && d[0].B3 == 0xFF, "Atma's death: everyone leaves (F5 0C 01 FF): " + Show(d));
     }
 
-    // every monster of a seed (wc_ai_bytes.json: SNES id -> hex of its main + counter sections) under
-    // random battle states: no exception, every turn ends, queued actions stay sane
+    // BNW's engine changes to how scripts run (SnesAiRules.Bnw, c2.asm), each against vanilla's
+    static void BnwRulesTest()
+    {
+        // a script: main section, FF, then the counter section
+        SnesAiMonster M(string main, string counter, SnesAiRules rules) => SnesAiMonster.FromScript(Hex(main + "ff" + counter + "ff"), rules);
+        var van = SnesAiRules.Vanilla;
+        var bnw = SnesAiRules.Bnw;
+        // FC 07 36 02: "if its MP <= 2" (vanilla), "<= 256" (BNW MPLowCounter)
+        foreach (var (rules, want) in new[] { (van, false), (bnw, true) })
+        {
+            var b = new FakeBattle();
+            b.Mps[4] = 200;
+            var a = Attacks(SnesAi.RunMain(M("fc073602" + "01", "", rules), 4, b));
+            Check(a.SequenceEqual(want ? new[] { 1 } : new int[0]), $"FC 07 with {rules.Name} rules, MP 200 vs 2: {(want ? "low" : "not low")} ({string.Join(" ", a)})");
+        }
+        // FC 05 00 01: "if hit by melee" (BNW); vanilla: any hit
+        foreach (var (rules, flags, want) in new[] { (van, 0x00, true), (bnw, 0x00, false), (bnw, 0x01, true), (bnw, 0x03, true), (bnw, 0x02, false), (bnw, 0x81, false) })
+        {
+            var b = new FakeBattle { Retal = 0, RetalCmdUnit = 0, RetalFlagBits = flags };
+            var a = Attacks(SnesAi.RunCounter(M("", "fc050001" + "02", rules), 4, b, false));
+            Check(a.Length == (want ? 1 : 0), $"FC 05 00 01 with {rules.Name} rules, hit flags {flags:x2}: {(want ? "counters" : "no counter")} ({string.Join(" ", a)})");
+        }
+        // FC 05 00 02: "if its MP was hit" (BNW)
+        foreach (var (flags, want) in new[] { (0x00, false), (0x02, true), (0x01, false), (0x82, false) })
+        {
+            var b = new FakeBattle { Retal = 1, RetalCmdUnit = 1, RetalFlagBits = flags };
+            var a = Attacks(SnesAi.RunCounter(M("", "fc050002" + "03", bnw), 4, b, false));
+            Check(a.Length == (want ? 1 : 0), $"FC 05 00 02 (MP damage), hit flags {flags:x2}: {(want ? "counters" : "no counter")}");
+        }
+        // FC 01 00 00 (hit by Fight): a counterattack never sets it off in BNW
+        foreach (var (rules, want) in new[] { (van, true), (bnw, false) })
+        {
+            var b = new FakeBattle { Retal = 0, RetalCmdUnit = 0, RetalFlagBits = 0x81 };
+            var a = Attacks(SnesAi.RunCounter(M("", "fc010000" + "04", rules), 4, b, false));
+            Check(a.Length == (want ? 1 : 0), $"FC 01 hit by a counterattack, {rules.Name} rules: {(want ? "counters" : "no counter")}");
+        }
+        // F1 45: the last attacker, a monster (unit 5): vanilla targets it, BNW only characters
+        foreach (var (rules, want) in new[] { (van, SnesAi.MaskOf(5)), (bnw, 0) })
+        {
+            var b = new FakeBattle { Prev = 5 };
+            b.Monsters[1] = true;
+            var acts = SnesAi.RunMain(M("f145" + "05", "", rules), 4, b);
+            Check(acts.Count == 1 && acts[0].Targets == want, $"F1 45 at a monster, {rules.Name} rules: targets {want:x4} ({Show(acts)})");
+        }
+        // GetCmdForAI: BNW's Lore from $84, $65-$7C Lore too
+        Check(SnesAi.CommandFor(0x84, van) == 0x1D && SnesAi.CommandFor(0x84, bnw) == 0x0C, "attack 84: Magitek (vanilla), Lore (BNW)");
+        Check(SnesAi.CommandFor(0x70, van) == 0x02 && SnesAi.CommandFor(0x70, bnw) == 0x0C, "attack 70: Magic (vanilla), Lore (BNW)");
+        Check(SnesAi.CommandFor(0x8B, bnw) == 0x0C && SnesAi.CommandFor(0x83, bnw) == 0x1D, "attacks 83/8B with BNW rules: Magitek / Lore");
+        // a BNW boss at 0 HP (the host holds it at 1 and reports 0): "if 06 36 00" in its counter fires; its
+        // first life: it restores itself and counts the life (the life counter's check reads it before the
+        // change), and the failed check moves on to its next block: the usual counterattack
+        {
+            var b = new FakeBattle { Retal = 0, RetalCmdUnit = 0, RetalFlagBits = 0x01 };
+            b.Hps[4] = 0;
+            var m = M("", "fc063600" + "f5000001" + "f82481" + "fc0d2401" + "f50c05ff" + "fe" + "fc050000" + "ef", bnw);
+            var first = SnesAi.RunCounter(m, 4, b, false);
+            b.Apply(m, first);
+            Check(first.Count == 3 && first[0].Op == SnesAiOp.EntryExit && first[0].B2 == 0 && first[1].Op == SnesAiOp.ChangeVar && first[2].Attack == 0xEF,
+                  "BNW boss at 0 HP, first life: restores itself, counts the life, counters: " + Show(first));
+            var second = SnesAi.RunCounter(m, 4, b, false);
+            Check(second.Count == 3 && second[2].Op == SnesAiOp.EntryExit && second[2].B2 == 5 && second[2].B3 == 0xFF,
+                  "BNW boss at 0 HP again: everyone dies like a boss: " + Show(second));
+        }
+    }
+
+    // every monster of a seed (wc_ai_bytes.json: SNES id -> hex of its main + counter sections), or of a
+    // mod's data file (bnw_data.json's snes_ai, with its rules), under random battle states: no
+    // exception, every turn ends, queued actions stay sane
     static void FuzzAll(string path)
     {
         var text = System.IO.File.ReadAllText(path);
         var doc = System.Text.Json.JsonDocument.Parse(text);
         int monsters = 0, turns = 0, acts = 0;
-        foreach (var kv in doc.RootElement.EnumerateObject())
+        var root = doc.RootElement;
+        var rules = SnesAiRules.Vanilla;
+        var scripts = new List<(string id, byte[] script)>();
+        if (root.TryGetProperty("snes_ai", out var sai))
         {
-            var m = SnesAiMonster.FromScript(Hex(kv.Value.GetString()));
-            var b = new FakeBattle { Rng = new Random(int.Parse(kv.Name)) };
+            var d = SnesAiData.Parse(sai);
+            rules = d.Rules;
+            foreach (var kv in d.Scripts) scripts.Add((kv.Key.ToString(), kv.Value));
+            Console.WriteLine($"{path}: {d.Scripts.Count} scripts, {rules.Name} rules, {d.Plugin.Count} run by the plugin, {d.BossDeath.Count} bosses die by script");
+        }
+        else
+            foreach (var kv in root.EnumerateObject()) scripts.Add((kv.Name, Hex(kv.Value.GetString())));
+        foreach (var (name, script) in scripts)
+        {
+            var m = SnesAiMonster.FromScript(script, rules);
+            var b = new FakeBattle { Rng = new Random(int.Parse(name)) };
             monsters++;
             for (int t = 0; t < 200; t++)
             {
@@ -184,20 +265,22 @@ static class Program
                     b.Apply(m, a);
                     b.Retal = b.Rng.Next(-1, 4);
                     b.RetalCmdUnit = b.Retal;
+                    b.RetalFlagBits = b.Rng.Next(4) | (b.Rng.Next(4) == 0 ? 0x80 : 0);
+                    b.Mps[4] = b.Rng.Next(0, 3000);
                     var c = SnesAi.RunCounter(m, 4, b, b.Rng.Next(10) == 0);
                     b.Apply(m, c);
                     a.AddRange(c);
                 }
                 catch (Exception e)
                 {
-                    Check(false, $"monster {kv.Name} turn {t}: {e.GetType().Name} {e.Message}");
+                    Check(false, $"monster {name} turn {t}: {e.GetType().Name} {e.Message}");
                     break;
                 }
                 turns++;
                 acts += a.Count;
-                Check(a.Count < 64, $"monster {kv.Name} turn {t}: {a.Count} actions");
+                Check(a.Count < 64, $"monster {name} turn {t}: {a.Count} actions");
                 foreach (var x in a)
-                    Check(x.Op != SnesAiOp.Attack || x.Attack < 0xFE, $"monster {kv.Name}: attack {x.Attack:x2}");
+                    Check(x.Op != SnesAiOp.Attack || x.Attack < 0xFE, $"monster {name}: attack {x.Attack:x2}");
             }
         }
         Console.WriteLine($"fuzz: {monsters} monsters, {turns} turns, {acts} actions");
@@ -206,7 +289,8 @@ static class Program
     static int Main(string[] args)
     {
         AtmaTest();
-        if (args.Length > 0) FuzzAll(args[0]);
+        BnwRulesTest();
+        foreach (var a in args) FuzzAll(a);
         Console.WriteLine($"{checks - failures} of {checks} checks passed");
         return failures == 0 ? 0 : 1;
     }
