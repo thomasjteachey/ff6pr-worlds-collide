@@ -65,6 +65,7 @@ namespace WorldsCollide.PR
                 h.Patch(init, prefix: new HarmonyMethod(typeof(WcTrack), nameof(Initalize_Prefix)),
                               postfix: new HarmonyMethod(typeof(WcTrack), nameof(Initalize_Postfix)));
             }
+            // hook-audit: OnCommandMenuKeyAction's 4-byte body is 17 setters'; Pick_Prefix leaves every instance but a MainMenuController alone (Hooks.IsA)
             if (pick != null) h.Patch(pick, prefix: new HarmonyMethod(typeof(WcTrack), nameof(Pick_Prefix)));
             Plugin.L.LogInfo($"[wc] track menu entry: {(init != null && pick != null ? "hooked" : "not found")}");
         }
@@ -167,7 +168,16 @@ namespace WorldsCollide.PR
             catch (Exception e) { WcRunner.WarnOnce("track-label", e); }
         }
 
-        public static bool Pick_Prefix(MenuCommandId id)
+        public static bool Pick_Prefix(Last.UI.KeyInput.MainMenuController __instance, MenuCommandId id)
+        {
+            // OnCommandMenuKeyAction's native body (mov [rcx+70h],edx; ret) is shared with 16 other setters
+            // (set_EvasionCount, set_ActionId, ...: the kit lead, 2026-11-21): act only for the main menu
+            if (!PrKit.Hooks.IsA<Last.UI.KeyInput.MainMenuController>(__instance)) return true;
+            return Pick(id);
+        }
+
+        // the Track entry picked in the main menu (false: handled here, the game skips its own)
+        public static bool Pick(MenuCommandId id)
         {
             if ((int)id != MenuId) return true;
             try

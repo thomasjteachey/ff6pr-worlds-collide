@@ -51,6 +51,7 @@ namespace WorldsCollide.PR
                         WcSkills.Sync();
                         WcRages.StartSkills();
                         WcEspers.RestoreMagicCommands();
+                        WcEvents.GiveMorph();
                         if (Completed("Magitek Upgrade")) MagitekUpgrade();
                     }
                 }

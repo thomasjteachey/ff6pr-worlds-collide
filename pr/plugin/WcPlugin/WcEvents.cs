@@ -29,6 +29,8 @@ namespace WorldsCollide.PR
     //   WC:auction_hint <key> <done flags...>   -adeh: the auction's greeting hints at unsold espers
     //   WC:gate <module>   ScenarioFlag4 131 = 1 when the check's gating character has joined
     //              (or the seed has no character gating, -cg), else 0
+    //   WC:eu_unequip reserve|all   -eu: after the airship NPC's unequip, Umaro's equipment too
+    //              (WcRecruits.EuUnequip; the PR's own call skips him)
     //   WC:moogle_party_save / WC:moogle_party / WC:moogle_party_restore   preserve the party
     //              that accepted Arvis's moogle-defense check, fill only its empty slots with
     //              guests, and restore recruited Mog after vanilla dismisses all moogles
@@ -571,6 +573,7 @@ namespace WorldsCollide.PR
                 case "item": ChestItem(int.Parse(args[1]), args.Length > 2 ? int.Parse(args[2]) : 1); return;
                 case "reward": Reward(args[1], args.Length > 2 ? int.Parse(args[2]) : 0, mc); return;
                 case "gate": Gate(args[1]); return;
+                case "eu_unequip": WcRecruits.EuUnequip(args[1]); return;   // -eu: the airship NPC's unequip takes Umaro's too
                 // WC:theme <module> <n> <ids>: Scratch = 1 if the check's n-th reward is one of these
                 // characters. Where a check's vanilla scene cues its character's theme, WC plays the
                 // reward character's (music/song_utils.py); the script then picks the PlayBGM
@@ -1408,6 +1411,38 @@ namespace WorldsCollide.PR
                 MorphsDoubled++;
             }
             catch (Exception e) { WcRunner.WarnOnce("morph", e); }
+        }
+
+        // WC's start enables Morph (event/zozo.py init bits: battle bit ENABLE_MORPH_COMMAND): whoever
+        // WC dealt Morph can use it from the start. The port deals SNES Morph as the PR's command 9
+        // (tools/port.py SNES_CMD: the id Terra's own row has, "Revert", listed only while in Trance);
+        // the Trance command itself (8) comes from Zozo's SysCall "コマンド追加：トランス"
+        // (Current.AddComamndTrance = OwnedCharacterClient.AddCommand(Terra, 8), decompiled 2026-11-21)
+        // in the scene with Maduin, which a WC game never plays: no one could Morph. So every owned
+        // character holding 9 gets 8 the way that call gives it (WcObjectives.Poll, on the field);
+        // usable then as in vanilla, once their morph points pass 7 (CommandAvailableData.IsAvailable).
+        internal const int TranceCommand = 8, MorphSlot = 9;
+        internal static string LastMorphGiven = "";
+
+        internal static int GiveMorph()
+        {
+            if (!WcGame()) return 0;
+            var owned = UserDataManager.Instance()?.OwnedCharacterList;
+            if (owned == null) return 0;
+            int n = 0;
+            OwnedCharacterClient client = null;
+            foreach (var c in owned)
+            {
+                if (c == null || c.characterStatusId < 1 || c.characterStatusId > 14) continue;
+                if (!WcEspers.HasCommand(c, MorphSlot) || WcEspers.HasCommand(c, TranceCommand)) continue;
+                client ??= new OwnedCharacterClient();
+                client.AddCommand(c.Id, TranceCommand);
+                if (!WcEspers.HasCommand(c, TranceCommand)) continue;
+                n++;
+                LastMorphGiven = $"character {c.characterStatusId} (morph points {c.MagicLearningValue})";
+                Plugin.L.LogInfo($"[wc] Morph: the Trance command for {LastMorphGiven}, as Zozo's scene gives Terra");
+            }
+            return n;
         }
 
         static void Party(MainCore mc)

@@ -29,6 +29,7 @@ PARTS = [
     ("pr/plugin/WcAi.Tests", ["**"]),
     ("pr/tools", R.WC_TOOLS + ["wc_publish.py"]),
     ("pr/tests", ["test_wc.py", "test_wc_romfree.py", "test_wc_xref.py"]),
+    ("pr/docs", ["wc.md"]),
     ("mods", ["worlds-collide-presets.json"]),
 ]
 
@@ -59,7 +60,8 @@ On the title screen choose **Worlds Collide**, pick a preset or paste flags, the
   that turns its output into Pixel Remaster data.
 - `kit/`: the [modding kit](https://github.com/thomasjteachey/ff6pr-kit) this mod builds on (a
   submodule): the porter, the build/package/deploy tools, the harnesses. `kit/pr/PORTING.md`
-  is the project's full development log, `kit/pr/MODDING.md` the tooling guide.
+  is the project's status and index, `kit/pr/MODDING.md` the tooling guide.
+- `pr/docs/wc.md`: this port's development log (what was built, tested and decided, by date).
 - No ROM and no game files: `pr/tools/wc_gamedata.py` + the kit's `pr_bundle.py` make the copies
   the mod works from on the player's machine at first start.
 

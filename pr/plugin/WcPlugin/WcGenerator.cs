@@ -19,7 +19,13 @@ namespace WorldsCollide.PR
         internal static string ProjectDir { get => Gen.ProjectDir; set => Gen.ProjectDir = value; }
 
         public static bool Running => Gen.Running;
-        public static string Status => Gen.Status;
+        // wc_seed.py prints "[wc] waiting for another seed to finish" while another generation holds
+        // its seed folder's lock (the kit porter's lock_out); the screen says so instead of "Generating"
+        public const string WaitingLine = "waiting for another seed to finish";
+        public const string WaitingText = "Waiting for another seed to finish...";
+        public static bool IsWaiting(string status) => status != null && status.StartsWith(WaitingLine, System.StringComparison.Ordinal);
+        public static bool Waiting => Running && IsWaiting(Gen.Status);
+        public static string Status => IsWaiting(Gen.Status) ? WaitingText : Gen.Status;
         public static double Seconds => Gen.Seconds;
         public static string OutDir => Gen.OutDir;
         public static string Log => Gen.Log;

@@ -27,6 +27,14 @@ import warnings
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PR = os.path.dirname(HERE)
+
+def wc_test_source():
+    """WcTest.cs plus the checks split out of it into WcTestChecks/ (2026-11-21)."""
+    import glob as _glob
+    d = os.path.join(PR, "plugin", "WcPlugin")
+    parts = [os.path.join(d, "WcTest.cs")] + sorted(_glob.glob(os.path.join(d, "WcTestChecks", "*.cs")))
+    return chr(10).join(open(f, encoding="utf-8").read() for f in parts)
+
 sys.path.insert(0, os.path.join(PR, "tools"))
 import kitpath  # noqa: E402,F401  (the modding kit's tools, when it's this repository's kit/ submodule)
 import pr_script as S  # noqa: E402
@@ -342,6 +350,78 @@ class WcScripts(unittest.TestCase):
         self.assertEqual(back.end[:2], ("ChangeMap", E.WOB_MAP), back.end)
         self.assertEqual((st.flag(COLLAPSED), st.flag(GOT_FALCON)), (0, 0))
         self.assertEqual(self.narshe(st), (E.WOB_MAP, "ev_e_0609"))
+
+    # --- Search the skies (WC event/airship.py doom_gaze_mod) ---------------------------------
+    def in_the_wor(self):
+        st, _ = self.new_game()
+        self.wheel(st, "WC_HELM_WOR")
+        st.set(*FALCON_RELEASED, 1)
+        return st
+
+    def falcon_wheel(self, st, answer, gate_open):
+        return Run(self.script("sc_e_FAoutboard"), st, [answer], {"WC:gate doom_gaze": gate(gate_open)})
+
+    @unittest.skipUnless(E.SEARCH_THE_SKIES, "Search the skies is off for 0.6.10")
+    def test_falcon_wheel_offers_search_the_skies(self):
+        """WC's WoR wheel: Lift-off / World of Balance / Search The Skies / Not just yet while Doom
+        Gaze's gate (Setzer, -cg) is met and he isn't beaten; without the gate, or once his check
+        is done, only the first two (and never mind)."""
+        st = self.in_the_wor()
+        r = self.falcon_wheel(st, OPT_NEVER_MIND, True)
+        self.assertEqual(r.offered, [[OPT_WHEEL, "WC_HELM_WOB", "WC_HELM_SKIES", OPT_NEVER_MIND]])
+        self.assertEqual(r.end, ("Exit",))
+        self.assertEqual(st.get(E.WC_FLAGS, E.SKIES_PENDING), 0)
+        closed = self.falcon_wheel(st, OPT_NEVER_MIND, False)
+        self.assertEqual(closed.offered, [[OPT_WHEEL, "WC_HELM_WOB", OPT_NEVER_MIND]], "gate closed")
+        st.set(E.WC_FLAGS, E.CHECK_FLAGS["doom_gaze"], 1)
+        done = self.falcon_wheel(st, OPT_NEVER_MIND, True)
+        self.assertEqual(done.offered, [[OPT_WHEEL, "WC_HELM_WOB", OPT_NEVER_MIND]], "Doom Gaze beaten")
+        self.assertEqual(done.did("SysCall", "WC:gate doom_gaze"), [], "no gate asked once the check is done")
+        vanilla = Run(self.script("sc_e_FAoutboard"), State(), [OPT_NEVER_MIND])
+        self.assertEqual(vanilla.offered, [[OPT_WHEEL, OPT_NEVER_MIND]], "not a WC game")
+        self.assertEqual(E.MESSAGES["WC_HELM_SKIES"], "(Search the skies.)")
+        self.assertEqual(E.TRACK_NAMES["doom_gaze"], "Search The Skies")
+
+    @unittest.skipUnless(E.SEARCH_THE_SKIES, "Search the skies is off for 0.6.10")
+    def test_search_the_skies_takes_off_into_doom_gaze(self):
+        """Picked: the wheel's own take-off (its pose, into the WoR sky, no world switch) with the
+        fight pending; the arrival clears it and starts the sky's Doom Gaze fight (sc_e_0964's own
+        EncountBoss and after-battle script); any other arrival takes off as before."""
+        st = self.in_the_wor()
+        r = self.falcon_wheel(st, "WC_HELM_SKIES", True)
+        self.assertEqual(r.end, ("ChangeMap", E.WOR_MAP, 1, "sc_e_FAoutboard_1"), r.end)
+        self.assertEqual(st.get(E.WC_FLAGS, E.SKIES_PENDING), 1)
+        self.assertTrue([t for t in r.did("Call") if t[2][0] == 14], "the deck's lift-off pose")
+        self.assertEqual([t for t in r.did("SysCall") if t[3][0] in ("WC:to_wob", "WC:to_wor")], [], "no world switch")
+        self.assertEqual((st.flag(COLLAPSED), st.flag(GOT_FALCON)), (1, 1), "still the WoR")
+        # the arrival (from after its ChangeScript, which the model ends on)
+        sc = self.script("sc_e_FAoutboard_1")
+        after = next(n for n, m in enumerate(sc["Mnemonics"]) if m["mnemonic"] == "ChangeScript") + 1
+        arrive = Run(sc, st, start=after)
+        fights = arrive.did("EncountBoss")
+        self.assertEqual([(t[2][0], t[3][0]) for t in fights], [(E.DOOM_GAZE_PARTY, "sc_e_0964_1")])
+        self.assertEqual(st.get(E.WC_FLAGS, E.SKIES_PENDING), 0, "the pending fight cleared")
+        self.assertLess(arrive.trace.index(arrive.did("FadeIn")[0]), arrive.trace.index(fights[0]), "airborne first")
+        sky = S.load("sc_e_0964")["Mnemonics"][1]          # the sky's own fight (vanilla: the WC copy gates it)
+        self.assertEqual(fights[0][2][:1] + fights[0][3][:1], sky["operands"]["iValues"][:1] + sky["operands"]["sValues"][:1])
+        again = Run(sc, st, start=after)
+        self.assertEqual(again.did("EncountBoss"), [], "the next take-off (after the reward scene too) is a plain one")
+        self.assertEqual(again.end, ("Exit",))
+
+    @unittest.skipUnless(E.SEARCH_THE_SKIES, "Search the skies is off for 0.6.10")
+    def test_search_the_skies_reward_hides_the_choice(self):
+        """Winning: the sky fight's own reward scene (sc_e_0964_2) gives the seed's Doom Gaze reward
+        and sets its check flag (as the random encounter does), then flies on; the wheel no longer
+        offers the search."""
+        st = self.in_the_wor()
+        self.falcon_wheel(st, "WC_HELM_SKIES", True)
+        rewarded = []
+        scene = Run(self.script("sc_e_0964_2"), st, syscalls={"WC:reward doom_gaze 0": lambda s: rewarded.append(1)})
+        self.assertEqual(rewarded, [1])
+        self.assertEqual(st.get(E.WC_FLAGS, E.CHECK_FLAGS["doom_gaze"]), 1)
+        self.assertEqual(scene.end[:2], ("ChangeMap", E.WOR_MAP), scene.end)
+        r = self.falcon_wheel(st, OPT_NEVER_MIND, True)
+        self.assertEqual(r.offered, [[OPT_WHEEL, "WC_HELM_WOB", OPT_NEVER_MIND]])
 
     # --- the Floating Continent trip ----------------------------------------------------------
     def deck(self, st):
@@ -720,6 +800,194 @@ class WcScripts(unittest.TestCase):
             self.assertEqual(r.did("SetEntities"), [], "nobody home")
             self.assertEqual(r.end, ("Exit",))
         self.assertEqual(self.sets("sc_map_20271_5", State()), ["ev_e_0001"], "vanilla is unchanged")
+
+    # --- WC's start state, the start-bits audit of 2026-11-21 -----------------------------------
+    def test_wob_thamasa_has_leos_grave_and_its_townsfolk(self):
+        # WC event/burning_house.py sets DEFEATED_KEFKA_THAMASA, LEO_BURIED_THAMASA,
+        # FINISHED_THAMASA_KEFKA and THAMASA_CITIZENS: Leo's grave and sword with the three
+        # townsfolk (ev_e_0552_2 + reo_sword), not the blocker before it (ev_e_0552_1), not the
+        # townsfolk after Zozo (ev_e_0413: its man and boy are ev_e_0552_2's). While the burning
+        # house is open its crowd (ev_e_0523) is there too: the grave layer's man and boy hidden
+        sc = self.script("sc_map_20270")
+        for done in (1, 0):
+            for zozo in (0, 1):
+                st, _ = self.new_game()
+                st.set(E.WC_FLAGS, E.CHECK_FLAGS["burning_house"], done)
+                st.set("ScenarioFlag1", 203, zozo)
+                r = Run(sc, st)
+                layers = [t[3][0] for t in r.did("SetEntities")]
+                self.assertIn("ev_e_0552_2", layers, (done, zozo))
+                self.assertFalse({"ev_e_0552_1", "ev_e_0413"} & set(layers), (done, zozo, layers))
+                self.assertEqual("ev_e_0523" in layers, not done, "the burning house's door while its check is open")
+                self.assertIn(167, [t[2][0] for t in r.did("Call")], "reo_sword: the grave and sword shown")
+                hidden = sorted(t[2][1] for t in r.did("SetPuppet") if t[2][1] in E.GRAVE_TOWNSFOLK)
+                self.assertEqual(hidden, [] if done else sorted(E.GRAVE_TOWNSFOLK), (done, zozo))
+        st, _ = self.new_game()
+        self.assertEqual((st.get("ScenarioFlag1", 203), st.get("ScenarioFlag2", 26)), (0, 0),
+                         "neither flag is a start flag (203 arms Blackjack/Narshe scenes, 26 the Blackjack's breakdown)")
+        # the hidden ids: the grave layer's man and boy, the burning-house crowd's (the same scripts)
+        town = os.path.dirname(S.path("sc_map_20270"))
+
+        def scripts(layer, ids):
+            props = [{p["name"]: p["value"] for p in o["properties"]}
+                     for g in load(os.path.join(town, layer + ".json"))["layers"] for o in g["objects"]]
+            return sorted(p["script_id"] for p in props if p.get("entity_id") in ids)
+        self.assertEqual(scripts("ev_e_0552_2", E.GRAVE_TOWNSFOLK), [6105, 6106])
+        self.assertEqual(scripts("ev_e_0523", (149, 151)), [6105, 6106])
+        vanilla = [t[3][0] for t in Run(sc, State()).did("SetEntities")]
+        self.assertIn("ev_e_0552_1", vanilla, "vanilla before Leo's burial: the path blocked")
+        self.assertNotIn("ev_e_0552_2", vanilla)
+
+    def test_thamasa_inn_charges_wcs_price(self):
+        # WC's start sets MET_STRAGO_RELM: the SNES innkeeper (CB/D73F) asks 1 gil, not 1500; with
+        # -cg until Strago is recruited, WC's stranger price (100000000 GP): not enough money
+        import prdata as P
+        price = {int(r["group_id"]): int(r["coefficient"]) for r in P.Table("product") if r["content_id"] == "0"}
+        self.assertEqual((price[114], price[115], price[127]), (1500, 1, 1), "the stranger's, the after-fire and WoR inns")
+        st, _ = self.new_game()
+        self.assertEqual(self.sets("sc_map_20271_4", st), ["ev_e_0540"], "the after-fire innkeeper (sc_sty_20271_4)")
+        self.assertEqual(self.sets("sc_map_20271_4", State()), ["ev_e_0413"], "vanilla: the stranger's (1500)")
+        for name, group in E.THAMASA_INNS:
+            sc = self.script(name)
+            for open_, answer in ((True, 0), (False, 0), (False, 1)):
+                st, _ = self.new_game()
+                r = Run(sc, st, answers=[answer], syscalls={"WC:gate burning_house": gate(open_)})
+                lines = [t[3][0] for t in r.did("Msg")]
+                if open_:
+                    self.assertEqual([t[2][0] for t in r.did("SetGilTag")], [group], name)
+                    self.assertEqual([t[2][0] for t in r.did("RemoveGil")], [group], f"{name}: 1 gil")
+                    self.assertNotIn("WC_THAMASA_INN", lines)
+                else:
+                    self.assertEqual(r.offered, [list(E.THAMASA_STRANGER_CHOICES)], name)
+                    self.assertEqual(lines, ["WC_THAMASA_INN"] + ([E.NOT_ENOUGH_GIL] if answer == 0 else []), (name, answer))
+                    self.assertEqual((r.did("RemoveGil"), r.end), ([], ("Exit",)), name)
+            st = State()                                     # not a WC game: the vanilla inn
+            r = Run(sc, st, answers=[1])
+            self.assertEqual([t[2][0] for t in r.did("SetGilTag")], [group])
+            self.assertFalse(r.did("SysCall"))
+        self.assertIn("100,000,000 gil", E.MESSAGES["WC_THAMASA_INN"])
+
+    def test_mt_zozo_has_no_book_of_secrets(self):
+        # WC event/mt_zozo.py: BOOK_OF_SECRETS_CHEST_MT_ZOZO cleared, the chest and its key NOP'd
+        st, _ = self.new_game()
+        st.set("ScenarioFlag2", 109, 1)                      # the mt_zozo check sets it
+        self.assertEqual(self.sets("sc_map_30690", st), [], "no sparkling key on the cliff")
+        for key in (0, 1):                                   # 1: a save that took the key before
+            st.set("ScenarioFlag2", 110, key)
+            r = Run(self.script("sc_e_0737"), st)
+            self.assertEqual([t[3][0] for t in r.did("Msg")], ["E0737_00_474_a_01"], "It's locked.")
+            self.assertEqual((r.did("GetItem"), r.did("TreasureBox"), st.get("ScenarioFlag2", 111)), ([], [], 0))
+        vanilla = State()
+        vanilla.set("ScenarioFlag2", 109, 1)
+        self.assertEqual(self.sets("sc_map_30690", vanilla), ["ev_e_0736"])
+        vanilla.set("ScenarioFlag2", 110, 1)
+        self.assertEqual([t[2][:2] for t in Run(self.script("sc_e_0737"), vanilla).did("GetItem")], [[48, 1]], "vanilla's Books")
+
+    def test_doma_family_not_lying_in_their_room(self):
+        # WC event/doma_wob.py clears VARIOUS_DOMA_POISONING: SNES map 124's wife and son hidden
+        st, _ = self.new_game()
+        r = Run(self.script("sc_map_20101_6"), st)
+        self.assertEqual((r.did("SetEntities"), r.did("Call")), ([], []), "no Mina and Shun, no Fall cue")
+        self.assertEqual(self.sets("sc_map_20101_6", State()), ["ev_e_0120"], "vanilla is unchanged")
+
+    def test_phantom_forest_ghost_merchant_after_the_train(self):
+        # WC event/phantom_train.py ghost_shop_forest_mod: after the train a ghost in the forest
+        # runs the train's shop (CB/AD44). Here an NPC in the spring room's entity_default (a game
+        # file with our change, as a player's setup makes it), hidden on arrival unless it's due
+        def hidden(st):
+            r = Run(self.script("sc_map_30421_2"), st)
+            return sorted(t[2][1] for t in r.did("SetPuppet")), r
+        for done in (0, 1):
+            st, _ = self.new_game()
+            st.set(E.WC_FLAGS, E.CHECK_FLAGS["phantom_train"], done)
+            puppets, r = hidden(st)
+            self.assertEqual(puppets, [] if done else [E.GHOST_SHOP_ENTITY], done)
+            self.assertEqual((r.did("SetEntities"), r.end), ([], ("Exit",)), "no walk to the spring either way")
+        puppets, r = hidden(State())
+        self.assertEqual((puppets, [t[3][0] for t in r.did("SetEntities")]), ([E.GHOST_SHOP_ENTITY], ["ev_e_0158"]),
+                         "another game: never the merchant, vanilla's walk")
+        room = os.path.dirname(S.path("sc_map_30421_2"))
+        built = os.path.join(self.tmp, *E.ghost_shop_rel("entity_default.json").split("/"))
+        doc, van = load(built), load(os.path.join(room, "entity_default.json"))
+        objs = [o for g in doc["layers"] for o in g.get("objects") or []]
+        old = [o for g in van["layers"] for o in g.get("objects") or []]
+        self.assertEqual([o for o in objs if o["id"] < 1000], old, "the room's own objects as they were")
+        props = {o["id"]: {p["name"]: p["value"] for p in o["properties"]} for o in objs if o["id"] >= 1000}
+        (o, p), (ao, ap) = [(next(x for x in objs if x["id"] == k), props[k]) for k in (1000, 1001)]
+        import prdata as P
+        self.assertEqual(P.Table("script").rows[p["script_id"]]["script_name"], E.GHOST_SHOP_SCRIPT)
+        self.assertEqual((p["object_type"], p["entity_id"], p["action_id"], p["asset_id"], p["move_type"]),
+                         (6, E.GHOST_SHOP_ENTITY, 2, 139, 2))
+        x, y = E.GHOST_SHOP_SPOT
+        self.assertEqual((o["x"], o["y"]), (16 * x, 16 * (y + 1)), "WC's spot (map 0x85 (13, 10)), bottom-anchored")
+        self.assertEqual((ap["object_type"], p["link_object_id"]), (13, ap["object_id"]), "it wanders its MoveArea")
+        self.assertTrue(ao["x"] <= 16 * x < ao["x"] + ao["width"] and ao["y"] <= 16 * y < ao["y"] + ao["height"])
+        coll = load(os.path.join(room, "collision.json"))["layers"][0]
+        self.assertEqual(coll["data"][y * coll["width"] + x], 0, "a walkable tile")
+        used = {q["value"] for f in glob.glob(os.path.join(room, "*.json")) if os.path.basename(f).startswith(("ev_", "entity_default"))
+                for g in load(f)["layers"] for ob in g.get("objects") or [] for q in ob.get("properties", []) if q["name"] == "entity_id"}
+        self.assertFalse(used & {p["entity_id"], ap["entity_id"]}, "entity ids of its own")
+        # its script: the train's own (byte for byte), listed in the map's package
+        built = os.path.join(self.tmp, *E.ghost_shop_rel(E.GHOST_SHOP_SCRIPT + ".json").split("/"))
+        with open(built, "rb") as a, open(S.path(E.GHOST_SHOP_SCRIPT), "rb") as b:
+            self.assertEqual(a.read(), b.read())
+        shop = load(built)["Mnemonics"]
+        self.assertEqual([m["operands"]["sValues"][0] for m in shop if m["mnemonic"] in ("Msg", "SysCall")],
+                         ["E1049_00_360_a_01", "ショップを開く:魔列車"], "the train ghost's offer and shop")
+        package = load(os.path.join(self.tmp, "map_30421", "Assets", "GameAssets", "Serial", "Res", "Map", "Map_30421", "package.json"))
+        entry = next(m for m in package["map"] if m["name"] == "Map_30421_2")
+        self.assertIn({"name": E.GHOST_SHOP_SCRIPT, "asset": f"Map_30421_2/{E.GHOST_SHOP_SCRIPT}"}, entry["script"])
+        self.assertIn({"name": "ev_e_0158", "asset": "Map_30421_2/ev_e_0158"}, entry["entity"], "vanilla's lists kept")
+
+    def test_no_walk_to_the_phantom_forest_spring(self):
+        # WC event/phantom_train.py forest_spring_mod deletes the walk to the healing spring
+        st, _ = self.new_game()
+        self.assertEqual(st.get("ScenarioFlag1", 106), 0)
+        self.assertNotIn("ev_e_0158", self.sets("sc_map_30421_2", st), "no auto-walk on the first visit")
+        r = Run(self.script("sc_e_0159"), st)                # the spring itself, as ever
+        self.assertEqual((len(r.did("RecoveryHP")), r.end), (1, ("Exit",)))
+        self.assertEqual(self.sets("sc_map_30421_2", State()), ["ev_e_0158"], "vanilla walks there")
+
+    def test_siegfried_blocks_the_wor_figaro_cave_while_its_gate_is_closed(self):
+        # WC event/figaro_castle_wor.py with -cg: SIEGFRIED_FIGARO_CAVE_ENTRANCE set; he only says
+        # "Pretty dangerous from here on. Wait here." until Edgar is recruited
+        for open_ in (False, True):
+            st, _ = self.new_game()
+            r = Run(self.script("sc_map_30641_5"), st, syscalls={"WC:gate figaro_castle_wor": gate(open_)})
+            self.assertEqual([t[3][0] for t in r.did("SetEntities")], [] if open_ else ["ev_e_0666"], open_)
+            r = Run(self.script("sc_e_0666"), st)
+            self.assertEqual([t[3][0] for t in r.did("Msg")], ["WC_SIEGFRIED_WAIT"])
+            self.assertEqual((r.did("Call"), r.did("PlayBGM"), st.get("ScenarioFlag2", 75), r.end), ([], [], 1, ("Exit",)),
+                             "he stays: no run-off, no music, his flag as WC's start set it")
+        self.assertEqual(E.MESSAGES["WC_SIEGFRIED_WAIT"], "Pretty dangerous from here on. Wait here.")
+        vanilla = State()
+        vanilla.set("ScenarioFlag2", 74, 1)
+        self.assertEqual(self.sets("sc_map_30641_5", vanilla), ["ev_e_0666"])
+        Run(self.script("sc_e_0666"), vanilla)
+        self.assertEqual(vanilla.get("ScenarioFlag2", 75), 1, "vanilla's scene runs off")
+
+    def test_morph_from_the_start(self):
+        # WC's start enables Morph (zozo.py: ENABLE_MORPH_COMMAND). The port deals SNES Morph as the
+        # PR's command 9 (Terra's row, "Revert", listed only in Trance); Trance (8) is added only by
+        # Zozo's scene with Maduin (sc_e_0413_2's SysCall), which a WC game never plays: the plugin
+        # gives 8 to whoever holds 9 (WcEvents.GiveMorph, from WcObjectives.Poll)
+        import port
+        import prdata as P
+        self.assertEqual((port.SNES_CMD[3], port.SNES_CMD[4]), (9, 9))
+        terra = P.Table("character_status").rows[1]
+        cmds = [int(terra[f"command_id{k}"]) for k in range(1, 7)]
+        self.assertIn(9, cmds)
+        self.assertNotIn(8, cmds)
+        names = {int(r["id"]): r["mes_id_name"] for r in P.Table("command")}
+        self.assertEqual((names[8], names[9]), ("MSG_CMD_NAME_04", "MSG_CMD_NAME_05"), "Trance, Revert")
+        zozo = S.load("sc_e_0413_2")["Mnemonics"]
+        self.assertIn("コマンド追加：トランス", [m["operands"]["sValues"][0] for m in zozo if m["mnemonic"] == "SysCall"])
+        plugin = os.path.join(PR, "plugin", "WcPlugin")
+        events = open(os.path.join(plugin, "WcEvents.cs"), encoding="utf-8").read()
+        poll = open(os.path.join(plugin, "WcObjectives.cs"), encoding="utf-8").read()
+        self.assertIn("TranceCommand = 8, MorphSlot = 9", events)
+        self.assertIn("client.AddCommand(c.Id, TranceCommand)", events)
+        self.assertIn("WcEvents.GiveMorph();", poll)
 
     def test_narshe_treasure_room_has_its_locked_chest(self):
         st, _ = self.new_game()
@@ -2202,6 +2470,25 @@ class WcScripts(unittest.TestCase):
                              "E0345_00_120_c_02", "E0345_00_120_c_03"], name)
             self.assertEqual(vanilla.did("SysCall", E.PARTY_MENU), [], name)
 
+    def test_unequip_npcs_take_umaro_with_eu(self):
+        """-eu (WC event/airship.py equipable_umaro): each airship NPC's two unequip services run
+        the PR's own call (which skips only Umaro) and then WC:eu_unequip, where the plugin takes
+        Umaro's equipment when the seed has -eu; outside a WC game, the PR's call alone."""
+        for name in ("sc_e_0345", "sc_e_0678", "sc_e_0704"):
+            sc = self.script(name)
+            for answer, call, which in (("E0345_00_120_c_01", E.UNEQUIP_RESERVE, "reserve"),
+                                        ("E0345_00_120_c_02", E.UNEQUIP_ALL, "all")):
+                st, _ = self.new_game()
+                r = Run(sc, st, answers=[answer])
+                calls = [t[3][0] for t in r.did("SysCall")]
+                self.assertEqual(calls, [call, f"WC:eu_unequip {which}"], f"{name} {which}")
+                self.assertEqual(r.end, ("Exit",), f"{name} {which}")
+                vanilla = Run(sc, State(), answers=[answer])
+                self.assertEqual([t[3][0] for t in vanilla.did("SysCall")], [call], f"{name} {which}, not a WC game")
+            st, _ = self.new_game()
+            nothing = Run(sc, st, answers=["E0345_00_120_c_03"])
+            self.assertEqual(nothing.did("SysCall"), [], f"{name}: don't do a thing")
+
     def test_narshe_checkpoint_without_its_explanation(self):
         # WC keeps Narshe's security checkpoint but deletes its explanation (event/narshe_wob.py:
         # CC/DA09 returns); the user's playtest (2026-11-06) saw Edgar's and Terra's lines
@@ -2526,7 +2813,7 @@ class WcAbilityTiers(unittest.TestCase):
                 for off in (0, 1, 2):
                     got.append("".join("%x" % self.tier(lv, off, f, r) for r in (0, 0x19, 0x59, 0xb2, 0xf2)))
         self.assertEqual(" ".join(got), self.GRID)
-        src = open(os.path.join(PR, "plugin", "WcPlugin", "WcTest.cs"), encoding="utf-8").read()
+        src = wc_test_source()
         self.assertIn(self.GRID, src, "the plugin's in-game check holds the same grid")
 
     def test_placeholder_ids(self):
@@ -2563,7 +2850,7 @@ class WcAtbModel(unittest.TestCase):
         return 60.0988 / 2 * (s * k >> 4) / 65536 * 100
 
     def test_numbers_in_the_check(self):
-        src = open(os.path.join(PR, "plugin", "WcPlugin", "WcTest.cs"), encoding="utf-8").read()
+        src = wc_test_source()
         speeds = (1, 10, 30, 50, 100, 128)
         rows = {"party": [self.rate(x) for x in speeds]}
         for pr_speed, bs in enumerate((5, 4, 2, 1, 0)):
@@ -2573,7 +2860,7 @@ class WcAtbModel(unittest.TestCase):
             self.assertIn(text, src, f"{key}: {text}")
         self.assertIn(f"{round(self.rate(50, k=126), 4):g}", src)
         self.assertIn(f"{round(self.rate(50, k=48), 4):g}", src)
-        plugin = open(os.path.join(PR, "plugin", "WcPlugin", "WcAtb.cs"), encoding="utf-8").read()
+        plugin = (open(os.path.join(PR, "plugin", "PrKit", "Ff6", "SnesAtb.cs"), encoding="utf-8").read() + open(os.path.join(PR, "plugin", "PrKit", "Ff6", "SnesAtbRules.cs"), encoding="utf-8").read())
         self.assertIn("{ 5, 4, 2, 1, 0 }", plugin, "the PR's battle speeds 0-4 -> SNES Bat.Speed 6, 5, 3, 2, 1")
 
 
@@ -2592,8 +2879,8 @@ class WcStatusTickModel(unittest.TestCase):
             raise unittest.SkipTest("no vanilla ROM")
         d = open(P.VANILLA_ROM, "rb").read()
         cls.rom = d[0x200:] if len(d) % 0x8000 == 0x200 else d
-        cls.src = open(os.path.join(PR, "plugin", "WcPlugin", "WcStatusClock.cs"), encoding="utf-8").read()
-        cls.hooks = open(os.path.join(PR, "plugin", "WcPlugin", "WcStatusTicks.cs"), encoding="utf-8").read()
+        cls.src = open(os.path.join(PR, "plugin", "PrKit", "Ff6", "SnesStatusClock.cs"), encoding="utf-8").read()
+        cls.hooks = open(os.path.join(PR, "plugin", "PrKit", "Ff6", "SnesStatusTicks.cs"), encoding="utf-8").read()
 
     def code(self, addr, n):
         return self.rom[addr - 0xC00000:addr - 0xC00000 + n].hex()
@@ -2676,9 +2963,9 @@ class WcStatusTickModel(unittest.TestCase):
         self.assertEqual(self.code(0xC20B7A, 8), "9eb53aa9e09d2c32")
         # C2/1193: REP #$20 / LDA $3AC8 (the ATB's add) / LSR / CLC / ADC $3AB4 / STA $3AB4: half the ATB's add a move
         self.assertEqual(self.code(0xC21193, 13), "c220bdc83a4a187db43a9db43a")
-        atb = open(os.path.join(PR, "plugin", "WcPlugin", "WcAtb.cs"), encoding="utf-8").read()
+        atb = (open(os.path.join(PR, "plugin", "PrKit", "Ff6", "SnesAtb.cs"), encoding="utf-8").read() + open(os.path.join(PR, "plugin", "PrKit", "Ff6", "SnesAtbRules.cs"), encoding="utf-8").read())
         self.assertIn("JumpWait = 224 * 256", atb)
-        self.assertIn("int perTick = Math.Max(1, (s * k >> 4) >> 1);", atb)
+        self.assertIn("int perTick = Math.Max(1, AtbAdd(speed, monster, battleSpeed, haste, slow) >> 1);", atb)  # kit SnesAtbRules since 11-20
         self.assertIn("int moves = (wait * 256 + perTick - 1) / perTick;", atb)
         # the PR's landing: ability 22 (type 16, "ContinuousJumpEnd", ability_wait 30) after Jump (21, type 15):
         # its chant time (BattleProgressATBFF6.GetChantingTime) is what the plugin sets to the SNES's air time
@@ -2688,7 +2975,7 @@ class WcStatusTickModel(unittest.TestCase):
         self.assertEqual((rows["21"]["type_id"], rows["21"]["ability_wait"]), ("15", "1"))
         self.assertEqual((rows["22"]["type_id"], rows["22"]["ability_wait"]), ("16", "30"))
         self.assertIn('"GetChantingTime"', atb)
-        self.assertIn("if (ab.TypeId == 16)", atb)
+        self.assertIn("chant == SnesAtbRules.Chant.Landing", atb)  # the landing (type 16) via SnesAtbRules.ChantOf since 11-20
         # Speed 33: (33 + 20) x 96 / 16 = 318 a move, 159 to the wait timer: 361 moves, 722 frames (1.75 gauges)
         per = (33 + 20) * 96 >> 4
         self.assertEqual(per, 318)
@@ -2699,8 +2986,8 @@ class WcStatusTickModel(unittest.TestCase):
         import port
         table = bytes.fromhex(self.code(0xC2067B, 30))
         self.assertEqual((table[0], table[2], table[3], table[22]), (16, 32, 0, 224))
-        atb = open(os.path.join(PR, "plugin", "WcPlugin", "WcAtb.cs"), encoding="utf-8").read()
-        block = atb[atb.index("SnesCommandWait = new"):]
+        atb = (open(os.path.join(PR, "plugin", "PrKit", "Ff6", "SnesAtb.cs"), encoding="utf-8").read() + open(os.path.join(PR, "plugin", "PrKit", "Ff6", "SnesAtbRules.cs"), encoding="utf-8").read())
+        block = atb[atb.index("CommandWait = new"):]  # kit SnesAtbRules.CommandWait since 11-20
         block = block[:block.index("};")]
         plugin = {int(k): int(v) for k, v in re.findall(r"\[(\d+)\] = (\d+)", block)}
         want = {}
@@ -2872,9 +3159,67 @@ class WcEncounterRates(unittest.TestCase):
                 m += n * alive * p
                 alive *= 1 - p
             return round(m, 2)
-        test = open(os.path.join(PR, "plugin", "WcPlugin", "WcTest.cs"), encoding="utf-8").read()
+        test = wc_test_source()
         for r in (0xC0, 0x60, 0x180, 0x70, 0x40, 0x160, 0x200):
             self.assertIn(f"[0x{r:X}] = {mean(r):g}", test)
+
+
+class WcHookPlaces(unittest.TestCase):
+    """Where -eu and -gpm hook the game (2026-11-21). IsChangeEquipmentOnlyAccessory's machine code
+    (RVA 0x4421B0) is shared with three NoARBattle lambdas: no Harmony patch on it, a vtable entry
+    instead. Gil is paid from BattleAddExpPlug.GetGil (SaveGil), not Genelate's gilValue (the
+    result screen's number): -gpm multiplies GetGil's answer, once. Magic points: -mpm in each
+    StatusUpProvider.Execution (the esper learning), not the morph gauge."""
+
+    @classmethod
+    def setUpClass(cls):
+        d = os.path.join(PR, "plugin", "WcPlugin")
+        cls.code = {}
+        for p in glob.glob(os.path.join(d, "*.cs")):
+            with open(p, encoding="utf-8") as f:
+                cls.code[os.path.basename(p)] = "".join(re.sub(r"//.*", "", line) for line in f)
+
+    def test_no_detour_on_the_shared_lock(self):
+        for name, src in self.code.items():
+            for m in re.finditer(r"AccessTools\.Method\([^;]*\"IsChangeEquipmentOnlyAccessory\"[^;]*;", src):
+                after = src[m.end():m.end() + 400]
+                self.assertNotRegex(after.split("\n\n")[0], r"\.Patch\(", f"{name}: a Harmony patch on the shared code")
+        rec = self.code["WcRecruits.cs"]
+        self.assertIn("GetFunctionPointerForDelegate", rec)
+        self.assertNotIn("CanOpenRestrictionMenuWindow", rec)
+
+    def test_gil_multiplied_where_it_is_paid(self):
+        rew = self.code["WcRewards.cs"]
+        self.assertRegex(rew, r'AccessTools\.Method\(typeof\(BattleAddExpPlug\), "GetGil"\)')
+        prefix = re.search(r"void Result_Prefix\(([^)]*)\)", rew)
+        self.assertIsNotNone(prefix)
+        self.assertNotIn("gilValue", prefix.group(1), "Genelate's gilValue is only the screen's: multiplying it too doubles nothing paid")
+        self.assertIn('"reward_wallet"', wc_test_source())
+        self.assertIn('"eu_equip"', wc_test_source())
+
+    def test_magic_points_multiplied_where_espers_learn(self):
+        """-mpm (2026-11-21): BattleAddExpPlug.GetAp has no callers; the magic points are
+        BattleSkillUpInformation.MagicPoint, read by Genelate (the result's GetMp and the morph gauge)
+        and by each sharer's StatusUpProvider.Execution (the esper learning). WC multiplies the
+        learning's amount (at most 255) and gives the morph gauge that / -mpm."""
+        rew = self.code["WcRewards.cs"]
+        self.assertNotIn("GetAp", rew, "the dead GetAp hook")
+        self.assertRegex(rew, r'AccessTools\.Method\(typeof\(StatusUpProvider\), "Execution"\)')
+        self.assertRegex(rew, r"void Result_Prefix\([^)]*BattleSkillUpInformation battleSkillUpInformation\)")
+        self.assertRegex(rew, r"void Learning_Prefix\(BattleSkillUpInformation battleSkillUpInformation, out int __state\)")
+        self.assertRegex(rew, r"void Learning_Postfix\(BattleSkillUpInformation battleSkillUpInformation, int __state\)")
+        self.assertIn("Math.Min(255L", rew)
+        self.assertIn("GetResultMagicProficiency", rew)
+        src = wc_test_source()
+        self.assertIn('"reward_mp"', src)
+        self.assertIn("Plan_reward_mp(name)", src)
+        wc_mult = os.path.join(PR, "..", "mods", "worlds-collide", "battle", "multipliers.py")
+        if not os.path.exists(wc_mult):
+            return
+        with open(wc_mult, encoding="utf-8") as f:
+            wc = f.read()
+        self.assertIn("multiply_max_255", wc)
+        self.assertIn("divide gained morph time by magic points multiplier", wc)
 
 
 if __name__ == "__main__":

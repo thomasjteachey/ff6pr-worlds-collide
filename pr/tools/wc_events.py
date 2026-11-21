@@ -31,13 +31,16 @@ Changes so far (WC's own flags: ScenarioFlag4 0-131, unused by vanilla scripts; 
    character of each scene has joined already when its gate is open, so the vanilla joins left
    in the scenes are harmless.
  * The Magitek Factory's first reward (WC: Ifrit / Shiva): either magicite pickup (sc_e_0399 /
-   sc_e_0400) gives it and both disappear. Number 024's and the ending's rewards: not yet.
+   sc_e_0400) gives it and both disappear; the second after Number 024 (magitek_024), the third
+   at the tubes' end (magitek_tubes).
  * The airships' wheels (WC event/airship.py): the Blackjack's adds "Fly to the World of Ruin",
    the Falcon's "Fly to the World of Balance"; the plugin puts the other airship where this one
    is (WC:to_wor / WC:to_wob) and the party flies on in the other world. "After obtaining the
    Falcon" (ScenarioFlag2 97) and "after the collapse" (ScenarioFlag2 41: the merged WoB/WoR towns
    show their WoR state) are set in the WoR and cleared in the WoB, as WC does with IN_WOR /
-   GOT_FALCON.
+   GOT_FALCON. The Falcon's also offers "Search the skies" (Doom Gaze's fight, gate Setzer)
+   until Doom Gaze's check is done. The airships' unequip NPCs also change the party (WC's
+   "Change party members.") and, with -eu, unequip Umaro too.
  * Tritoch (WC event/tritoch.py, sc_e_0780_1): the seed's reward after the battle.
  * Zozo (WC event/zozo.py, sc_map_30511_12 / sc_e_0303): only Ramuh at the top (gate Terra); his
    scene gives the seed's reward. (WC also randomizes the clock puzzle: not ported, the PR's clock
@@ -93,12 +96,12 @@ CHECK_FLAGS = {
     "figaro_castle_wor": 12,
     "collapsing_house": 13,
     "narshe_wor": 14,
-    "magitek_factory": 15,      # its first reward (Ifrit/Shiva); 2nd, 3rd: Number 024, the end (not yet)
+    "magitek_factory": 15,      # its first reward (Ifrit/Shiva); 2nd: Number 024 (29), 3rd: the tubes (20)
     "doma_wor": 16,             # Cyan wakes (WC's reward 1)
-    "doma_wor_throne": 17,      # the throne (reward 2); the dream's Three Stooges (reward 3): not yet
+    "doma_wor_throne": 17,      # the throne (reward 2); the dream's Three Stooges (reward 3): doma_wor_3 (30)
     "mobliz_wor": 18,
     "doom_gaze": 19,
-    "magitek_factory_3": 20,    # the factory's third reward (the tube espers' scene); 2nd = Number 024: not yet
+    "magitek_factory_3": 20,    # the factory's third reward (the tube espers' scene); 2nd = Number 024: magitek_factory_2 (29)
     "lone_wolf": 21,            # Mog after the chase (reward 1)
     "lone_wolf_2": 22,          # the Gold Hairpin's place (reward 2)
     "daryl_tomb": 23,
@@ -174,6 +177,14 @@ PICK_PARTY = 99            # the plugin's answer to WC:reward: 1 = a character j
 REWARD_LINE = 129          # the plugin's: a reward given in a battle; the battle script shows its line
 PARTY_MENU = "\u30d1\u30fc\u30c6\u30a3\u7de8\u6210\uff1a\uff11\u30d1\u30fc\u30c6\u30a3"   # the PR's party select, one party
 AIRSHIP_PARTY_CHOICE = "WC_AIRSHIP_PARTY"
+SKIES_PENDING = 128        # ScenarioFlag4: the Falcon took off to (Search the skies.); its arrival starts the fight
+# Off for 0.6.10 (2026-11-21, lean coordinator): wc-11's search_skies run lost the game both times as the fight started
+# (log ends at "[wc] battle: party 464 -> 20063"; build/test_logs/20261121-122657_wc10-search_skies.log). Back on once fixed.
+SEARCH_THE_SKIES = False
+DOOM_GAZE_PARTY = 464      # the PR's Doom Gaze fight (sc_e_0964's EncountBoss; WcBattles swaps in the seed's boss)
+# the airship unequip NPC's two services (the PR's Current.RemoveEquipmentReserveMember / AllMember)
+UNEQUIP_RESERVE = "控えメンバーの装備を外す"   # those not in the party
+UNEQUIP_ALL = "全員の装備を外す"                                 # all members
 
 # story flags WC's start sets (its event modules' init_event_bits), as PR flags
 START_FLAGS = [
@@ -217,6 +228,7 @@ MESSAGES = {
     AIRSHIP_PARTY_CHOICE: "Change party members.",
     "WC_HELM_WOR": "(Fly to the World of Ruin.)",
     "WC_HELM_WOB": "(Fly to the World of Balance.)",
+    "WC_HELM_SKIES": "(Search the skies.)",
     "WC_REWARD": "<CT>Obtained a reward!",
     "WC_MOOGLE_ASK": "Kupo! The Empire is attacking the mines! Will you help the moogles?",
     "WC_MOOGLE_YES": "(Defend the mines.)",
@@ -225,6 +237,11 @@ MESSAGES = {
     "WC_KT_YES": "(Straight to Kefka.)",
     "WC_KT_NO": "(Climb the tower.)",
     "WC_UMARO_CLIFF": "There's an opening in the cliff.",
+    # WC event/burning_house.py with -cg (dialog 1936: "You're strangers... 100000000 GP"), in the
+    # PR's own words for the stranger's price (E0429_00_184_a_01)
+    "WC_THAMASA_INN": "You're outsiders... It's gonna cost you 100,000,000 gil if you wanna stay here.",
+    # WC event/figaro_castle_wor.py with -cg (dialog 2379)
+    "WC_SIEGFRIED_WAIT": "Pretty dangerous from here on. Wait here.",
 }
 NOT_ENOUGH_GIL = "S9999_999_a_12"
 
@@ -279,11 +296,14 @@ def selection(choice, target):
     return S.op("Branch", i=[0, choice, target], s=["MessageSelection", EQ, "imm"])
 
 
-def wheel(sc, at, lift_off, nothing, pose, choice_key, call, world_flags, to_map, arrive, extra=None):
+def wheel(sc, at, lift_off, nothing, pose, choice_key, call, world_flags, to_map, arrive, extra=None, third=None):
     """A deck's wheel: the vanilla code at `at` (just after the label 通常時) moves into a block
     that, in a WC game, offers (Take the wheel.) / <choice_key> / (Never mind.). extra = (choice
     key, jump target, gate module, done check): one more choice first while the gate is met and
-    the check isn't done (the Floating Continent)."""
+    the check isn't done (the Floating Continent). third = (choice key, gate module, done check,
+    ops): one more choice after <choice_key>, on the same terms, whose ops (in this block) run
+    when it is picked (Doom Gaze's Search the skies, WC's order: Lift-off / World of Balance /
+    Search The Skies / Not just yet)."""
     first = []
     if extra:
         key, target, module, done = extra
@@ -297,6 +317,20 @@ def wheel(sc, at, lift_off, nothing, pose, choice_key, call, world_flags, to_map
             S.op("Jump", i=[nothing]),
             S.label("plain"),
         ]
+    tail = []
+    if third:
+        key, module, done, ops = third
+        first += [
+            if_flag(WC_FLAGS, CHECK_FLAGS[done], 1, "@two"),
+        ] + gate(module, "@two") + [
+            S.op("Select", s=["E0412_00_119_c_01", choice_key, key, "E0412_00_119_c_02"]),
+            selection(0, lift_off),
+            selection(1, "@switch"),
+            selection(2, "@third"),
+            S.op("Jump", i=[nothing]),
+            S.label("two"),
+        ]
+        tail = [S.label("third")] + ops
     S.hook(sc, at, "wc_helm", [
         if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),                         # not a WC game: vanilla
     ] + first + [
@@ -312,7 +346,7 @@ def wheel(sc, at, lift_off, nothing, pose, choice_key, call, world_flags, to_map
         S.op("SysCall", s=[GPS_TO_PLAYER]),
         S.op("ChangeMap", i=[to_map, 1, 0, 0, 1, 0], s=[arrive]),
         S.op("Exit"),
-    ])
+    ] + tail)
 
 
 def blackjack_helm():
@@ -344,14 +378,51 @@ def blackjack_helm():
 
 
 def falcon_helm():
-    """The Falcon's wheel (sc_e_FAoutboard, WoR): (Fly to the World of Balance.). Doom Gaze's
-    "Search the skies" comes with that check."""
+    """The Falcon's wheel (sc_e_FAoutboard, WoR): (Fly to the World of Balance.), and Doom Gaze's
+    (Search the skies.) while its gate is met (WC: Setzer recruited, with -cg) and Doom Gaze isn't
+    beaten (WC event/airship.py doom_gaze_mod: the wheel's 3rd choice until DEFEATED_DOOM_GAZE; here
+    until the check's flag, which his reward sets). Picked: the wheel's own take-off with
+    SKIES_PENDING set, and the arrival in the sky starts the PR's Doom Gaze fight
+    (falcon_skies_arrival). WC fights him from the deck (the camera pans off, then the battle);
+    the PR's fight and the scripts after it (sc_e_0964_1: he flies off with his HP kept, or the
+    reward on the deck, sc_e_0964_2, then back in the air) belong to the sky, so the Falcon takes
+    off first. Escaped (WC: back in the air), the choice stays."""
     sc = S.load("sc_e_FAoutboard")
     ms = sc["Mnemonics"]
     assert [ms[i]["label"] for i in (4, 7, 12, 14)] == ["\u901a\u5e38\u6642", "\u767a\u9032\u3059\u308b",
                                                         "\u4f55\u3082\u3057\u306a\u3044", "hand_up"], "Falcon wheel changed"
+    assert ms[11]["mnemonic"] == "ChangeMap" and ms[11]["operands"]["iValues"][0] == WOR_MAP and \
+        ms[11]["operands"]["sValues"][0] == "sc_e_FAoutboard_1", "Falcon take-off changed"
     wheel(sc, 5, lift_off=7, nothing=12, pose=14, choice_key="WC_HELM_WOB", call="WC:to_wob",
-          world_flags=[reset(*GOT_FALCON), reset(*COLLAPSED)], to_map=WOB_MAP, arrive="sc_e_BJoutboard_1")
+          world_flags=[reset(*GOT_FALCON), reset(*COLLAPSED)], to_map=WOB_MAP, arrive="sc_e_BJoutboard_1",
+          third=("WC_HELM_SKIES", "doom_gaze", "doom_gaze", [
+              flag(WC_FLAGS, SKIES_PENDING),
+              S.op("Jump", i=[7]),             # the wheel's take-off (pose, propellers, the WoR sky)
+          ]) if SEARCH_THE_SKIES else None)
+    return sc
+
+
+def falcon_skies_arrival():
+    """The Falcon's arrival in the WoR sky (sc_e_FAoutboard_1: every take-off from its deck, the
+    world switch's, the one after Doom Gaze's reward scene): after (Search the skies.) the
+    SKIES_PENDING flag is cleared and, airborne, the Doom Gaze fight starts as in the sky
+    (sc_e_0964's own EncountBoss, its after-battle script sc_e_0964_1 included)."""
+    sc = S.load("sc_e_FAoutboard_1")
+    ms = sc["Mnemonics"]
+    assert ms[1]["mnemonic"] == "OnTheVehicle" and ms[8]["mnemonic"] == "FadeIn" and ms[9]["mnemonic"] == "Exit", \
+        "Falcon arrival changed"
+    fight = S.load("sc_e_0964")["Mnemonics"][1]
+    assert fight["mnemonic"] == "EncountBoss" and fight["operands"]["iValues"][0] == DOOM_GAZE_PARTY and \
+        fight["operands"]["sValues"][0] == "sc_e_0964_1", "Doom Gaze's sky fight changed"
+    fight = copy.deepcopy(fight)
+    fight["label"] = ""
+    S.hook(sc, 9, "wc_skies", [
+        if_flag(WC_FLAGS, SKIES_PENDING, 0, "@vanilla"),
+        reset(WC_FLAGS, SKIES_PENDING),
+        S.op("Wait", r=[0.5]),
+        fight,
+        S.op("Exit"),
+    ])
     return sc
 
 
@@ -383,6 +454,20 @@ def airship_party_npc(script, msg_at, reserve_at, everyone_at, nothing_at):
         S.op("FinishPuppet"),
         S.op("Exit"),
     ])
+    # -eu (WC event/airship.py, equipable_umaro): both unequip services also take Gogo's and
+    # Umaro's equipment (recruited; "those not in the party": not in it). The PR's own calls
+    # (Current.RemoveEquipmentFromMembers, tools/decomp/unequip) skip Umaro (status id 14) only;
+    # WC:eu_unequip does him after them when the seed has -eu (WcRecruits.EuUnequip)
+    for start, call, which in ((reserve_at, UNEQUIP_RESERVE, "reserve"), (everyone_at, UNEQUIP_ALL, "all")):
+        at = next(n for n in range(start, len(ms)) if ms[n]["mnemonic"] == "SysCall")
+        assert ms[at]["operands"]["sValues"][0] == call and not ms[at]["label"], f"{script} unequip ({which}) changed"
+        moved = copy.deepcopy(ms[at])
+        S.hook(sc, at, f"wc_eu_{which}", [
+            if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
+            moved,
+            S.op("SysCall", s=[f"WC:eu_unequip {which}"]),
+            S.op("Jump", i=[at]),
+        ])
     return sc
 
 
@@ -927,6 +1012,43 @@ def figaro_castle_wor():
     ])
     reward_at(sc, 65, "figaro_castle_wor", then="keep")
     return sc
+
+
+def figaro_cave_siegfried():
+    """The WoR Figaro cave's entrance (sc_map_30641_5 = SNES map 68; WC event/figaro_castle_wor.py).
+    With -cg WC's start sets SIEGFRIED_FIGARO_CAVE_ENTRANCE: Siegfried stands in the cave's one-tile
+    passage (14, 36) and only says "Pretty dangerous from here on. Wait here." (dialog 2379) until
+    Edgar is recruited (the map's entrance event hides him then); the cave is the way to the castle,
+    stuck underground. Without -cg he isn't there. The PR's Siegfried there (ev_e_0666, the same
+    spot) is vanilla's scene: his line, he runs off, ScenarioFlag2 75, which WC's start sets (so he
+    was never placed). In a WC game: his layer while the figaro_castle_wor gate is closed (always
+    open without -cg), and talking to him gives WC's line, nothing else: he stays in the way.
+    Returns [(script, vanilla file)]."""
+    out = []
+    sc = S.load("sc_map_30641_5")
+    ms = sc["Mnemonics"]
+    assert ms[3]["operands"]["iValues"][:3] == [74, 0, 6] and ms[5]["operands"]["sValues"][0] == "ev_e_0666" and \
+        ms[6]["label"], "the WoR Figaro cave's entrance changed"
+    S.hook(sc, 3, "wc_siegfried", [
+        if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
+    ] + gate("figaro_castle_wor", "@closed") + [
+        S.op("Jump", i=[6]),
+        S.label("closed"),
+        S.op("SetEntities", s=["ev_e_0666"]),
+        S.op("Jump", i=[6]),
+    ])
+    out.append((sc, S.path("sc_map_30641_5")))
+    sc = S.load("sc_e_0666")
+    ms = sc["Mnemonics"]
+    assert ms[2]["operands"]["sValues"][0] == "E0666_00_448_a_01" and ms[3]["mnemonic"] == "Call" and \
+        ms[4]["operands"]["iValues"][0] == 75, "Siegfried's scene at the cave changed"
+    S.hook(sc, 1, "wc_siegfried", [
+        if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
+        S.op("Msg", s=["WC_SIEGFRIED_WAIT"]),
+        S.op("Exit"),
+    ])
+    out.append((sc, S.path("sc_e_0666")))
+    return out
 
 
 def collapsing_house_map():
@@ -2550,6 +2672,102 @@ def phantom_train():
     return sc
 
 
+# WC's ghost merchant in the Phantom Forest (event/phantom_train.py ghost_shop_forest_mod): a new
+# NPC running the train's ghost shop (CB/AD44), on GHOST_SHOP_PHANTOM_FOREST, which WC's start
+# clears and its end of the train sets. WC puts it at one of nine spots per seed (maps 0x84-0x86,
+# its own random pick, which the seed folder doesn't record); here always one of them: map 0x85
+# (13, 10) = Map_30421_2 (14, 10) (tools/snes_maps.py: +1, 0), the spring's room. It joins the
+# room's entity_default (a game file with our change: what a player's setup can make, while a
+# layer of our own would be neither a game file nor shipped, tools/wc_gamedata.py's recipe) and
+# the room's script hides it unless it's due, as vanilla's Kohlingen does its two old women
+# (sc_map_20130: a Hide on arrival).
+GHOST_SHOP_MAP = ("map_30421", "Map_30421", "Map_30421_2")
+GHOST_SHOP_SPOT = (14, 10)
+GHOST_SHOP_AREA = (12, 9, 8, 3)      # where it wanders (tiles x, y, w, h): the clearing around the spot
+GHOST_SHOP_ENTITY, GHOST_SHOP_AREA_ENTITY = 30, 31   # field entity ids no layer of the map uses
+GHOST_SHOP_SCRIPT, GHOST_SHOP_SCRIPT_ID = "sc_e_1112", 1254   # the train's ghost shop (Map_30441_4's shopkeeper)
+GHOST_SHOP_TRAIN = "map_30441/Assets/GameAssets/Serial/Res/Map/Map_30441/Map_30441_4"
+
+
+def phantom_forest_map():
+    """The Phantom Forest's spring room (sc_map_30421_2, SNES map 0x85). WC deletes the walk to the
+    healing spring (phantom_train.py forest_spring_mod: delete_event(0x85, 3, 12)); the PR places it
+    on the first visit (ev_e_0158: sc_e_0158 walks the party to the spring, the recovery line,
+    ScenarioFlag1 106). And once the Phantom Train is done WC's ghost merchant waits in the forest.
+    In a WC game: no walk (the spring itself, sc_e_0159, as ever), and the merchant
+    (GHOST_SHOP_ENTITY, ghost_shop_files) hidden on arrival until the phantom_train check is done;
+    in any other game hidden always, the rest vanilla."""
+    sc = S.load("sc_map_30421_2")
+    ms = sc["Mnemonics"]
+    assert ms[1]["operands"]["iValues"][:3] == [106, 1, 3] and ms[2]["operands"]["sValues"][0] == "ev_e_0158" and         ms[3]["label"] and ms[4]["mnemonic"] == "Exit", "the Phantom Forest's spring room changed"
+    S.hook(sc, 1, "wc_forest", [
+        if_flag(WC_FLAGS, WC_GAME, 0, "@not_wc"),
+        if_flag(WC_FLAGS, CHECK_FLAGS["phantom_train"], 1, 3),     # the merchant there; no walk
+        S.op("Call", i=["@wc_hide_ghost"]),
+        S.op("Jump", i=[3]),                                        # no walk
+        S.label("not_wc"),
+        S.op("Call", i=["@wc_hide_ghost"]),
+        S.op("Jump", i=["@vanilla"]),
+    ] + puppets("wc_hide_ghost", (GHOST_SHOP_ENTITY,), lambda k: [S.op("Hide", kind=2)]))
+    return sc
+
+
+def ghost_shop_rel(name):
+    """A file of the forest merchant's room, relative to a Magicite folder ("/"-separated)."""
+    group, folder, sub = GHOST_SHOP_MAP
+    return f"{group}/Assets/GameAssets/Serial/Res/Map/{folder}/{sub}/{name}"
+
+
+def ghost_shop_files(out_root):
+    """The forest merchant's files under out_root: the room's entity_default with it (the train
+    shopkeeper's entity, asset 139, and the MoveArea it wanders, as on the train), its talk script
+    (a copy of the train's sc_e_1112, whose script id the entity keeps: a map runs only the scripts
+    its package lists) and the map group's package.json listing that. Returns their rels."""
+    group, folder, sub = GHOST_SHOP_MAP
+    train = json.load(open(os.path.join(P.VANILLA, *GHOST_SHOP_TRAIN.split("/"), "entity_default.json"), encoding="utf-8"))
+    ghost = [o for g in train["layers"] for o in g.get("objects") or []
+             if any(p["name"] == "script_id" and p["value"] == GHOST_SHOP_SCRIPT_ID for p in o.get("properties", []))]
+    area = [o for g in train["layers"] for o in g.get("objects") or [] if o.get("name") == "MoveArea"]
+    assert len(ghost) == 1 and len(area) == 1, "the train's ghost shopkeeper changed"
+    ghost, area = copy.deepcopy(ghost[0]), copy.deepcopy(area[0])
+    gp, ap = ({p["name"]: p for p in o["properties"]} for o in (ghost, area))
+    assert gp["move_type"]["value"] == 2 and gp["link_object_id"]["value"] == ap["object_id"]["value"], "the ghost's walk changed"
+    here = os.path.join(P.VANILLA, *ghost_shop_rel("").split("/"))
+    used, ids, areas = set(), set(), set()
+    for f in os.listdir(here):
+        if f.endswith(".json") and (f.startswith("ev_") or f == "entity_default.json"):
+            for g in json.load(open(os.path.join(here, f), encoding="utf-8")).get("layers", []):
+                for o in g.get("objects") or []:
+                    ids.add(o.get("id"))
+                    props = {p["name"]: p["value"] for p in o.get("properties", [])}
+                    used.add(props.get("entity_id"))
+                    if props.get("object_type") == 13:
+                        areas.add(props.get("object_id"))
+    assert not used & {GHOST_SHOP_ENTITY, GHOST_SHOP_AREA_ENTITY} and not areas and not ids & {1000, 1001},         "the forest room's entity ids changed"
+    x, y = GHOST_SHOP_SPOT
+    ghost.update(id=1000, name=f"{GHOST_SHOP_SCRIPT}: WC's ghost merchant", x=16 * x, y=16 * (y + 1))   # bottom-anchored
+    gp["entity_id"]["value"] = GHOST_SHOP_ENTITY
+    gp["link_object_id"]["value"] = 1
+    ax, ay, aw, ah = GHOST_SHOP_AREA
+    area.update(id=1001, x=16 * ax, y=16 * ay, width=16 * aw, height=16 * ah)                       # top-left
+    ap["entity_id"]["value"] = GHOST_SHOP_AREA_ENTITY
+    ap["object_id"]["value"] = 1
+    room = json.load(open(os.path.join(here, "entity_default.json"), encoding="utf-8"))
+    ground = [g for g in room["layers"] if g.get("name") == "GroundObject"]
+    assert len(ground) == 1, "the forest room's entity_default changed"
+    ground[0]["objects"] += [ghost, area]
+    out = [ghost_shop_rel("entity_default.json"), ghost_shop_rel(GHOST_SHOP_SCRIPT + ".json")]
+    dest = [os.path.join(out_root, *rel.split("/")) for rel in out]
+    os.makedirs(os.path.dirname(dest[0]), exist_ok=True)
+    with open(dest[0], "w", encoding="utf-8") as f:
+        json.dump(room, f, ensure_ascii=False, separators=(",", ":"))
+    import shutil
+    shutil.copyfile(S.path(GHOST_SHOP_SCRIPT), dest[1])          # the train's, byte for byte
+    S.list_in_map(out_root, group, folder, sub, [GHOST_SHOP_SCRIPT])
+    out.append(f"{group}/Assets/GameAssets/Serial/Res/Map/{folder}/package.json")
+    return out
+
+
 def south_figaro_cave_map():
     """South Figaro's cave (WC event/south_figaro_cave_wob.py, gate Locke; sc_map_30031_1, map
     329): the Tunnel Armor waits there while the gate is met and the check isn't done (vanilla:
@@ -3391,6 +3609,17 @@ def story_scenes():
     """Every cut story scene: [(script, vanilla file)]."""
     out = [(no_layer(*row), S.path(row[0])) for row in NO_SCENE_LAYERS]
 
+    # Doma Castle, Cyan's family's room (sc_map_20101_6, map 81 = SNES 124): after the poisoning his
+    # wife and son lie there (ev_e_0120: Mina and Shun cued to Fall, until ScenarioFlag2 3). WC hides
+    # them with the poisoning's other NPCs (event/doma_wob.py clears VARIOUS_DOMA_POISONING at the
+    # start: SNES map 124's (32,29) and (34,31)). In a WC game: the room without them.
+    sc = S.load("sc_map_20101_6")
+    ms = sc["Mnemonics"]
+    assert ms[9]["operands"]["iValues"][:3] == [3, 1, 12] and ms[10]["operands"]["sValues"][0] == "ev_e_0120" and \
+        ms[11]["mnemonic"] == "Call" and ms[12]["label"], "Doma's family room changed"
+    wc_jump(sc, 9, 12, "wc_no_scene")
+    out.append((sc, S.path("sc_map_20101_6")))
+
     # The Blackjack's stairs down to the engine room (sc_e_1033, map 121): after Gestahl's dinner
     # (ScenarioFlag2 1, which WC's start sets) and until the scene's own flag (ScenarioFlag1 73)
     # they play Setzer and Cid's talk about Darill (sc_e_1033_1, map 122). In a WC game: the
@@ -3723,18 +3952,95 @@ def figaro_throne_map():
     return sc
 
 
+# Leo's grave layer's man and boy (ev_e_0552_2: entities 174, 175), whom the burning house's crowd
+# (ev_e_0523: entities 151, 149, the same NPCs and scripts) duplicates while that check is open
+GRAVE_TOWNSFOLK = (174, 175)
+
+
 def thamasa_burning_map():
     """Thamasa (sc_Map_20270): the burning house's entrance (ev_e_0523, the burning_house check)
-    while the check is open (vanilla: only during the fire, ScenarioFlag2 16 and not 17)."""
+    while the check is open (vanilla: only during the fire, ScenarioFlag2 16 and not 17).
+    The town itself as WC's start leaves it (event/burning_house.py: DEFEATED_KEFKA_THAMASA,
+    LEO_BURIED_THAMASA, FINISHED_THAMASA_KEFKA and THAMASA_CITIZENS set): Leo's grave with his
+    sword and the three townsfolk (SNES map 340's (18,21), (41,24), (30,29)), which is vanilla's
+    layer after his burial (ev_e_0552_2 + reo_sword, on ScenarioFlag2 26), without the path's
+    blocker before it (ev_e_0552_1); and not the townsfolk vanilla places after Terra's "Father?"
+    at Zozo (ev_e_0413 on ScenarioFlag1 203: its man and boy are ev_e_0552_2's). Neither flag is
+    set: 203 also arms Blackjack and Narshe scenes (sc_Map_20171_2 ev_e_0414, Map_20011_11), 26 is
+    the Blackjack's breakdown among its 22 tests. While the burning house is open its crowd stands
+    in town too (ev_e_0523): the grave layer's man and boy are hidden then."""
     sc = S.load("sc_Map_20270")
     ms = sc["Mnemonics"]
     assert ms[50]["operands"]["iValues"][:3] == [16, 0, 54] and ms[52]["operands"]["sValues"][0] == "ev_e_0523", "Thamasa changed"
+    assert ms[29]["operands"]["iValues"][:3] == [203, 0, 37] and ms[29]["operands"]["sValues"][0] == "ScenarioFlag1" and \
+        ms[31]["operands"]["sValues"][0] == "ev_e_0413" and ms[37]["label"], "Thamasa's townsfolk changed"
+    assert ms[72]["operands"]["iValues"][:3] == [26, 1, 75] and ms[73]["operands"]["sValues"][0] == "ev_e_0552_1" and \
+        ms[75]["label"] and ms[76]["operands"]["sValues"][0] == "ev_e_0552_2" and \
+        ms[77]["mnemonic"] == "Call" and ms[77]["operands"]["iValues"][0] == 167, "Leo's grave changed"
     S.hook(sc, 50, "wc_fire", [
         if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
         if_flag(WC_FLAGS, CHECK_FLAGS["burning_house"], 1, 54),
         S.op("Jump", i=[51]),
     ])
+    wc_jump(sc, 29, 37, "wc_townsfolk")          # not ev_e_0413
+    wc_jump(sc, 72, 75, "wc_leo_grave")          # ev_e_0552_2, not the blocker
+    S.hook(sc, 77, "wc_grave_townsfolk", [
+        if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
+        if_flag(WC_FLAGS, CHECK_FLAGS["burning_house"], 1, "@vanilla"),
+        S.op("Call", i=["@wc_hide_townsfolk"]),
+        S.op("Jump", i=["@vanilla"]),
+    ] + puppets("wc_hide_townsfolk", GRAVE_TOWNSFOLK, lambda k: [S.op("Hide", kind=2)]))
     return sc
+
+
+def thamasa_inn():
+    """Thamasa's inn (WC event/burning_house.py). WC's start sets MET_STRAGO_RELM (SNES 0x8D), so
+    the SNES innkeeper (map 346, CB/D73F, the one inn of both worlds) asks 1 gil, not a stranger's
+    1500; with -cg, until Strago is recruited, WC's own stranger price instead (dialog 1936:
+    100000000 GP, more than anyone can hold: "You don't have enough money"), the SNES inn being
+    where WC's burning house starts (sleep, wake to the fire; here the house's door is the check).
+    The PR keys its WoB innkeeper to ScenarioFlag2 15 (Strago met): before it the stranger's
+    (ev_e_0413: sc_e_0429, product group 114 = 1500 gil), after the fire the town's (ev_e_0540:
+    sc_sty_20271_4, group 115 = 1 gil). 15 can't be a start flag (on its way it routes the inn to
+    the fire's night, ev_e_0521): in a WC game the room takes the after-fire inn. The WoR's inn
+    (sc_sty_20461_4, group 127 = 1 gil) is 1 gil already; both refuse a stranger with -cg while
+    Strago's gate is closed. Returns [(script, vanilla file)]."""
+    out = []
+    sc = S.load("sc_map_20271_4")
+    ms = sc["Mnemonics"]
+    assert ms[17]["operands"]["iValues"][:3] == [15, 1, 21] and ms[19]["operands"]["sValues"][0] == "ev_e_0413" and \
+        ms[30]["operands"]["sValues"][0] == "ev_e_0540", "Thamasa's inn changed"
+    S.hook(sc, 17, "wc_thamasa_inn", [
+        if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
+        S.op("SetEntities", s=["ev_e_0540"]),
+        S.op("Exit"),
+    ])
+    out.append((sc, S.path("sc_map_20271_4")))
+    for name, group in THAMASA_INNS:
+        sc = S.load(name)
+        ms = sc["Mnemonics"]
+        assert ms[1]["mnemonic"] == "SetGilTag" and ms[1]["operands"]["iValues"][0] == group and \
+            ms[7]["mnemonic"] == "RemoveGil" and ms[7]["operands"]["iValues"][0] == group, f"{name}: the inn changed"
+        S.hook(sc, 1, "wc_stranger", [
+            if_flag(WC_FLAGS, WC_GAME, 0, "@vanilla"),
+        ] + gate("burning_house", "@stranger") + [
+            S.op("Jump", i=["@vanilla"]),
+            S.label("stranger"),
+            S.op("Msg", s=["WC_THAMASA_INN"]),
+            S.op("Select", s=list(THAMASA_STRANGER_CHOICES)),
+            selection(0, "@pay"),
+            S.op("Exit"),
+            S.label("pay"),
+            S.op("Msg", s=[NOT_ENOUGH_GIL]),
+            S.op("Exit"),
+        ])
+        out.append((sc, S.path(name)))
+    return out
+
+
+# the PR's Thamasa inns: (innkeeper script, product group = the price; groups 115 and 127: 1 gil)
+THAMASA_INNS = (("sc_sty_20271_4", 115), ("sc_sty_20461_4", 127))
+THAMASA_STRANGER_CHOICES = ("E0429_00_184_c_01", "E0429_00_184_c_02")   # the stranger's (Pay.) / (Don't pay.)
 
 
 def esper_mountain_map():
@@ -4288,6 +4594,31 @@ def mt_zozo():
                        theme=14)
 
 
+def mt_zozo_books():
+    """Mt. Zozo's Book of Secrets (WC event/mt_zozo.py: BOOK_OF_SECRETS_CHEST_MT_ZOZO cleared at
+    the start, chest_mod NOPs the chest, its opening and "find key to cyan's chest"): in SNES WC
+    Cyan's chest (map 180's NPC on that bit) isn't there and there's no key. The PR places the
+    sparkling key (ev_e_0736 on Map_30690 = SNES 181: sc_e_0736, ScenarioFlag2 110) once
+    ScenarioFlag2 109 is set, which the mt_zozo check sets; Cyan's chest (sc_e_0737, Map_30681_1,
+    drawn in the room's tiles) then gives the "Books" key item and plays Cyan's gag. In a WC game:
+    no key, and the chest stays locked ("It's locked.", also for a save that took the key before).
+    Returns [(script, vanilla file)]."""
+    out = []
+    sc = S.load("sc_map_30690")
+    ms = sc["Mnemonics"]
+    assert ms[1]["operands"]["iValues"][:3] == [109, 0, 4] and ms[3]["operands"]["sValues"][0] == "ev_e_0736" and \
+        ms[4]["label"], "Mt. Zozo's key changed"
+    wc_jump(sc, 1, 4, "wc_no_key")
+    out.append((sc, S.path("sc_map_30690")))
+    sc = S.load("sc_e_0737")
+    ms = sc["Mnemonics"]
+    assert ms[1]["operands"]["iValues"][:3] == [110, 0, 21] and ms[21]["label"] and \
+        ms[22]["operands"]["sValues"][0] == "E0737_00_474_a_01" and ms[8]["operands"]["iValues"][0] == 48, "Cyan's chest changed"
+    wc_jump(sc, 1, 21, "wc_locked")
+    out.append((sc, S.path("sc_e_0737")))
+    return out
+
+
 def umaro_cave():
     """Umaro's cave (WC event/umaro_cave.py; map 496): after the battle, talking to Umaro
     (sc_e_0790): the seed's reward instead of Umaro (no Mog needed, as WC; ScenarioFlag2 142);
@@ -4516,7 +4847,7 @@ def kt_demon_drop():
     return [(sc, f[0])]
 
 
-SCRIPTS = [opening, blackjack_helm, falcon_helm, blackjack_party_npc, falcon_party_npc_grounded, falcon_party_npc, tzen_wob, tzen_wor, tzen_map, ancient_castle, ancient_castle_room,
+SCRIPTS = [opening, blackjack_helm, falcon_helm] + ([falcon_skies_arrival] if SEARCH_THE_SKIES else []) + [blackjack_party_npc, falcon_party_npc_grounded, falcon_party_npc, tzen_wob, tzen_wor, tzen_map, ancient_castle, ancient_castle_room,
            gau_father_house_map, gau_father_house, kohlingen_map, kohlingen_wor_map, kohlingen, kohlingen_wor, tritoch, tritoch_map, zozo_map, zozo,
            owzer_mansion_start, owzer_mansion, zone_eater, mt_zozo, umaro_cliff, umaro_cave, umaro_carving_line, umaro_carving_item,
            esper_mountain_start, esper_mountain, figaro_castle_wor_start, figaro_castle_wor,
@@ -4537,7 +4868,8 @@ SCRIPTS = [opening, blackjack_helm, falcon_helm, blackjack_party_npc, falcon_par
            burning_house_start, burning_house, mines_1f_map, whelk_start, whelk,
            quest_checkpoint_start, quest_checkpoint_south, quest_checkpoint_north, quest_zozo_clock, bum_rush_last,
            opera_performance, narshe_rooms, thamasa_shops, thamasa_strago_house, south_figaro_basement,
-           story_music, story_scenes, phantom_train_scenes, doma_dream, tower_scenes, wor_scenes]
+           story_music, story_scenes, phantom_train_scenes, doma_dream, tower_scenes, wor_scenes,
+           thamasa_inn, mt_zozo_books, phantom_forest_map, figaro_cave_siegfried]
 
 
 # Lines WC removes that the PR gives no speaker (the user's Deck, 2026-11-12: "i'm gettting
@@ -4682,6 +5014,8 @@ def build(out_root):
     if rel not in written:
         written.append(rel)
 
+    # WC's ghost merchant in the Phantom Forest (phantom_forest_map places its layer)
+    written += [r for r in ghost_shop_files(out_root) if r not in written]
     return written
 
 

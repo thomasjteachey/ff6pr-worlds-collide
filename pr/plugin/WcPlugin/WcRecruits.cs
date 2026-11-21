@@ -1,10 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.InteropServices;
 using HarmonyLib;
 using Last.Data.Master;
 using Last.Data.User;
-using Last.Defaine;
 using Last.Interpreter;
 using Last.Management;
 using UnityEngine;
@@ -15,8 +15,8 @@ namespace WorldsCollide.PR
     //  -sal: a character who joins starts at the average level of those recruited before
     //        (instruction/c0.py recruit_character -> average_level), with the HP/MP that level
     //        gives (the PR's growth curve) and the skills it teaches (level learning rows);
-    //  -eu:  Umaro may open the Equip menu (the PR keeps him to relics:
-    //        CharacterInfomationData's menu restrictions).
+    //  -eu:  Umaro's equip menu changes every slot, not just his relics (WC data/characters_asm.py
+    //        equipable_umaro: C3/1E6F's Umaro compare made to miss).
     static class WcRecruits
     {
         internal static string LastJoin = "";
@@ -26,38 +26,138 @@ namespace WorldsCollide.PR
 
         public static void Patch(Harmony h)
         {
-            var t = typeof(Serial.FF6.Management.CharacterInfomationData);
-            int n = 0;
-            foreach (var (name, post) in new[] { ("CanOpenRestrictionMenuWindow", nameof(CanOpen_Postfix)),
-                                                 ("GetDisplayRestrictionCharaIdList", nameof(Restricted_Postfix)),
-                                                 ("IsChangeEquipmentOnlyAccessory", nameof(OnlyRelics_Postfix)) })
-            {
-                var m = AccessTools.Method(t, name);
-                if (m == null) continue;
-                h.Patch(m, postfix: new HarmonyMethod(typeof(WcRecruits), post));
-                n++;
-            }
-            Plugin.L.LogInfo($"[wc] recruits: {n} of 3 menu checks hooked (-eu)");
+            try { EquipState = UnlockUmaroEquip(); }
+            catch (Exception e) { EquipState = "error: " + e.Message; WcRunner.WarnOnce("eu-equip", e); }
+            Plugin.L.LogInfo($"[wc] recruits: Umaro's equip menu (-eu): {EquipState}");
         }
 
         static bool On(string flag) => Plugin.WcMode && WcSeeds.Active != null && WcSeeds.Active.Flags.Split(' ').Contains(flag);
 
-        public static void CanOpen_Postfix(MenuCommandId commandId, int charaStatusId, ref bool __result)
+        // --- -eu: Umaro's equip menu -----------------------------------------------------------------
+        // The PR keeps Umaro to relics in code: Serial.FF6.Management.CharacterInfomationData.
+        // IsChangeEquipmentOnlyAccessory(id) is "return id == 14" (tools/decomp/bnw_menus). Its menu restriction
+        // lists keep him out of Magic only (Equipment's list is the guests 15-32), so the Equip menu opens for
+        // him already, with only the relic slots changeable. That method's machine code (RVA 0x4421B0:
+        // 83 FA 0E 0F 94 C0 C3, 7 bytes) is shared (identical-code folding) with three lambdas
+        // "v == BattleFlagType.NoARBattle" (14): ArBattleTopController.<>c.<InitMonsterPartyList>b__52_3 and the
+        // two LibraryInfoController.<>c.<SetData> ones (Touch b__21_3, KeyInput b__25_3; tools/il2cpp_out/dump.cs),
+        // so a Harmony hook on it (WC up to 0.6.9) answered those for NoARBattle too. Every caller reaches it
+        // through the class's vtable (CharacterInfomationProvider.IsChangeEquipmentOnlyAccessory: mov rax,[rcx] /
+        // jmp [rax+0x1F0]; tools/ghidra/callers.py: no direct calls), so the plugin points that one vtable entry
+        // at its own function, as BNW's MenuRules does: the shared code is never touched. -eu is the seed's,
+        // read on each call (a seed switch needs nothing undone).
+        internal static string EquipState = "not applied";
+        delegate byte OnlyAccessoryFn(IntPtr self, int characterStatusId, IntPtr method);
+        static OnlyAccessoryFn own;   // the function the game calls now: kept here so the GC never frees its thunk
+        static IntPtr gameCode;       // the game's own code (the shared one), for the self-test
+        static string euFor;
+        static bool euOn;
+
+        // the seed has -eu (cached per flags string: the equip menu asks this often)
+        internal static bool EquipableUmaro()
         {
-            if (!__result && charaStatusId == Umaro && commandId == MenuCommandId.Equipment && On("-eu")) __result = true;
+            if (!Plugin.WcMode) return false;
+            var flags = WcSeeds.Active?.Flags;
+            if (flags == null) return false;
+            if (!ReferenceEquals(flags, euFor)) { euOn = flags.Split(' ').Contains("-eu"); euFor = flags; }
+            return euOn;
         }
 
-        public static void Restricted_Postfix(MenuCommandId commandId, ref Il2CppSystem.Collections.Generic.List<int> __result)
+        // the vtable entry the game calls: the game's own answer (id == 14) unless the seed has -eu
+        static byte OnlyAccessory(IntPtr self, int characterStatusId, IntPtr method)
         {
-            if (__result == null || commandId != MenuCommandId.Equipment || !__result.Contains(Umaro) || !On("-eu")) return;
-            var list = new Il2CppSystem.Collections.Generic.List<int>();   // a copy: the PR's own list stays
-            foreach (var id in __result) if (id != Umaro) list.Add(id);
-            __result = list;
+            try { return (byte)(characterStatusId == Umaro && !EquipableUmaro() ? 1 : 0); }
+            catch (Exception) { return (byte)(characterStatusId == Umaro ? 1 : 0); }
         }
 
-        public static void OnlyRelics_Postfix(int characterStatusId, ref bool __result)
+        [DllImport("kernel32", CharSet = CharSet.Unicode)]
+        static extern IntPtr GetModuleHandle(string name);
+
+        // Il2CppClass then its vtable ({methodPtr, method} pairs): the entry is found by both pointers matching
+        // the method's own (its MethodInfo and code), never by a fixed offset. BNW saw it at class+0x1F0 (slot 12).
+        const int VtableFrom = 0x100, VtableTo = 0x300;
+
+        static unsafe string UnlockUmaroEquip()
         {
-            if (__result && characterStatusId == Umaro && On("-eu")) __result = false;
+            if (own != null) return EquipState;
+            var m = AccessTools.Method(typeof(Serial.FF6.Management.CharacterInfomationData), "IsChangeEquipmentOnlyAccessory",
+                new[] { typeof(int) });
+            if (m == null) return "no CharacterInfomationData.IsChangeEquipmentOnlyAccessory: -eu is off";
+            var klass = PrKit.Hooks.ClassPtr<Serial.FF6.Management.CharacterInfomationData>();   // runs the interop type's static ctor
+            var field = Il2CppInterop.Common.Il2CppInteropUtils.GetIl2CppMethodInfoPointerFieldForGeneratedMethod(m);
+            var info = field == null ? IntPtr.Zero : (IntPtr)field.GetValue(null);
+            if (info == IntPtr.Zero || klass == IntPtr.Zero) return "no method info or class pointer: -eu is off";
+            var code = *(IntPtr*)info;   // Il2CppMethodInfo.methodPointer
+            gameCode = code;
+            var dll = GetModuleHandle("GameAssembly.dll");
+            long rva = dll == IntPtr.Zero ? -1 : (long)code - (long)dll;
+            for (int off = VtableFrom; off <= VtableTo; off += 8)
+            {
+                var entry = (IntPtr*)((byte*)klass + off);
+                if (entry[0] != code || entry[1] != info) continue;
+                own = OnlyAccessory;
+                entry[0] = Marshal.GetFunctionPointerForDelegate(own);
+                return $"vtable entry class+0x{off:X} is the plugin's (the game's code at RVA 0x{rva:X} left as it is)";
+            }
+            return $"vtable entry not found (code RVA 0x{rva:X}): -eu is off";
+        }
+
+        // a class the game hadn't set up at load (no vtable entry yet) gets more tries (from Update)
+        static void RetryUmaroEquip()
+        {
+            if (own != null || !EquipState.StartsWith("vtable entry not found")) return;
+            try
+            {
+                EquipState = UnlockUmaroEquip();
+                if (own != null) Plugin.L.LogInfo($"[wc] recruits: Umaro's equip menu (-eu), again: {EquipState}");
+            }
+            catch (Exception e) { WcRunner.WarnOnce("eu-equip", e); }
+        }
+
+        // for the self-test: the game's question as its menus ask it (the provider's virtual call), the shared
+        // code's first bytes (as the game shipped them: 83 FA 0E 0F 94 C0 C3), and whether the entry is the plugin's
+        internal static bool? MenuOnlyRelics(int characterStatusId)
+        {
+            var prov = Serial.ProviderManager.Instance?.CharacterInfomationProvider;
+            if (prov == null) return null;
+            return prov.IsChangeEquipmentOnlyAccessory(characterStatusId);
+        }
+
+        internal static unsafe string SharedCodeBytes()
+        {
+            if (gameCode == IntPtr.Zero) return "unknown";
+            var p = (byte*)gameCode;
+            return string.Join(" ", Enumerable.Range(0, 7).Select(i => p[i].ToString("X2")));
+        }
+
+        internal static bool EquipSwapped => own != null;
+
+        // -eu: the airship unequip NPC's two services (WC:eu_unequip reserve / all, run after the
+        // PR's own call; tools/wc_events.py airship_party_npc) also take Umaro's equipment, as WC's
+        // event/airship.py does with equipable_umaro: recruited, and for "those not in the party"
+        // not in it. The PR's calls (Current.RemoveEquipmentFromMembers, tools/decomp/unequip) do
+        // every owned character but Umaro, so Gogo is theirs already (WC: Gogo and Umaro).
+        internal static string LastUnequip = "";
+
+        internal static void EuUnequip(string which)
+        {
+            try
+            {
+                bool all = which == "all";
+                var udm = UserDataManager.Instance();
+                OwnedCharacterData umaro = null;
+                if (udm?.OwnedCharacterList != null)
+                    foreach (var c in udm.OwnedCharacterList) if (c?.characterStatusId == Umaro) umaro = c;
+                bool inParty = false;
+                var party = udm?.GetPartyMemberData();
+                if (party != null) foreach (var c in party) if (c?.characterStatusId == Umaro) inParty = true;
+                string why = !On("-eu") ? "no -eu" : umaro == null || !WcEvents.IsRecruited(Umaro) ? "Umaro not recruited"
+                           : !all && inParty ? "Umaro in the party" : null;
+                if (why == null) new OwnedCharacterClient().RemoveAllEquip(umaro.Id);
+                LastUnequip = $"{which}: {why ?? $"Umaro (owned {umaro.Id}) unequipped"}";
+                Plugin.L.LogInfo($"[wc] -eu unequip {LastUnequip}");
+            }
+            catch (Exception e) { WcRunner.WarnOnce("eu-unequip", e); }
         }
 
         // a character joins (WcEvents.Join_Postfix, before the objectives' stat results)
@@ -152,6 +252,7 @@ namespace WorldsCollide.PR
         {
             if (Time.unscaledTime < nextRepair) return;
             nextRepair = Time.unscaledTime + 2f;
+            RetryUmaroEquip();
             // Old Moogle Defense saves may have let vanilla's temporary-roster cleanup dismiss
             // their already-recruited Mog. The WC recruited flag survives, so restore him once the
             // completed save is safely back on the field. This repair is independent of -sal.

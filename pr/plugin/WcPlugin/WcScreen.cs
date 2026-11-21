@@ -351,7 +351,8 @@ namespace WorldsCollide.PR
             });
             rows.Add(new UiRow
             {
-                Label = WcGenerator.Running ? $"Generating... {WcGenerator.Status}" : "Generate and play this seed",
+                Label = WcGenerator.Waiting ? WcGenerator.WaitingText
+                      : WcGenerator.Running ? $"Generating... {WcGenerator.Status}" : "Generate and play this seed",
                 Disabled = !title || WcGenerator.Running,
                 Help = !title ? "Seeds change the whole game: return to the title screen to make or switch one."
                      : "Makes the seed (Worlds Collide, then the port to the Pixel Remaster: a few seconds) and applies it at once. " +
@@ -773,7 +774,8 @@ namespace WorldsCollide.PR
             GUI.Box(R(px, py, 1250, 700), C(""), sPanel);
             var mode = Track ? "Worlds Collide: Track" : Plugin.WcMode ? $"Worlds Collide {Defs.WcVersion}" : "Mods";
             Label(px + 20, py + 8, 800, 36, mode, sTitle);
-            var status = WcGenerator.Running ? $"Generating: {WcGenerator.Status} ({WcGenerator.Seconds:0} s)"
+            var status = WcGenerator.Waiting ? $"{WcGenerator.WaitingText} ({WcGenerator.Seconds:0} s)"
+                       : WcGenerator.Running ? $"Generating: {WcGenerator.Status} ({WcGenerator.Seconds:0} s)"
                        : WcSeeds.Active != null ? $"Seed: {WcSeeds.Active.SeedText}  {WcSeeds.Active.Hash}" : "No seed";
             if (Plugin.WcMode) Label(px + 600, py + 8, 630, 36, status, Style2(sValue));
 

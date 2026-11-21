@@ -30,11 +30,18 @@ namespace WorldsCollide.PR
     //   tzen=1 (with newgame: warp to Tzen, buy from the esper seller: the seed's price and
     //   reward, the check's flag; talking again gives nothing)
     //   check=<name> (with newgame: a check's own test plan, CheckPlans: warp, run its script,
-    //   gate closed / open, reward and flags)
+    //   gate closed / open, reward and flags). Airship ones: check=search_skies (the Falcon's
+    //   (Search the skies.): gate, hidden once Doom Gaze's check is done, the fight from the
+    //   wheel and what follows it), check=airship_crew (the unequip NPC's "Change party
+    //   members."), check=eu_unequip (with -eu its unequip services take Gogo's and Umaro's
+    //   equipment too; without, Gogo's only), check=eu_equip (-eu's equip menu, and the NoARBattle
+    //   lambdas that share the PR's lock's code), check=reward_wallet (a won battle's -gpm gil in the
+    //   wallet and on the screen, -xpm EXP on the characters), check=reward_mp (-mpm: a won battle's
+    //   magic points on the equipped esper's spells and the result screen, the morph gauge unmultiplied)
     // makes the seeds through the real generator on the title screen, applies them live, checks
     // live rows and Magicite files against the seed folders, puts the game's own data back,
     // deletes the test seeds and quits. Lines start with "[wc test]"; "[wc test] done" ends it.
-    static class WcTest
+    static partial class WcTest
     {
         static Dictionary<string, string> req;
         enum Step { Off, Startup, Wait, Gen1, Gen2, Vanilla, Load, Loading, OperaCheckpoint, Battle, InBattle, NewGame, InNewGame, ToWor, ToFalconDeck, ToWob, Tzen, TzenBuy, TzenAgain, Plan, Done }
@@ -94,6 +101,7 @@ namespace WorldsCollide.PR
             ["ancient_castle_dragon"] = ("eight_dragons", 5), ["phoenix_cave_dragon"] = ("eight_dragons", 6), ["fanatics_tower_dragon"] = ("eight_dragons", 7),
             ["auction_1"] = ("auction_house", 0), ["auction_2"] = ("auction_house", 1), ["final_kefka"] = ("kefka_tower", 0),
             ["floating_continent_2"] = ("floating_continent", 1), ["floating_continent_3"] = ("floating_continent", 2), ["magitek_factory_2"] = ("magitek_factory", 1), ["doma_wor_3"] = ("doma_wor", 2),
+            ["search_skies"] = ("doom_gaze", 0),   // the Falcon wheel's way to Doom Gaze's fight (its check flag: doom_gaze's)
         };
 
         // checks whose test is: warp to (map, point 1), gate, run (script), reward
@@ -281,7 +289,7 @@ namespace WorldsCollide.PR
                     int got = b?.MonsterParty?.Id ?? -1;
                     var ids = b?.GetEnemyUnits()?.Select(e => e?.GetMonster()?.Id ?? 0).Where(i => i > 0).ToList() ?? new List<int>();
                     var party = MasterManager.Instance.GetData<MonsterParty>(want);
-                    var expect = party == null ? new List<int>() : new[] { party.Monster1, party.Monster2, party.Monster3, party.Monster4, party.Monster5, party.Monster6 }.Where(x => x > 0).ToList();
+                    var expect = party == null ? new List<int>() : new[] { party.Monster1, party.Monster2, party.Monster3, party.Monster4, party.Monster5, party.Monster6, party.Monster7, party.Monster8, party.Monster9 }.Where(x => x > 0).ToList();
                     Check(b != null && b.IsBattle() && (got == want || (ids.Count > 0 && ids.All(expect.Contains))),
                           $"battles: the battle is party {got}, monsters [{string.Join(" ", ids)}] (the seed's {want}: monsters [{string.Join(" ", expect)}])");
                     Check(WcBattles.CurrentOriginal == from, $"battles: the battle came from the script's party {WcBattles.CurrentOriginal} ({from})");
@@ -1315,7 +1323,9 @@ namespace WorldsCollide.PR
             {
                 var lines = new List<string>();
                 turns.Clear();
-                int i = 0;
+                // the first turn counted is one whose gauge fills during the recording: a gauge already full when it
+                // starts was waiting for auto-battle to switch on (2026-11-20 wc-6: a first pick of 0.40 s, then 0.02-0.05)
+                int i = Math.Max(0, rec.FindIndex(r => r.Gauge < 99.9f));
                 while (true)
                 {
                     int full = rec.FindIndex(i, r => r.Gauge >= 99.9f);
@@ -1731,10 +1741,10 @@ namespace WorldsCollide.PR
                     undo.RemoveCommand(noMagic.Id, 7);
                     undo.UpdateChangeCommandForAccessory(noMagic.Id);
                 }
-                // -eu: Umaro's Equip menu
-                bool open = false;
-                WcRecruits.CanOpen_Postfix(Last.Defaine.MenuCommandId.Equipment, 14, ref open);
-                Check(open == s.Flags.Split(' ').Contains("-eu"), $"-eu: Umaro may open Equip: {open}");
+                // -eu: Umaro's equip menu changes every slot (the game's own question, as its menus ask it;
+                // check=eu_equip has the rest)
+                var relicsOnly = WcRecruits.MenuOnlyRelics(14);
+                Check(relicsOnly == !s.Flags.Split(' ').Contains("-eu"), $"-eu: Umaro's equip menu relics only: {relicsOnly} ({WcRecruits.EquipState})");
                 // -stra and WC's item bits: the Runic / Bushido lists
                 Check(WcItems.LastWeapons != "" && (!s.Flags.Split(' ').Contains("-stra") || WcItems.LastWeapons.Contains("90")),
                       $"Runic/Bushido weapons: {WcItems.LastWeapons}");
@@ -1753,8 +1763,17 @@ namespace WorldsCollide.PR
                 Check(s.EsperBonusVanilla.Count == 27, $"esper bonuses: {s.EsperBonus.Count} changed of {s.EsperBonusVanilla.Count}");
                 Check(s.Flags.Contains("-csb") ? s.CursedShieldBattles < 256 : s.CursedShieldBattles == 256, $"-csb: the cursed shield uncurses after {s.CursedShieldBattles} battles");
                 if (s.MonsterChests.Count == 0) return false;
-                // -chrm: a monster box's battle, queued as opening the chest does, starts on its own
-                boxParty = s.MonsterChests.Values.First();
+                // -chrm: every box's party exists with monsters (2026-11-21: ~10% of WC's packs had no PR party;
+                // seed_info now builds or rerolls them)
+                var noParty = s.MonsterChests.Where(kv =>
+                {
+                    var mp = MasterManager.Instance.GetData<MonsterParty>(kv.Value);
+                    return mp == null || new[] { mp.Monster1, mp.Monster2, mp.Monster3, mp.Monster4, mp.Monster5, mp.Monster6, mp.Monster7, mp.Monster8, mp.Monster9 }.All(x => x <= 0);
+                }).Select(kv => $"{kv.Key}->{kv.Value}").ToList();
+                Check(noParty.Count == 0, $"-chrm: all {s.MonsterChests.Count} monster boxes have a party with monsters{(noParty.Count > 0 ? ": missing " + string.Join(" ", noParty) : "")}");
+                // a monster box's battle, queued as opening the chest does, starts on its own: the highest party id,
+                // which is a party the seed made from its formation when there is one (ids after the game's own)
+                boxParty = s.MonsterChests.Values.Max();
                 WcBattles.Queue(boxParty);
                 return true;
             };
@@ -1762,7 +1781,7 @@ namespace WorldsCollide.PR
             {
                 var b = BattlePlugManager.Instance();
                 var party = MasterManager.Instance.GetData<MonsterParty>(boxParty);
-                var expect = party == null ? new List<int>() : new[] { party.Monster1, party.Monster2, party.Monster3, party.Monster4, party.Monster5, party.Monster6 }.Where(x => x > 0).ToList();
+                var expect = party == null ? new List<int>() : new[] { party.Monster1, party.Monster2, party.Monster3, party.Monster4, party.Monster5, party.Monster6, party.Monster7, party.Monster8, party.Monster9 }.Where(x => x > 0).ToList();
                 var ids = b?.GetEnemyUnits()?.Select(e => e?.GetMonster()?.Id ?? 0).Where(i => i > 0).ToList() ?? new List<int>();
                 Check(b != null && b.IsBattle() && ids.Count > 0 && ids.All(expect.Contains),
                       $"-chrm: the monster box's battle started: monsters [{string.Join(" ", ids)}] (party {boxParty}: [{string.Join(" ", expect)}])");
@@ -1795,10 +1814,10 @@ namespace WorldsCollide.PR
                     int done = WcTrack.Checks.Count(WcTrack.Done);
                     DataStorage.Instance.Set(DataStorage.Category.kScenarioFlag4, 1, keep);
                     Check(WcTrack.Checks.Count == 62 && done == 1, $"track list: {WcTrack.Checks.Count} checks, {WcTrack.Ported} ported, {done} done with Tzen's flag");
-                    Check(!WcTrack.Pick_Prefix((Last.Defaine.MenuCommandId)100) && WcScreen.Open && WcScreen.Track, "picking Track opens the Track pages");
+                    Check(!WcTrack.Pick((Last.Defaine.MenuCommandId)100) && WcScreen.Open && WcScreen.Track, "picking Track opens the Track pages");
                     var pages = WcScreen.TrackTest();
                     Check(pages.StartsWith("Checks:") && !pages.Contains(":0 ") && !pages.Contains(":1 "), "track pages: " + pages);
-                    Check(WcTrack.Pick_Prefix((Last.Defaine.MenuCommandId)7), "other entries go to the game");
+                    Check(WcTrack.Pick((Last.Defaine.MenuCommandId)7), "other entries go to the game");
                     WcScreen.Show(false);
                     return true;
                 }),
@@ -1888,1907 +1907,426 @@ namespace WorldsCollide.PR
                                      (BattleActData.ActAbilityType)0, 1, false);
         }
 
+        // ---- WC's start state (the start-bits audit, 2026-11-21; tools/wc_events.py thamasa_burning_map,
+        // thamasa_inn, mt_zozo_books, story_scenes' Doma room, phantom_forest_map, figaro_cave_siegfried;
+        // WcEvents.GiveMorph): warp + flags, then the entities placed and the talk scripts' lines
+
+        // a field entity of the map: "+" there and shown, "h" there but hidden, "-" not placed
+        static string Shown(int id)
+        {
+            try
+            {
+                var e = Field()?.GetFieldEntity(id);
+                if (e == null) return "-";
+                return e.gameObject.activeInHierarchy ? "+" : "h";
+            }
+            catch (Exception) { return "?"; }
+        }
+
+        static string ShownAll(params int[] ids) => string.Join("", ids.Select(i => Shown(i)));
+        static int Fl(DataStorage.Category c, int i) => WcEvents.Flag(c, i);
+        static void SetFl(DataStorage.Category c, int i, int v) => DataStorage.Instance.Set(c, i, v);
+        static bool Said(string key) => WcEvents.TestMessages.Any(m => m.StartsWith(key + ":"));
+        static string Lines() => string.Join(" | ", WcEvents.TestMessages);
+        static string OnMap() => $"map {UserDataManager.Instance()?.CurrentMapId}";
+
+        // a script started with its menus answered by index (retried while the game refuses, as Run)
+        static Func<bool> RunWith(string script, string what, params int[] answers)
+        {
+            int tries = 0;
+            Func<bool> run = null;
+            run = () =>
+            {
+                WcEvents.TestMessages.Clear();
+                WcEvents.TestSelects.Clear();
+                WcEvents.TestAnswers.Clear();
+                WcEvents.TestAnswerKeys.Clear();
+                if (WcEvents.RunScript(script, answers)) return true;
+                WcEvents.TestAnswers.Clear();
+                if (tries == 5) WcEvents.ResetMainCore();
+                if (++tries < 15) { plan.Insert(0, (2f, run)); return true; }
+                Check(false, $"{what}: {script} didn't start in 30 s");
+                return false;
+            };
+            return run;
+        }
+
+        // 1. WoB Thamasa (map 180) as WC's start leaves it: Leo's grave, his sword and the three townsfolk
+        // (ev_e_0552_2: grave 172, sword 173, man 174, boy 175, woman 176), not the path's blocker
+        // (ev_e_0552_1: 58) nor the townsfolk vanilla places after Zozo (ev_e_0413: 107 108 152 110);
+        // ScenarioFlag1 203 and ScenarioFlag2 26 stay clear. While the burning house is open: its crowd
+        // (ev_e_0523: Strago 95, the boy 149) and the grave layer's man and boy hidden
+        static List<(float, Func<bool>)> ThamasaTownPlan()
+        {
+            const int Thamasa = 180, Inn = 184, Fire = 35;
+            int keep = 0;
+            return new List<(float, Func<bool>)>
+            {
+                (0f, () =>
+                {
+                    keep = Fl(DataStorage.Category.kScenarioFlag4, Fire);
+                    SetFl(DataStorage.Category.kScenarioFlag4, Fire, 1);
+                    Check(WcEvents.GotoMap(Thamasa, 1), "thamasa_town: warp to Thamasa (map 180), the burning house done");
+                    return true;
+                }),
+                (8f, () =>
+                {
+                    Check(ShownAll(172, 173, 174, 175, 176) == "+++++",
+                          $"thamasa_town: Leo's grave, sword and three townsfolk (172-176) {ShownAll(172, 173, 174, 175, 176)} ({OnMap()})");
+                    Check(ShownAll(58, 107, 108, 152, 110, 95) == "------",
+                          $"thamasa_town: no blocker (58), no townsfolk after Zozo (107 108 152 110), no fire crowd (95): {ShownAll(58, 107, 108, 152, 110, 95)}");
+                    int f203 = Fl(DataStorage.Category.kScenarioFlag1, 203), f26 = Fl(DataStorage.Category.kScenarioFlag2, 26);
+                    Check(f203 == 0 && f26 == 0, $"thamasa_town: ScenarioFlag1 203 = {f203}, ScenarioFlag2 26 = {f26} (both stay clear)");
+                    SetFl(DataStorage.Category.kScenarioFlag4, Fire, 0);
+                    Check(WcEvents.GotoMap(Inn, 1), "thamasa_town: out to the inn (map 184)");
+                    return true;
+                }),
+                (6f, () => { Check(WcEvents.GotoMap(Thamasa, 1), "thamasa_town: back to Thamasa, the burning house open"); return true; }),
+                (8f, () =>
+                {
+                    Check(ShownAll(95, 149) == "++", $"thamasa_town: the fire's crowd (Strago 95, the boy 149) {ShownAll(95, 149)} ({OnMap()})");
+                    Check(ShownAll(172, 173, 176) == "+++" && Shown(174) != "+" && Shown(175) != "+",
+                          $"thamasa_town: the grave, sword and woman {ShownAll(172, 173, 176)}; the grave layer's man and boy hidden: {ShownAll(174, 175)}");
+                    SetFl(DataStorage.Category.kScenarioFlag4, Fire, keep);
+                    return true;
+                }),
+            };
+        }
+
+        // 2. Thamasa's inn: the after-fire innkeeper (map 184, ev_e_0540: entity 5; not the stranger's 1
+        // nor the fire night's 11 / 8), 1 gil a night; with -cg and Strago (8) not recruited, WC's stranger
+        // price (WC_THAMASA_INN, then "...You don't have enough money."), nothing paid. The WoR's (map 309) too
+        static List<(float, Func<bool>)> ThamasaInnPlan()
+        {
+            const int WobInn = 184, WorInn = 309, Strago = 8;
+            bool cg = WcSeeds.Active?.Flags.Split(' ').Contains("-cg") == true;
+            int keep = 0, gil = 0;
+            int Gil() => UserDataManager.Instance()?.OwendGil ?? -1;
+            Func<bool> Ask(string script, bool recruited) => () =>
+            {
+                gil = Gil();
+                SetFl(DataStorage.Category.kScenarioFlag4, WcEvents.Recruited + Strago, recruited ? 1 : 0);
+                return RunWith(script, "thamasa_inn", 0)();
+            };
+            Func<bool> Paid(string where) => () =>
+            {
+                Check(gil - Gil() == 1 && Said("S9994_999_a_07") && !Said("WC_THAMASA_INN"),
+                      $"thamasa_inn ({where}): a night for 1 gil: {gil} -> {Gil()}; lines {Lines()}");
+                return true;
+            };
+            Func<bool> Refused(string where) => () =>
+            {
+                Check(Said("WC_THAMASA_INN") && Said("S9999_999_a_12") && Gil() == gil,
+                      $"thamasa_inn ({where}, -cg, Strago not recruited): the stranger's price, refused: gil {gil} -> {Gil()}; lines {Lines()}");
+                return true;
+            };
+            var steps = new List<(float, Func<bool>)>
+            {
+                (0f, () =>
+                {
+                    keep = Fl(DataStorage.Category.kScenarioFlag4, WcEvents.Recruited + Strago);
+                    if (Gil() < 10) UserDataManager.Instance().OwendGil = 1000;
+                    Check(WcEvents.GotoMap(WobInn, 1), "thamasa_inn: warp to Thamasa's inn (map 184)");
+                    return true;
+                }),
+                (8f, () =>
+                {
+                    Check(ShownAll(5, 1, 11, 8) == "+---", $"thamasa_inn: the after-fire innkeeper (5), not the stranger's (1) or the fire's (11, 8): {ShownAll(5, 1, 11, 8)} ({OnMap()})");
+                    return true;
+                }),
+                (0f, Ask("sc_sty_20271_4", true)),
+                (12f, Paid("WoB")),
+            };
+            if (cg) steps.AddRange(new List<(float, Func<bool>)> { (2f, Ask("sc_sty_20271_4", false)), (6f, Refused("WoB")) });
+            steps.Add((0f, () => { Check(WcEvents.GotoMap(WorInn, 1), "thamasa_inn: warp to the WoR's inn (map 309)"); return true; }));
+            steps.Add((8f, Ask("sc_sty_20461_4", true)));
+            steps.Add((12f, Paid("WoR")));
+            if (cg) steps.AddRange(new List<(float, Func<bool>)> { (2f, Ask("sc_sty_20461_4", false)), (6f, Refused("WoR")) });
+            steps.Add((0f, () => { SetFl(DataStorage.Category.kScenarioFlag4, WcEvents.Recruited + Strago, keep); return true; }));
+            return steps;
+        }
+
+        // 3. Mt. Zozo after its check (ScenarioFlag2 109): no key on the cliff (map 475, ev_e_0736: entities
+        // 1, 2); Cyan's chest (map 474, sc_e_0737) locked, also with the key taken (110): "It's locked."
+        // only, no "Books" (ScenarioFlag2 111 stays clear)
+        static List<(float, Func<bool>)> MtZozoBooksPlan()
+        {
+            const int Cliff = 475, Room = 474;
+            int k109 = 0, k110 = 0, k111 = 0;
+            return new List<(float, Func<bool>)>
+            {
+                (0f, () =>
+                {
+                    k109 = Fl(DataStorage.Category.kScenarioFlag2, 109);
+                    k110 = Fl(DataStorage.Category.kScenarioFlag2, 110);
+                    k111 = Fl(DataStorage.Category.kScenarioFlag2, 111);
+                    SetFl(DataStorage.Category.kScenarioFlag2, 109, 1);
+                    SetFl(DataStorage.Category.kScenarioFlag2, 110, 0);
+                    SetFl(DataStorage.Category.kScenarioFlag2, 111, 0);
+                    Check(WcEvents.GotoMap(Cliff, 1), "mt_zozo_books: warp to Mt. Zozo's cliff (map 475), the check done");
+                    return true;
+                }),
+                (8f, () =>
+                {
+                    Check(ShownAll(1, 2) == "--", $"mt_zozo_books: no sparkling key (ev_e_0736: 1, 2): {ShownAll(1, 2)} ({OnMap()})");
+                    SetFl(DataStorage.Category.kScenarioFlag2, 110, 1);
+                    Check(WcEvents.GotoMap(Room, 1), "mt_zozo_books: warp to Cyan's room (map 474), as a save that took the key");
+                    return true;
+                }),
+                (8f, RunWith("sc_e_0737", "mt_zozo_books")),
+                (4f, () =>
+                {
+                    int f111 = Fl(DataStorage.Category.kScenarioFlag2, 111);
+                    Check(Said("E0737_00_474_a_01") && !Said("E0737_00_474_a_02") && f111 == 0,
+                          $"mt_zozo_books: Cyan's chest stays locked (ScenarioFlag2 111 = {f111}); lines {Lines()}");
+                    SetFl(DataStorage.Category.kScenarioFlag2, 109, k109);
+                    SetFl(DataStorage.Category.kScenarioFlag2, 110, k110);
+                    SetFl(DataStorage.Category.kScenarioFlag2, 111, k111);
+                    return true;
+                }),
+            };
+        }
+
+        // 4. Doma Castle, Cyan's family's room (map 81): Mina and Shun (ev_e_0120: entities 1, 3) not lying there
+        static List<(float, Func<bool>)> DomaFamilyPlan()
+        {
+            const int Room = 81;
+            int keep = 0;
+            return new List<(float, Func<bool>)>
+            {
+                (0f, () =>
+                {
+                    keep = Fl(DataStorage.Category.kScenarioFlag2, 3);
+                    SetFl(DataStorage.Category.kScenarioFlag2, 3, 0);
+                    Check(WcEvents.GotoMap(Room, 1), "doma_family: warp to Cyan's family's room (map 81)");
+                    return true;
+                }),
+                (8f, () =>
+                {
+                    Check(ShownAll(1, 3) == "--", $"doma_family: Mina (1) and Shun (3) not there: {ShownAll(1, 3)} ({OnMap()})");
+                    SetFl(DataStorage.Category.kScenarioFlag2, 3, keep);
+                    return true;
+                }),
+            };
+        }
+
+        // 5. The Phantom Forest's ghost merchant (map 352, in the room's entity_default: entity 30 with the
+        // train's shop script, 1254) shown after the Phantom Train check (ScenarioFlag4 55), hidden before;
+        // talking gives the train ghost's offer (E1049_00_360_a_01, (Shop.) / (Don't shop.))
+        static List<(float, Func<bool>)> GhostShopPlan()
+        {
+            const int Forest = 352, Forest1 = 351, Train = 55, Ghost = 30, ShopScript = 1254;
+            int keep = 0;
+            int ScriptOf(int id)
+            {
+                try { return Field()?.GetFieldEntity(id)?.Property?.TryCast<Last.Map.PropertyEvent>()?.ScriptId ?? -1; }
+                catch (Exception) { return -1; }
+            }
+            return new List<(float, Func<bool>)>
+            {
+                (0f, () =>
+                {
+                    keep = Fl(DataStorage.Category.kScenarioFlag4, Train);
+                    SetFl(DataStorage.Category.kScenarioFlag4, Train, 1);
+                    Check(WcEvents.GotoMap(Forest, 1), "ghost_shop: warp to the Phantom Forest's spring room (map 352), the train done");
+                    return true;
+                }),
+                (8f, () =>
+                {
+                    Check(Shown(Ghost) == "+" && ScriptOf(Ghost) == ShopScript,
+                          $"ghost_shop: the ghost merchant (entity {Ghost}) {Shown(Ghost)}, script {ScriptOf(Ghost)} (want {ShopScript}) ({OnMap()})");
+                    return true;
+                }),
+                (0f, RunAnswering("sc_e_1112", "N000_C07_360_c_02", "ghost_shop")),
+                (4f, () =>
+                {
+                    Check(Said("E1049_00_360_a_01") && WcEvents.TestSelects.Any(s => s.Contains("N000_C07_360_c_01")),
+                          $"ghost_shop: the train ghost's offer: lines {Lines()}; menus [{string.Join(" ", WcEvents.TestSelects)}]");
+                    SetFl(DataStorage.Category.kScenarioFlag4, Train, 0);
+                    Check(WcEvents.GotoMap(Forest1, 1), "ghost_shop: out to the forest's first map (351)");
+                    return true;
+                }),
+                (6f, () => { Check(WcEvents.GotoMap(Forest, 1), "ghost_shop: back to the spring room, the train not done"); return true; }),
+                (8f, () =>
+                {
+                    Check(Shown(Ghost) != "+", $"ghost_shop: no merchant before the train (hidden): {Shown(Ghost)}");
+                    SetFl(DataStorage.Category.kScenarioFlag4, Train, keep);
+                    return true;
+                }),
+            };
+        }
+
+        // 6. The WoR Figaro cave's entrance (map 452): with -cg and Edgar (5) not recruited Siegfried
+        // (ev_e_0666: entity 6) stands in the passage and says WC's line only (WC_SIEGFRIED_WAIT): he stays,
+        // ScenarioFlag2 75 stays set. Edgar recruited (or no -cg): not there
+        static List<(float, Func<bool>)> SiegfriedGatePlan()
+        {
+            const int Cave = 452, Below = 451, Edgar = 5, Siegfried = 6;
+            bool cg = WcSeeds.Active?.Flags.Split(' ').Contains("-cg") == true;
+            int keep = 0;
+            var steps = new List<(float, Func<bool>)>
+            {
+                (0f, () =>
+                {
+                    keep = Fl(DataStorage.Category.kScenarioFlag4, WcEvents.Recruited + Edgar);
+                    SetFl(DataStorage.Category.kScenarioFlag4, WcEvents.Recruited + Edgar, 0);
+                    Check(WcEvents.GotoMap(Cave, 1), $"siegfried_gate: warp to the WoR Figaro cave's entrance (map 452), Edgar not recruited, -cg {(cg ? "on" : "off")}");
+                    return true;
+                }),
+                (8f, () =>
+                {
+                    Check(Shown(Siegfried) == (cg ? "+" : "-"), $"siegfried_gate: Siegfried (6) {Shown(Siegfried)} (want {(cg ? "there" : "not there")}) ({OnMap()})");
+                    return true;
+                }),
+            };
+            if (cg)
+                steps.AddRange(new List<(float, Func<bool>)>
+                {
+                    (0f, RunWith("sc_e_0666", "siegfried_gate")),
+                    (5f, () =>
+                    {
+                        int f75 = Fl(DataStorage.Category.kScenarioFlag2, 75);
+                        Check(Said("WC_SIEGFRIED_WAIT") && !Said("E0666_00_448_a_01") && f75 == 1 && Shown(Siegfried) == "+",
+                              $"siegfried_gate: WC's line, he stays ({Shown(Siegfried)}), ScenarioFlag2 75 = {f75}; lines {Lines()}");
+                        SetFl(DataStorage.Category.kScenarioFlag4, WcEvents.Recruited + Edgar, 1);
+                        Check(WcEvents.GotoMap(Below, 1), "siegfried_gate: on into the cave (map 451)");
+                        return true;
+                    }),
+                    (6f, () => { Check(WcEvents.GotoMap(Cave, 1), "siegfried_gate: back to the entrance, Edgar recruited"); return true; }),
+                    (8f, () => { Check(Shown(Siegfried) == "-", $"siegfried_gate: Siegfried gone once Edgar is recruited: {Shown(Siegfried)}"); return true; }),
+                });
+            steps.Add((0f, () => { SetFl(DataStorage.Category.kScenarioFlag4, WcEvents.Recruited + Edgar, keep); return true; }));
+            return steps;
+        }
+
+        // 7. Morph from the start (WcEvents.GiveMorph): whoever the seed dealt Morph (the PR's command 9 in
+        // the character's row; else Terra, given it for the test) has the Trance command (8), listed, and
+        // usable as the game's own rule has it: morph points over 7 (CommandAvailableData.IsAvailable)
+        static List<(float, Func<bool>)> MorphStartPlan()
+        {
+            int holder = -1;
+            bool forced = false;
+            bool Has(OwnedCharacterData c, int id) => WcEspers.HasCommand(c, id);
+            return new List<(float, Func<bool>)>
+            {
+                (2f, () =>
+                {
+                    for (int id = 1; id <= 14 && holder < 0; id++)
+                    {
+                        var row = MasterManager.Instance.GetData<CharacterStatus>(id);
+                        if (row != null && new[] { row.CommandId1, row.CommandId2, row.CommandId3, row.CommandId4, row.CommandId5, row.CommandId6 }
+                                .Contains(WcEvents.MorphSlot)) holder = id;
+                    }
+                    if (holder < 0) { holder = 1; forced = true; }
+                    if (OwnedChar(holder) == null || !WcEvents.IsRecruited(holder)) WcEvents.Join(holder);
+                    var c = OwnedChar(holder);
+                    if (forced && c?.CommandList != null && !Has(c, WcEvents.MorphSlot))
+                        c.CommandList.Add(MasterManager.Instance.GetData<Command>(WcEvents.MorphSlot));
+                    Check(c != null && Has(c, WcEvents.MorphSlot),
+                          $"morph_start: character {holder} holds the Morph slot (command 9){(forced ? " (given for the test: no one was dealt Morph)" : " (the seed's)")}");
+                    return c != null;
+                }),
+                (8f, () =>
+                {
+                    var c = OwnedChar(holder);
+                    var udm = UserDataManager.Instance();
+                    var cmd = MasterManager.Instance.GetData<Command>(WcEvents.TranceCommand);
+                    var cad = new Serial.FF6.Management.CommandAvailableData();
+                    bool Usable() => cad.IsAvailable(c, cmd,
+                        udm.GetPartyMemberData().Cast<Il2CppSystem.Collections.Generic.IEnumerable<OwnedCharacterData>>(),
+                        udm.GetOwnedItemsClone().Cast<Il2CppSystem.Collections.Generic.IEnumerable<OwnedItemData>>());
+                    bool has = Has(c, WcEvents.TranceCommand), listed = has && cad.IsCommandRelease(c, cmd);
+                    int keep = c.MagicLearningValue;
+                    c.MagicLearningValue = 0;
+                    bool none = has && Usable();
+                    c.MagicLearningValue = 8;
+                    bool some = has && Usable();
+                    c.MagicLearningValue = keep;
+                    Check(has && listed && !none && some,
+                          $"morph_start: character {holder} has Trance (8) {has}, listed {listed}, usable with 0 morph points {none}, with 8 {some} " +
+                          $"(given: {WcEvents.LastMorphGiven}; commands [{string.Join(" ", c.CommandList.ToArray().Select(x => x?.Id ?? -1))}])");
+                    if (forced)
+                    {
+                        foreach (var id in new[] { WcEvents.TranceCommand, WcEvents.MorphSlot })
+                            foreach (var x in c.CommandList.ToArray()) if (x?.Id == id) { c.CommandList.Remove(x); break; }
+                    }
+                    return true;
+                }),
+            };
+        }
+
+        // 8. The Phantom Forest's spring room on a first visit (ScenarioFlag1 106 clear, map 352): no walk to the
+        // spring (ev_e_0158's trigger, entity 9, not placed), the spring itself there (sc_e_0159: entities 1-4)
+        static List<(float, Func<bool>)> ForestSpringPlan()
+        {
+            const int Forest = 352;
+            int keep = 0;
+            return new List<(float, Func<bool>)>
+            {
+                (0f, () =>
+                {
+                    keep = Fl(DataStorage.Category.kScenarioFlag1, 106);
+                    SetFl(DataStorage.Category.kScenarioFlag1, 106, 0);
+                    WcEvents.TestMessages.Clear();
+                    Check(WcEvents.GotoMap(Forest, 1), "forest_spring: warp to the Phantom Forest's spring room (map 352), first visit");
+                    return true;
+                }),
+                (8f, () =>
+                {
+                    int f106 = Fl(DataStorage.Category.kScenarioFlag1, 106);
+                    Check(Shown(9) == "-" && ShownAll(1, 2, 3, 4) == "++++" && f106 == 0 && !Said("S9999_999_a_03"),
+                          $"forest_spring: no walk to the spring (trigger 9 {Shown(9)}, ScenarioFlag1 106 = {f106}), the spring there {ShownAll(1, 2, 3, 4)}; lines {Lines()} ({OnMap()})");
+                    SetFl(DataStorage.Category.kScenarioFlag1, 106, keep);
+                    return true;
+                }),
+            };
+        }
+
         static List<(float, Func<bool>)> CheckPlans(string name)
         {
-            if (name == "empty_chest")
-            {
-                // a chest the PR keeps empty that the seed filled (port_chests.fill_empty): South
-                // Figaro's basement room (map 52); opened, its script gives the seed's item and line
-                const string Rel = "map_20071/Assets/GameAssets/Serial/Res/Map/Map_20071/Map_20071_14/sc_e_no_treasure_32.json";
-                int item = -1, num = 0;
-                try
-                {
-                    var path = Path.Combine(WcSeeds.Active?.Dir ?? "", "files", Rel);
-                    if (File.Exists(path))
-                        using (var doc = System.Text.Json.JsonDocument.Parse(File.ReadAllText(path)))
-                            foreach (var m in doc.RootElement.GetProperty("Mnemonics").EnumerateArray())
-                            {
-                                if (m.GetProperty("mnemonic").GetString() != "SysCall") continue;
-                                var call = m.GetProperty("operands").GetProperty("sValues")[0].GetString().Split(' ');
-                                if (call[0] != "WC:item") continue;
-                                item = int.Parse(call[1]);
-                                num = int.Parse(call[2]);
-                                break;
-                            }
-                }
-                catch (Exception e) { Check(false, $"empty_chest: the seed's script: {e.Message}"); }
-                int Count()   // every kind (equipment too: SearchOwnedItem finds items only)
-                {
-                    int n = 0;
-                    var all = item < 0 ? null : UserDataManager.Instance()?.GetAllOwnedItemsClone();
-                    if (all != null) foreach (var it in all) if (it != null && it.ContentId == item) n += it.Count;
-                    return n;
-                }
-                int had = 0;
-                return new List<(float, Func<bool>)>
-                {
-                    (0, () => { Check(WcEvents.GotoMap(52, 1), "warp to South Figaro's basement room (map 52)"); return true; }),
-                    (3, () =>
-                    {
-                        had = Count();
-                        WcEvents.TestMessages.Clear();
-                        Check(item >= 0, $"empty_chest: the seed fills it (item {item} x{num})");
-                        if (item >= 0) Check(WcEvents.RunScript("sc_e_no_treasure_32"), "empty_chest: its script ran");
-                        return true;
-                    }),
-                    (4, () =>
-                    {
-                        if (item >= 0)
-                            Check(Count() == had + num && WcEvents.TestMessages.Any(m => m.StartsWith("WC_REWARD: <CT>Obtained")),
-                                  $"empty_chest: item {item} {had} -> {Count()}; lines {string.Join(" | ", WcEvents.TestMessages)}");
-                        return true;
-                    }),
-                };
-            }
-            if (name == "train_chest")
-            {
-                // the Phantom Train's rack (map 366): the PR's Tent pick-up stands for SNES chest 109,
-                // and chest 110 beside it (the PR dropped it) joins it (port_chests.MERGED): picked
-                // up, it gives both of the seed's items, each with its line
-                const string Rel = "map_30441/Assets/GameAssets/Serial/Res/Map/Map_30441/Map_30441_10/sc_e_1107.json";
-                var gifts = new List<(int Item, int Num)>();
-                try
-                {
-                    var path = Path.Combine(WcSeeds.Active?.Dir ?? "", "files", Rel);
-                    if (File.Exists(path))
-                        using (var doc = System.Text.Json.JsonDocument.Parse(File.ReadAllText(path)))
-                            foreach (var m in doc.RootElement.GetProperty("Mnemonics").EnumerateArray())
-                            {
-                                if (m.GetProperty("mnemonic").GetString() != "SysCall") continue;
-                                var call = m.GetProperty("operands").GetProperty("sValues")[0].GetString().Split(' ');
-                                if (call[0] == "WC:item") gifts.Add((int.Parse(call[1]), int.Parse(call[2])));
-                            }
-                }
-                catch (Exception e) { Check(false, $"train_chest: the seed's script: {e.Message}"); }
-                int Count(int item)
-                {
-                    int n = 0;
-                    var all = UserDataManager.Instance()?.GetAllOwnedItemsClone();
-                    if (all != null) foreach (var it in all) if (it != null && it.ContentId == item) n += it.Count;
-                    return n;
-                }
-                var had = new Dictionary<int, int>();
-                return new List<(float, Func<bool>)>
-                {
-                    (0, () => { Check(WcEvents.GotoMap(366, 4), "warp to the Phantom Train's rack car (map 366)"); return true; }),
-                    (3, () =>
-                    {
-                        foreach (var g in gifts) had[g.Item] = Count(g.Item);
-                        WcEvents.TestMessages.Clear();
-                        // two in a seed that fills both rack chests (WC's shuffle may leave one empty)
-                        Check(gifts.Count >= 1, $"train_chest: the pick-up gives {gifts.Count} of the seed's items ({string.Join(", ", gifts.Select(g => $"{g.Item} x{g.Num}"))})");
-                        if (gifts.Count > 0) Check(WcEvents.RunScript("sc_e_1107"), "train_chest: its script ran");
-                        return true;
-                    }),
-                    (4, () =>
-                    {
-                        var want = gifts.GroupBy(g => g.Item).ToDictionary(x => x.Key, x => x.Sum(g => g.Num));
-                        bool got = want.All(kv => Count(kv.Key) == had[kv.Key] + kv.Value);
-                        int lines = WcEvents.TestMessages.Count(m => m.StartsWith("WC_REWARD: <CT>Obtained"));
-                        Check(got && lines == gifts.Count,
-                              $"train_chest: {string.Join(", ", want.Select(kv => $"item {kv.Key} {had[kv.Key]} -> {Count(kv.Key)}"))}; lines {string.Join(" | ", WcEvents.TestMessages)}");
-                        return true;
-                    }),
-                };
-            }
-            if (name == "monster_box")
-            {
-                // a monster-in-a-box the seed changed (-cms moves packs between boxes, -fer changes
-                // packs: both presets): opened, its battle is the one the port gave its script (the
-                // plugin's event remap leaves box scripts alone), built on the box's own background
-                // (port_chests.box_look), not the party's home one
-                var boxes = new (string Script, string Folder, int Map, int Point, int Own)[]
-                {
-                    ("sc_e_0021", "map_20011/Assets/GameAssets/Serial/Res/Map/Map_20011/Map_20011_2", 5, 2, 516),
-                    ("sc_e_0698", "map_30651/Assets/GameAssets/Serial/Res/Map/Map_30651/Map_30651_10", 465, 1, 434),
-                    ("sc_e_0742", "map_30761/Assets/GameAssets/Serial/Res/Map/Map_30761/Map_30761_2", 489, 1, 127),
-                    ("sc_e_0786", "map_30771/Assets/GameAssets/Serial/Res/Map/Map_30771/Map_30771_3", 495, 2, 236),
-                    ("sc_e_0641", "map_30611/Assets/GameAssets/Serial/Res/Map/Map_30611/Map_30611_1", 433, 1, 212),
-                    ("sc_e_0642", "map_30611/Assets/GameAssets/Serial/Res/Map/Map_30611/Map_30611_2", 434, 2, 212),
-                };
-                int Fights(string path)
-                {
-                    if (!File.Exists(path)) return -1;
-                    using (var doc = System.Text.Json.JsonDocument.Parse(File.ReadAllText(path)))
-                        foreach (var m in doc.RootElement.GetProperty("Mnemonics").EnumerateArray())
-                        {
-                            var mn = m.GetProperty("mnemonic").GetString();
-                            if (mn == "Encount" || mn == "EncountBoss") return m.GetProperty("operands").GetProperty("iValues")[0].GetInt32();
-                        }
-                    return -1;
-                }
-                int Background(int party) => MasterManager.Instance.GetData<MonsterParty>(party)?.BattleBackgroundAssetId ?? -1;
-                (string Script, string Folder, int Map, int Point, int Own) box = default;
-                int want = -1;
-                foreach (var b in boxes)
-                {
-                    int p = -1;
-                    try { p = Fights(Path.Combine(WcSeeds.Active?.Dir ?? "", "files", b.Folder, b.Script + ".json")); }
-                    catch (Exception e) { Check(false, $"monster_box: {b.Script}'s seed script: {e.Message}"); }
-                    if (p < 0 || p == b.Own) continue;
-                    // a box fighting a copy on its own background first (the port's parties from 2000)
-                    if (want < 0 || (want < 2000 && p >= 2000)) { box = b; want = p; }
-                }
-                return new List<(float, Func<bool>)>
-                {
-                    (0, () =>
-                    {
-                        Check(want > 0, $"monster_box: the seed changed a box's battle ({box.Script}: party {want}, vanilla {box.Own})");
-                        if (want <= 0) return false;
-                        Check(WcEvents.GotoMap(box.Map, box.Point), $"warp to {box.Script}'s map ({box.Map})");
-                        return true;
-                    }),
-                    (4, () =>
-                    {
-                        WcBattles.BuiltParty = WcBattles.BuiltBackground = WcBattles.PartyBackground = -1;
-                        Check(WcEvents.RunScript(box.Script), $"monster_box: {box.Script} ran (the box opened)");
-                        return true;
-                    }),
-                    (12, () =>
-                    {
-                        var b = BattlePlugManager.Instance();
-                        var ids = b?.GetEnemyUnits()?.Select(e => e?.GetMonster()?.Id ?? 0).Where(i => i > 0).ToList() ?? new List<int>();
-                        var expect = WcBattles.Members(want);
-                        Check(b != null && b.IsBattle() && WcBattles.BuiltParty == want && ids.Count > 0 && ids.All(expect.Contains),
-                              $"monster_box: the battle is party {WcBattles.BuiltParty}, monsters [{string.Join(" ", ids)}] (the seed's {want}: [{string.Join(" ", expect)}])");
-                        // a script's Encount builds the battle with background 0: the party's then
-                        int shown = WcBattles.BuiltBackground > 0 ? WcBattles.BuiltBackground : WcBattles.PartyBackground;
-                        Check(shown == Background(box.Own),
-                              $"monster_box: on background {shown} (built with {WcBattles.BuiltBackground}, the party's {WcBattles.PartyBackground}), the box's {Background(box.Own)}");
-                        return false;
-                    }),
-                };
-            }
-            if (name == "veldt")
-            {
-                // the Veldt opens a fight when its party is met elsewhere; a WC seed's encounters are
-                // per-area copies of a formation's party (2000+): meeting one opens its formation's
-                // Veldt fight (WcVeldt; the user's seed had a Veldt with nothing to fight)
-                return new List<(float, Func<bool>)>
-                {
-                    (0, () =>
-                    {
-                        var be = global::Last.Map.Encount.BeastFieldEncount.Instance();
-                        var table = be?.targetGroupPartyIdTable;
-                        Check(be != null && table != null && table.Count > 0, $"veldt: the Veldt's table ({table?.Count ?? 0} parties)");
-                        if (be == null || table == null || be.openFlags == null) return false;
-                        int copy = -1, src = -1, flag = -1, copies = 0;
-                        foreach (var kv in MasterManager.Instance.GetList<MonsterParty>())
-                        {
-                            if (WcVeldt.Formation(kv.Key) < 0) continue;
-                            copies++;
-                            int s = WcVeldt.Source(kv.Key);
-                            if (copy > 0 || !table.ContainsKey(s)) continue;
-                            int f = table[s].PartyTable.flag_index;
-                            if (f < 0 || f >= be.openFlags.Length || be.openFlags[f]) continue;   // open already
-                            copy = kv.Key; src = s; flag = f;
-                        }
-                        Check(copy > 0, $"veldt: of the seed's {copies} copied parties, {copy} copies {src}, a closed Veldt fight (flag {flag})");
-                        if (copy < 0) return false;
-                        be.EncounterMonsterParty(copy);
-                        Check(be.openFlags[flag], $"veldt: meeting party {copy} opened the Veldt fight of {src} (flag {flag}; {WcVeldt.Mapped})");
-                        return false;
-                    }),
-                };
-            }
-            if (name == "veldt_reward")
-            {
-                // the dried meat's first-join branch (the Veldt battle's "ガウ初回予約", which the user's
-                // seed took, 2026-11-11): the reward in the battle, no scene reserved (vanilla reserves
-                // sc_e_0239: the Blackjack parked at (1, 1), Gau's scene map, the Crescent Mountain
-                // cave)
-                var reserve = HarmonyLib.AccessTools.Method(typeof(Last.Interpreter.Instructions.SystemCall.Current), "ReserveScriptGauFirstJoin");
-                bool InParty(int status) => UserDataManager.Instance()?.GetPartyMemberData()?.ToArray().Any(c => c?.characterStatusId == status) == true;
-                return new List<(float, Func<bool>)>
-                {
-                    (0, () =>
-                    {
-                        if (!InParty(12)) WcEvents.Join(12);
-                        DataStorage.Instance.Set(DataStorage.Category.kScenarioFlag4, 31, 0);   // the check open
-                        DataStorage.Instance.Set(DataStorage.Category.kScenarioFlag1, 126, 0);
-                        Last.Interpreter.Integrator.Instance?.CancelReservedScript();
-                        Check(reserve != null && InParty(12) && WcEvents.VeldtRewardEncounter(),
-                              $"veldt_reward: Gau in the party ({InParty(12)}), the check open: the reward encounter");
-                        int before = WcEvents.GauFirstJoins;
-                        reserve?.Invoke(null, new object[] { new Last.Interpreter.MainCore() });
-                        var integ = Last.Interpreter.Integrator.Instance;
-                        Check(WcEvents.GauFirstJoins == before + 1, "veldt_reward: the first-join reservation reached the plugin");
-                        Check(WcEvents.Flag(DataStorage.Category.kScenarioFlag4, 31) == 1 && (WcEvents.LastReward ?? "").StartsWith("veldt"),
-                              $"veldt_reward: the reward given in the battle ({WcEvents.LastReward})");
-                        Check(integ == null || !integ.ExistsReserveScript(),
-                              $"veldt_reward: no script reserved ({(integ != null && integ.ExistsReserveScript() ? integ.reservedScript : "none")})");
-                        Check(WcEvents.Flag(DataStorage.Category.kScenarioFlag4, WcEvents.PickParty) == 0, "veldt_reward: no party pick pending");
-                        Check(WcEvents.Flag(DataStorage.Category.kScenarioFlag1, 126) == 1, "veldt_reward: Gau met at the Veldt (ScenarioFlag1 126)");
-                        // its line waits for the battle's notice window (the battle script shows it next)
-                        var text = MessageManager.Instance?.GetMessage("WC_REWARD", false) ?? "";
-                        Check(WcEvents.Flag(DataStorage.Category.kScenarioFlag4, WcEvents.RewardLine) == 1 && text.Length > 0 && !text.Contains("<CT>"),
-                              $"veldt_reward: the line waits for the battle window ('{text}')");
-                        // (a Gau back from a Leap, out of the party: the game's own rejoin. Not
-                        // reproduced here: turning his party entry off leaves him in the party)
-                        return false;
-                    }),
-                };
-            }
-            if (name == "doma_play")
-            {
-                // Doma's siege played through for a side-by-side with WC on the SNES (the user, 2026-11-11:
-                // "play through the doma siege event on both the WC snes and pr WC port and tell me of
-                // any behavior/number/timing discrepancies"): into Doma (map 75) from its entrance with
-                // Cyan recruited, the siege not on and the check open; a per-frame record (map, party cell,
-                // a scene running, the screen black, messages, battle, flags, espers) as "[doma] t ..."
-                // lines; once the party is free, the captain talked to (the game's own NPC action), the
-                // battle on auto, then the reward and where the party ends up. Messages don't wait for a
-                // button here (no input headless), so scene times are without reading time.
-                float t0 = 0, freeAt = -1, battleAt = -1, endAt = -1, settledAt = -1;
-                var seen = new Dictionary<string, string>();
-                int msgs = 0;
-                void Note(string k, string v)
-                {
-                    if (seen.TryGetValue(k, out var old) && old == v) return;
-                    seen[k] = v;
-                    Plugin.L.LogInfo($"[doma] {Time.realtimeSinceStartup - t0:0.00} s  {k} {v}");
-                }
-                void Record()
-                {
-                    var udm = UserDataManager.Instance();
-                    var battle = BattlePlugManager.Instance();
-                    bool inBattle = battle != null && battle.IsBattle();
-                    Note("map", (udm?.CurrentMapId ?? -1).ToString());
-                    if (!inBattle)
-                    {
-                        string cell = "-";
-                        try { cell = WcEvents.PlayerCell()?.ToString() ?? "-"; } catch (Exception) { }   // mid map change
-                        Note("cell", cell);
-                    }
-                    bool busy = WcEvents.EventBusy();
-                    Note("scene", busy ? $"running {Last.Interpreter.Integrator.Instance?.scriptName}" : "idle");
-                    var (black, _) = ScreenBlack();
-                    Note("screen", black ? "black" : "shown");
-                    Note("battle", inBattle ? $"party {battle.MonsterParty?.Id}" : "none");
-                    if (inBattle) Note("monsters", WcScaling.LastReport);
-                    Note("flags", $"siege {WcEvents.Flag(DataStorage.Category.kScenarioFlag1, 72)} scene {WcEvents.Flag(DataStorage.Category.kScenarioFlag4, 140)} check {WcEvents.Flag(DataStorage.Category.kScenarioFlag4, 57)}");
-                    Note("espers", (udm?.OwnedMagicStoneList?.Count ?? 0).ToString());
-                    while (msgs < WcEvents.TestMessages.Count) Plugin.L.LogInfo($"[doma] {Time.realtimeSinceStartup - t0:0.00} s  message   {WcEvents.TestMessages[msgs++]}");
-                    // free: the siege scene has run (ScenarioFlag4 140) and nothing runs, the screen up, for a second
-                    bool settled = !busy && !black && (udm?.CurrentMapId ?? -1) == 75 && WcEvents.Flag(DataStorage.Category.kScenarioFlag4, 140) == 1;
-                    if (!settled) settledAt = -1;
-                    else if (settledAt < 0) settledAt = Time.realtimeSinceStartup;
-                    if (freeAt < 0 && settledAt > 0 && Time.realtimeSinceStartup - settledAt > 1) freeAt = settledAt;
-                    if (battleAt < 0 && inBattle) battleAt = Time.realtimeSinceStartup;
-                }
-                Last.Entity.Field.FieldEntity Npc(int script)
-                {
-                    var fc = Field();
-                    for (int id = 0; id < 256; id++)
-                    {
-                        Last.Entity.Field.FieldEntity e = null;
-                        try { e = fc?.GetFieldEntity(id); } catch (Exception) { }
-                        int sid = -1;
-                        try { sid = e?.Property?.TryCast<Last.Map.PropertyEvent>()?.ScriptId ?? -1; } catch (Exception) { }
-                        if (sid == script) return e;
-                    }
-                    return null;
-                }
-                var steps = new List<(float, Func<bool>)>
-                {
-                    (0, () =>
-                    {
-                        if (!WcEvents.IsRecruited(3)) WcEvents.Join(3);
-                        DataStorage.Instance.Set(DataStorage.Category.kScenarioFlag1, 72, 0);    // the siege not on
-                        DataStorage.Instance.Set(DataStorage.Category.kScenarioFlag4, 57, 0);    // the check open
-                        Plugin.L.LogInfo($"[doma] party {string.Join(" ", UserDataManager.Instance().GetPartyMemberData().ToArray().Select(c => $"{c.characterStatusId}:Lv{c.Parameter.ConfirmedLevel()}"))}");
-                        // the World of Balance's point outside Doma's gate (157,86), below its exits (156/157,85)
-                        Check(WcEvents.GotoMap(WcEvents.WobMap, 36), "doma_play: onto the World of Balance map outside Doma");
-                        return true;
-                    }),
-                    (6, () =>
-                    {
-                        // north onto Doma's world map exit, as a player walks in
-                        WcEvents.TestMessages.Clear();
-                        t0 = Time.realtimeSinceStartup;
-                        recorder = Record;
-                        Plugin.L.LogInfo($"[doma] at {WcEvents.PlayerCell()} on map {UserDataManager.Instance()?.CurrentMapId}: walking north into Doma");
-                        Walk(0, 1, 3);
-                        return true;
-                    }),
-                };
-                // the party free on the siege map: talk to the captain (sc_e_0110, script 139)
-                for (int k = 0; k < 12; k++)
-                {
-                    steps.Add((2.5f, () =>
-                    {
-                        if (freeAt < 0) return true;
-                        if (battleAt >= 0) return true;
-                        var cap = Npc(139);
-                        var cell = WcEvents.PlayerCell();
-                        Plugin.L.LogInfo($"[doma] {Time.realtimeSinceStartup - t0:0.00} s  free at {freeAt - t0:0.00} s; party at {cell}; captain {(cap == null ? "not found" : cap.transform.position.ToString())}; soldiers {string.Join(" ", Enumerable.Range(131, 8).Select(s => Npc(s) != null ? "y" : "n"))}");
-                        var ep = Object.FindObjectOfType<MainGame>()?.eventProcedure;
-                        if (cap == null || ep == null) { Check(false, "doma_play: the captain to talk to"); return false; }
-                        var act = ep.RequestEntityAction(cap);
-                        WcEvents.Running = act != null;
-                        Plugin.L.LogInfo($"[doma] {Time.realtimeSinceStartup - t0:0.00} s  talked to the captain: {(act == null ? "no action" : "his script")}");
-                        battleAt = 0;   // asked: the battle comes next
-                        return true;
-                    }));
-                }
-                // the battle on auto until it ends, then what follows (up to 3 minutes)
-                for (int k = 0; k < 36; k++)
-                {
-                    int round = k;
-                    steps.Add((5f, () =>
-                    {
-                        var battle = BattlePlugManager.Instance();
-                        bool inBattle = battle != null && battle.IsBattle();
-                        if (inBattle)
-                        {
-                            var ui = Last.UI.BattleUIManager.Instance;
-                            if (ui != null && !ui.IsAuto()) ui.SetIsAuto(true);
-                            return true;
-                        }
-                        int check = WcEvents.Flag(DataStorage.Category.kScenarioFlag4, 57);
-                        if (check == 1 && !WcEvents.EventBusy() && !ScreenBlack().Item1)
-                        {
-                            if (endAt < 0) endAt = Time.realtimeSinceStartup;
-                            if (Time.realtimeSinceStartup - endAt < 5) return true;
-                            recorder = null;
-                            Check(true, $"doma_play: done at {endAt - t0:0.00} s (free at {freeAt - t0:0.00} s); party at {WcEvents.PlayerCell()} on map {UserDataManager.Instance()?.CurrentMapId}");
-                            return false;
-                        }
-                        if (round == 35) { recorder = null; Check(false, $"doma_play: no end in 3 minutes (check flag {check}, scene {Last.Interpreter.Integrator.Instance?.scriptName})"); return false; }
-                        return true;
-                    }));
-                }
-                return steps;
-            }
-if (name == "doma_start")
-            {
-                // walking into Doma (map 75) in the WoB with Cyan, the siege not on, the check open:
-                // the siege scene (sc_e_0099_3) runs to its end and fades in. The user's Deck,
-                // 2026-11-11: entering froze on the last frame (the map script had started the scene
-                // with ChangeScript while the map was loading; the scene calls that map script itself)
-                return new List<(float, Func<bool>)>
-                {
-                    (0, () =>
-                    {
-                        if (!WcEvents.IsRecruited(3)) WcEvents.Join(3);
-                        DataStorage.Instance.Set(DataStorage.Category.kScenarioFlag1, 72, 0);    // the siege not on
-                        DataStorage.Instance.Set(DataStorage.Category.kScenarioFlag4, 57, 0);    // the check open
-                        Check(WcEvents.GotoMap(75, 1), "doma_start: into Doma (map 75)");
-                        return true;
-                    }),
-                    (40, () =>
-                    {
-                        var (black, why) = ScreenBlack();
-                        bool busy = WcEvents.EventBusy();
-                        Check(WcEvents.Flag(DataStorage.Category.kScenarioFlag1, 72) == 1, "doma_start: the siege is on (ScenarioFlag1 72)");
-                        Check(WcEvents.Flag(DataStorage.Category.kScenarioFlag4, 140) == 1, "doma_start: the siege scene ran (ScenarioFlag4 140)");
-                        Check(!busy, $"doma_start: no scene left running ({Last.Interpreter.Integrator.Instance?.scriptName})");
-                        Check(!black, $"doma_start: the screen faded in ({why})");
-                        Check((UserDataManager.Instance()?.CurrentMapId ?? -1) == 75, $"doma_start: on Doma's map ({UserDataManager.Instance()?.CurrentMapId})");
-                        return false;
-                    }),
-                };
-            }
-            if (name == "vargas")
-            {
-                // Vargas' fight in a WC game (wc_events boss_battle_events, 2026-11-12): WC blanks its SNES
-                // battle events (Sabin appears, his Death Sentence, the Pummel), so the PR's (sc_b_0055
-                // Event00/01) only mark themselves done: no Sabin joining, no one blown away, no line; Vargas
-                // goes down as any boss (his PR AI's normal death). Party 436 itself (WcBattles.Queue: no
-                // event remap), auto-battle, the party kept alive; the script's event variable is logged
-                // (1 = Sabin's event taken, 2 = the Blitz lesson's); after 25 s the monsters drop to 1 HP.
-                const int Party = 436;
-                int winsAt = 0, units = -1, maxEvent = 0;
-                float startAt = -1;
-                bool started = false, won = false, changed = false;
-                string lastUnits = "";
-                bool Report()
-                {
-                    recorder = null;
-                    Check(started, "vargas: the fight started (party 436)");
-                    Check(maxEvent >= 2, $"vargas: the fight took Sabin's event and the Blitz lesson (its variable got to {maxEvent}: 1 = Sabin's, 2 = the lesson's)");
-                    Check(!changed, $"vargas: the party stayed as it was: no Sabin joining, no one blown away ({lastUnits})");
-                    var shown = WcEvents.TestStoryShown.Where(k => k.StartsWith("E0055_")).ToList();
-                    Check(shown.Count == 0, $"vargas: no line of the fight shows in play ({string.Join(", ", shown)}; skipped {string.Join(", ", WcEvents.TestStorySkipped.Where(k => k.StartsWith("E0055_")))})");
-                    Check(won, $"vargas: the fight was won (victories {WcScaling.Victories - winsAt})");
-                    return false;
-                }
-                var steps = new List<(float, Func<bool>)>
-                {
-                    (0, () =>
-                    {
-                        WcEvents.TestStoryShown.Clear();
-                        WcEvents.TestStorySkipped.Clear();
-                        winsAt = WcScaling.Victories;
-                        recorder = () =>
-                        {
-                            var b = BattlePlugManager.Instance();
-                            if (b == null || !b.IsBattle()) return;
-                            foreach (var p in b.GetPlayerUnits())
-                            {
-                                var pr = p?.BattleUnitDataInfo?.Parameter;
-                                if (pr != null && pr.CurrentHP > 0 && pr.CurrentHP < 9999) { if (pr.BaseMaxHp < 9999) pr.BaseMaxHp = 9999; pr.CurrentHP = 9999; }
-                            }
-                        };
-                        WcBattles.Queue(Party);
-                        Plugin.L.LogInfo("[wc test] vargas: party 436 queued");
-                        return true;
-                    }),
-                };
-                for (int k = 0; k < 40; k++)
-                {
-                    bool last = k == 39;
-                    steps.Add((3f, () =>
-                    {
-                        if (last) return Report();
-                        if (WcScaling.Victories > winsAt) { won = true; return Report(); }
-                        var b = BattlePlugManager.Instance();
-                        if (b == null || !b.IsBattle()) return true;
-                        float now = Time.realtimeSinceStartup;
-                        var ui = Last.UI.BattleUIManager.Instance;
-                        if (ui != null && !ui.IsAuto()) ui.SetIsAuto(true);
-                        int n = 0;
-                        var ids = new List<string>();
-                        foreach (var p in b.GetPlayerUnits()) if (p != null) { n++; ids.Add($"{p.BattleUnitDataInfo?.Parameter?.CurrentHP}"); }
-                        int ev = WcEvents.Flag(DataStorage.Category.kScriptLocalVariable, 1);
-                        maxEvent = Math.Max(maxEvent, ev);
-                        var foes = string.Join(" ", b.GetEnemyUnits().Select(e => $"{e?.GetMonster()?.Id}:{e?.BattleUnitDataInfo?.Parameter?.CurrentHP}"));
-                        if (!started) { started = true; startAt = now; units = n; }
-                        else if (n != units) changed = true;
-                        lastUnits = $"{n} party units (at the start {units})";
-                        Plugin.L.LogInfo($"[wc test] vargas: {now - startAt:0} s, event variable {ev}, {lastUnits}, monsters {foes}");
-                        // the bears go down at once (Vargas can't be targeted while they stand: NotTargeting,
-                        // sc_b_0055's start); his own hits start the events (the first with HP <= 10880: Sabin's,
-                        // the next <= 10368: the Blitz lesson), so he drops to 1 HP only once both were taken
-                        foreach (var e in b.GetEnemyUnits())
-                        {
-                            var pr = e?.BattleUnitDataInfo?.Parameter;
-                            bool vargas = e?.GetMonster()?.Id == 260;
-                            if (pr != null && pr.CurrentHP > 1 && (!vargas || maxEvent >= 2 || now - startAt > 60)) pr.CurrentHP = 1;
-                        }
-                        return true;
-                    }));
-                }
-                return steps;
-            }
-            if (name == "fc_trip")
-            {
-                // The Floating Continent from the Blackjack's wheel (the user's Deck, 2026-11-12:
-                // "flying to the floating continent just puts me back on the blackjack deck and i'm
-                // able to take the wheel again"): (Head to the Floating Continent.), the party menu
-                // (stood in for), the flight, then the trip's deck under attack: no wheel (entity 9,
-                // ev_e_0421), the air force's entities (1: Sky Armor, 4: Chupon); WC's three air force
-                // fights, each on its timer (the script's parties 176/177); Ultros/Chupon's trigger
-                // (entities 23-25, stepped on: sc_e_0565), Ultros/Chupon (478), Air Force (460), the
-                // landing (map 431, ScenarioFlag2 30). Each fight is ended by force a few seconds in
-                // (BattleEndJugment.isForce; a won fight's result screen waits for a button
-                // headless), and the game goes on with the fight's next script.
-                const int Deck = 119, Continent = 431, Wheel = 9;
-                int F2(int i) => WcEvents.Flag(DataStorage.Category.kScenarioFlag2, i);
-                var fights = new List<int>();
-                float fightAt = -1;
-                bool inFight = false, triggerSeen = false, stepped = false, wheelSeen = false, attackSeen = false, landed = false;
-                int deckChecks = 0, airFights = -1, walkTries = 0, quiet = 0;
-                string State()
-                {
-                    var b = BattlePlugManager.Instance();
-                    var integ = Integrator.Instance;
-                    string at;
-                    try { at = $"{WcEvents.PlayerCell()}"; } catch (Exception) { at = "? (the field changing)"; }
-                    return $"battle {(b != null && b.IsBattle() ? "on" : "off")}, field {(Object.FindObjectOfType<FieldMap>() != null ? "yes" : "no")}, map {UserDataManager.Instance()?.CurrentMapId}, " +
-                           $"at {at}, script '{integ?.scriptName}' (working {integ?.working}, main {integ?.IsMainCoreAlive()}, reserved {integ?.ExistsReserveScript()}), " +
-                           $"ScenarioFlag2 29/30 = {F2(29)}/{F2(30)}";
-                }
-                var steps = new List<(float, Func<bool>)>
-                {
-                    (0, () =>
-                    {
-                        // Shadow joined: the Floating Continent's character gate (WcEvents.GateOpen)
-                        DataStorage.Instance.Set(DataStorage.Category.kScenarioFlag4, 100 + 4, 1);
-                        var lead = UserDataManager.Instance()?.GetPartyMemberData();
-                        WcEvents.PickRecruit = lead != null && lead.Count > 0 ? lead[0].characterStatusId : 1;   // the menu's stand-in keeps the leader
-                        Check((UserDataManager.Instance()?.CurrentMapId ?? -1) == Deck && FieldEntity(Wheel) == "+",
-                              $"fc_trip: on the Blackjack's deck with its wheel (map {UserDataManager.Instance()?.CurrentMapId}, wheel {FieldEntity(Wheel)})");
-                        WcEvents.TestAnswerKeys.Enqueue("E0559_00_119_c_01");
-                        Check(WcEvents.RunScript("sc_e_BJoutboard"), "fc_trip: the wheel: (Head to the Floating Continent.)");
-                        return true;
-                    }),
-                };
-                bool Report()
-                {
-                    Check(deckChecks > 0 && attackSeen, $"fc_trip: the trip's deck was the air force's ({deckChecks} looks, Sky Armor/Chupon {(attackSeen ? "there" : "missing")}; ScenarioFlag2 29 = {F2(29)})");
-                    Check(!wheelSeen, "fc_trip: no wheel on the trip's deck (ev_e_0421)");
-                    var air = fights.Where(p => p == 176 || p == 177).Count();
-                    Check(air == 3, $"fc_trip: WC's three air force fights ({air}; the script's parties [{string.Join(" ", fights)}])");
-                    Check(triggerSeen, "fc_trip: Ultros/Chupon's trigger placed after them");
-                    Check(fights.Contains(478) && fights.Contains(460) && fights.IndexOf(478) < fights.IndexOf(460),
-                          $"fc_trip: Ultros/Chupon (478), then Air Force (460): [{string.Join(" ", fights)}]");
-                    Check(landed, $"fc_trip: landed on the Floating Continent (map {UserDataManager.Instance()?.CurrentMapId}, ScenarioFlag2 30 = {F2(30)})");
-                    return false;
-                }
-                for (int k = 0; k < 120; k++)
-                {
-                    bool last = k == 119;
-                    steps.Add((2f, () =>
-                    {
-                        if (landed || last) return Report();
-                        if (triggerSeen && quiet++ < 60) Plugin.L.LogInfo($"[wc test] fc_trip: {State()}");
-                        var b = BattlePlugManager.Instance();
-                        float now = Time.realtimeSinceStartup;
-                        int map = UserDataManager.Instance()?.CurrentMapId ?? -1;
-                        if (b != null && b.IsBattle())
-                        {
-                            if (!inFight)
-                            {
-                                inFight = true;
-                                fightAt = now;
-                                fights.Add(WcBattles.CurrentOriginal);
-                                Plugin.L.LogInfo($"[wc test] fc_trip: fight {fights.Count}: the script's party {WcBattles.CurrentOriginal} (party {b.MonsterParty?.Id}; {WcBattles.LastSwap})");
-                            }
-                            else if (fights[fights.Count - 1] < 0 && WcBattles.CurrentOriginal > 0)
-                            {
-                                // seen before the plugin had noted the script's party
-                                fights[fights.Count - 1] = WcBattles.CurrentOriginal;
-                                Plugin.L.LogInfo($"[wc test] fc_trip: fight {fights.Count}: the script's party {WcBattles.CurrentOriginal}");
-                            }
-                            else if (now - fightAt > 4)
-                            {
-                                var j = b.BattleEndJugment;
-                                if (j != null && !j.isForce)
-                                {
-                                    j.SetEnabled(true);
-                                    j.CurrentEndJugmentType = BattleEndJugment.EndJugmentType.Normal;
-                                    j.isForce = true;
-                                    Plugin.L.LogInfo($"[wc test] fc_trip: fight {fights.Count} ended by force");
-                                }
-                            }
-                            return true;
-                        }
-                        if (Object.FindObjectOfType<FieldMap>() == null) return true;   // between field and battle
-                        inFight = false;
-                        if (map == Deck && F2(29) == 1)
-                        {
-                            deckChecks++;
-                            if (FieldEntity(Wheel) == "+") wheelSeen = true;
-                            if (FieldEntity(1) == "+" || FieldEntity(4) == "+") attackSeen = true;
-                            if (!triggerSeen && FieldEntity(23) == "+")
-                            {
-                                triggerSeen = true;
-                                airFights = fights.Count;
-                                Plugin.L.LogInfo($"[wc test] fc_trip: Ultros/Chupon's trigger placed after {fights.Count} fights");
-                            }
-                            if (triggerSeen && !stepped && !WcEvents.EventBusy())
-                            {
-                                // the trigger is a column at x 22, rows 6-8; the party stands at (14, 6):
-                                // walk right onto it, as a player does (the touch runs sc_e_0565); a test-
-                                // started script's fight may not get its next script
-                                stepped = true;
-                                walkTries++;
-                                Walk(1, 0, 6);
-                            }
-                            else if (stepped && fights.Count == airFights && walkTries < 3 && !WcEvents.EventBusy() && walkUntil < 0)
-                            {
-                                walkTries++;
-                                if (walkTries < 3) Walk(1, 0, 6);
-                                else Check(WcEvents.RunScript("sc_e_0565"), $"fc_trip: the walk didn't reach the trigger (at {WcEvents.PlayerCell()}): its script run instead");
-                            }
-                        }
-                        if (map == Continent && F2(30) == 1)
-                        {
-                            landed = true;
-                            Plugin.L.LogInfo($"[wc test] fc_trip: landed on the Floating Continent after {fights.Count} fights");
-                        }
-                        return true;
-                    }));
-                }
-                return steps;
-            }
-            if (name == "encounters")
-            {
-                // WC's (the SNES's) random battles (WcEncounters): on the World of Balance south of
-                // Narshe (zone 10), the cell's SNES rate, and the hook's danger counter over 3000 steps
-                // at that rate: the mean steps per battle against the SNES's (exact means from
-                // tests/test_wc.py's model); then walking on with the hook live: the game counts the
-                // steps through it and a battle comes from a step. (The game's CheckEncount can't be
-                // called from managed code: its "in List" parameter's type doesn't load.)
-                var means = new Dictionary<int, double>
-                {
-                    [0xC0] = 23.35, [0x60] = 33.61, [0x180] = 16.22,                 // world: normal, low, high
-                    [0x70] = 31.1, [0x40] = 41.3, [0x160] = 17.09, [0x200] = 13.86, // other maps
-                };
-                int battlesBefore = 0, stepsBefore = 0, setUpBefore = 0;
-                string scaledBefore = "";
-                var steps = new List<(float, Func<bool>)>
-                {
-                    (0, () =>
-                    {
-                        WcEncounters.Paused = true;
-                        Check(WcEvents.GotoMap(WcEvents.WobMap, 1), "encounters: warp on foot to the WoB map (Narshe's door)");
-                        return true;
-                    }),
-                    (6, () => { Walk(0, -1, 2.5f); return true; }),   // south, off the town's cells
-                    (4f, () =>
-                    {
-                        var player = Field()?.player;
-                        if (player == null) { Check(false, "encounters: no player"); WcEncounters.Paused = false; return false; }
-                        int mapNow = UserDataManager.Instance()?.CurrentMapId ?? 0;
-                        int rate = WcEncounters.RateHere(Field(), mapNow, player, false, out string where, out int ground);
-                        // a step's work, timed: the field search a step used to make (FindObjectOfType<FieldMap>:
-                        // walking stuttered on the Deck) and the rate lookup it makes now
-                        var sw = System.Diagnostics.Stopwatch.StartNew();
-                        for (int i = 0; i < 200; i++) Object.FindObjectOfType<FieldMap>();
-                        double findMs = sw.Elapsed.TotalMilliseconds / 200;
-                        var fcNow = Field();
-                        sw.Restart();
-                        for (int i = 0; i < 200; i++) WcEncounters.RateHere(fcNow, mapNow, player, false, out _, out _);
-                        double rateMs = sw.Elapsed.TotalMilliseconds / 200;
-                        Plugin.L.LogInfo($"[wc test] encounters: per step, the old field search {findMs:0.000} ms, the rate lookup now {rateMs:0.000} ms");
-                        Check(rateMs < 0.5, $"encounters: a step's rate lookup {rateMs:0.000} ms (the old field search alone {findMs:0.000} ms)");
-                        Check(rate == 0x60 || rate == 0xC0, $"encounters: zone 10's rate at {WcEvents.PlayerCell()}: {rate:X} ({where}; the game's ground value {ground})");
-                        var rng = new System.Random(1234);
-                        var lens = new List<int>();
-                        int danger = 0, since = 0;
-                        for (int i = 0; i < 3000; i++)
-                        {
-                            since++;
-                            if (!WcEncounters.Advance(danger, rate, rng.Next(256), out danger)) continue;
-                            lens.Add(since);
-                            since = 0;
-                            danger = 0;
-                        }
-                        double mean = lens.Count > 0 ? lens.Average() : 0, want = means.GetValueOrDefault(rate, 0);
-                        Check(want > 0 && lens.Count >= 50 && Math.Abs(mean - want) <= 0.12 * want,
-                              $"encounters: {lens.Count} battles in 3000 steps at rate {rate:X}: {mean:0.0} steps per battle (SNES {want}); shortest {(lens.Count > 0 ? lens.Min() : 0)}, longest {(lens.Count > 0 ? lens.Max() : 0)}");
-                        WcEncounters.Paused = false;
-                        battlesBefore = WcEncounters.Battles;
-                        stepsBefore = WcEncounters.Steps;
-                        scaledBefore = WcScaling.LastReport;
-                        // the danger near its top (high byte 240: a battle on 94% of steps), so the walk's
-                        // next steps bring one through the game's own CheckEncount and battle start (the
-                        // mean steps per battle are checked above; Narshe's door leaves a few tiles to walk)
-                        var lot = (HarmonyLib.AccessTools.Property(typeof(Last.Map.FieldController), "encountLot")?.GetValue(Field())
-                                   as Il2CppInterop.Runtime.InteropTypes.Il2CppObjectBase)?.TryCast<Last.Map.EncounterLot>();
-                        Check(lot != null, "encounters: the field's encounter lot");
-                        if (req.GetValueOrDefault("vanilla", "0") == "1")
-                        {
-                            // the PR's own random battle (the hook off, its threshold reached): whether the
-                            // field's encounter start runs headless at all
-                            WcEncounters.Off = true;
-                            lot?.SetRestoreData(1, 1);
-                            Plugin.L.LogInfo("[wc test] encounters: the hook off, the PR's own threshold reached");
-                        }
-                        else
-                        {
-                            lot?.SetRestoreData(0xF000, 70000);
-                            WcEncounters.CancelForTest = true;   // the battle's start can't run headless
-                            setUpBefore = WcEncounters.SetUp;
-                        }
-                        Walk(0, -1, 10);   // on with the hook live: the game's own steps and battle start
-                        return true;
-                    }),
-                };
-                // every 10 s: a battle from a step ends it; else on in another direction (2 minutes at most)
-                var dirs = new[] { new Vector2(1, 0), new Vector2(0, -1), new Vector2(-1, 0), new Vector2(0, 1) };
-                for (int k = 0; k < 12; k++)
-                {
-                    int round = k;
-                    steps.Add((10f, () =>
-                    {
-                        // the game's own CheckEncount set the hook's battle up (its party picked, the
-                        // battle preloaded); the test calls it off there (headless, the start would end the run)
-                        bool fought = WcEncounters.SetUp > setUpBefore || (WcEncounters.Battles > battlesBefore && WcScaling.LastReport != scaledBefore);
-                        if (fought || round == 11)
-                        {
-                            WcEncounters.CancelForTest = false;
-                            Check(WcEncounters.Steps > stepsBefore, $"encounters: the walk's steps went through the hook ({WcEncounters.Steps - stepsBefore}; last {WcEncounters.Last})");
-                            Check(fought, $"encounters: walking, the game set up a battle from a step ({WcEncounters.SetUp - setUpBefore} set up, {WcEncounters.Battles - battlesBefore} rolled, after {WcEncounters.Steps - stepsBefore} steps, {round * 10 + 10} s; last {WcEncounters.Last}; at {WcEvents.PlayerCell()})");
-                            return false;
-                        }
-                        var d = dirs[round % dirs.Length];
-                        Plugin.L.LogInfo($"[wc test] encounters: {WcEncounters.Steps - stepsBefore} steps, {WcEncounters.Battles - battlesBefore} battles so far; last {WcEncounters.Last}");
-                        Walk(d.x, d.y, 10);
-                        return true;
-                    }));
-                }
-                return steps;
-            }
-            if (name == "atb")
-            {
-                // WC's (the SNES's) ATB (SnesAtb): the game's own BattleProgressATBFF6.ATBCalc per second
-                // (its gauge: 0-100) for a party member and a monster at a sweep of Speeds, the monster
-                // at each of the PR's battle speeds, Haste and Slow, against the SNES's numbers (C2/09D2
-                // CalcSpeed, C2/111B UpdateBattleTime: expected values from tests/test_wc.py's model);
-                // then the gauges' real fill from 0 for 2.5 s. Measured before SnesAtb: party
-                // 0.260 x (Speed + 13), monsters 0.216 x (Speed + 21), Haste x1.5, the battle speed on both.
-                int savedSpeed = -1, savedMode = -1;
-                float t0 = 0, t0Game = 0;
-                var g0 = new Dictionary<IntPtr, float>();
-                var want0 = new Dictionary<IntPtr, double>();
-                int[] speeds = { 1, 10, 30, 50, 100, 128 };
-                double[] party = { 5.7773, 8.2533, 13.7555, 19.2577, 33.0133, 40.7164 };
-                var monster = new Dictionary<int, double[]>   // the PR's battle speed 0-4 -> SNES Bat.Speed 6, 5, 3, 2, 1
-                {
-                    [0] = new[] { 3.0262, 4.1267, 7.1529, 9.904, 17.332, 21.4586 },
-                    [1] = new[] { 3.5764, 4.952, 8.5284, 11.8298, 20.3582, 25.0351 },
-                    [2] = new[] { 4.4018, 6.6027, 11.0044, 15.4062, 26.6857, 32.7381 },
-                    [3] = new[] { 4.952, 7.428, 12.38, 17.332, 29.7119, 36.5897 },
-                    [4] = new[] { 5.5022, 7.9782, 13.4804, 18.9826, 32.7381, 40.4412 },
-                };
-                bool Near(double a, double b, double tol) => Math.Abs(a - b) <= tol * Math.Max(1e-6, Math.Abs(b));
-                return new List<(float, Func<bool>)>
-                {
-                    (0, () => { WcBattles.Queue(7); Plugin.L.LogInfo("[wc test] atb: party 7 queued"); return true; }),
-                    (8, () =>
-                    {
-                        var battle = BattlePlugManager.Instance();
-                        var prog = battle?.BattleProgress?.TryCast<BattleProgressATBFF6>();
-                        var calc = HarmonyLib.AccessTools.Method(typeof(BattleProgressATBFF6), "ATBCalc");
-                        var cfg = UserDataManager.Instance()?.Config;
-                        if (prog == null || calc == null || cfg == null) { Check(false, $"atb: progress {prog != null}, calc {calc != null}, config {cfg != null}"); return false; }
-                        savedSpeed = cfg.BattleSpeed;
-                        savedMode = cfg.BattleModeIndex;
-                        var hero = battle.GetPlayerUnits()?.ToArray().FirstOrDefault(u => u != null);
-                        var foe = battle.GetEnemyUnits()?.ToArray().FirstOrDefault(u => u != null);
-                        float Rate(BattleUnitData u) => (float)calc.Invoke(prog, new object[] { u }) / Mathf.Max(1e-6f, Time.deltaTime);
-                        var hp = hero?.BattleUnitDataInfo?.Parameter;
-                        var fp = foe?.BattleUnitDataInfo?.Parameter;
-                        if (hp == null || fp == null) { Check(false, "atb: a party member and a monster"); return false; }
-                        int heroAgi = hp.BaseAgility, foeAgi = fp.BaseAgility;
-                        var got = new List<string>();
-                        bool ok = true;
-                        for (int i = 0; i < speeds.Length; i++)
-                        {
-                            hp.BaseAgility = speeds[i];
-                            float r = Rate(hero);
-                            got.Add($"{hp.ConfirmedAgility()}:{r:0.000}");
-                            ok &= Near(r, party[i], 0.002);
-                        }
-                        Check(ok, $"atb: the party's fill per second = the SNES's ({string.Join(" ", got)}; SNES {string.Join(" ", party)})");
-                        foreach (var kv in monster)
-                        {
-                            cfg.BattleSpeed = kv.Key;
-                            got.Clear();
-                            ok = true;
-                            for (int i = 0; i < speeds.Length; i++)
-                            {
-                                fp.BaseAgility = speeds[i];
-                                float r = Rate(foe);
-                                got.Add($"{fp.ConfirmedAgility()}:{r:0.000}");
-                                ok &= Near(r, kv.Value[i], 0.002);
-                            }
-                            Check(ok, $"atb: a monster's fill per second at the PR's battle speed {kv.Key} = the SNES's ({string.Join(" ", got)}; SNES {string.Join(" ", kv.Value)})");
-                        }
-                        cfg.BattleSpeed = savedSpeed;
-                        fp.BaseAgility = foeAgi;
-                        hp.BaseAgility = 50;
-                        float normal = Rate(hero);
-                        BattleUtility.AddCondition(hero, (Last.Defaine.ConditionType)15);   // Haste ("Heist")
-                        float haste = Rate(hero);
-                        BattleUtility.AddCondition(hero, (Last.Defaine.ConditionType)16);   // Slow (wins over Haste on the SNES)
-                        float slow = Rate(hero);
-                        Check(Near(normal, 19.2577, 0.002) && Near(haste, 25.2643, 0.002) && Near(slow, 9.6289, 0.002),
-                              $"atb: Speed 50: {normal:0.000}/s, Haste {haste:0.000} (SNES 25.264: x1.3125), Slow {slow:0.000} (SNES 9.629: x0.5); statuses [{string.Join(",", hp.CurrentConditionList.ToArray().Select(c => c?.Id ?? 0))}]");
-                        hp.BaseAgility = heroAgi;
-                        // the gauges' real fill: Active mode, every gauge from 0, for 2.5 s
-                        cfg.BattleModeIndex = 0;
-                        t0 = Time.realtimeSinceStartup;
-                        t0Game = Time.time;
-                        foreach (var u in battle.GetPlayerUnits().ToArray().Cast<BattleUnitData>().Concat(battle.GetEnemyUnits().ToArray()))
-                        {
-                            if (u == null) continue;
-                            prog.ChangeATBGaugeByUnitData(u, 0);
-                            g0[u.Pointer] = prog.GetAtbGaugeByUnitData(u);
-                            want0[u.Pointer] = Rate(u);
-                        }
-                        return true;
-                    }),
-                    (2.5f, () =>
-                    {
-                        var battle = BattlePlugManager.Instance();
-                        var prog = battle?.BattleProgress?.TryCast<BattleProgressATBFF6>();
-                        // the gauge fills by game time (ATBCalc x Time.deltaTime): a long frame's delta is
-                        // capped (Time.maximumDeltaTime), so on a busy PC real seconds outrun it; the check
-                        // uses game time and logs both (2026-11-20: 0.84 of real time, every unit alike)
-                        float dtReal = Time.realtimeSinceStartup - t0, dt = Time.time - t0Game;
-                        if (prog != null)
-                            foreach (var u in battle.GetPlayerUnits().ToArray().Cast<BattleUnitData>().Concat(battle.GetEnemyUnits().ToArray()))
-                            {
-                                if (u == null || !g0.TryGetValue(u.Pointer, out var a)) continue;
-                                float b = prog.GetAtbGaugeByUnitData(u);
-                                // the rate for the statuses the unit has now (Haste and Slow together don't
-                                // last: the game keeps one of them a moment after both are added)
-                                var calc = HarmonyLib.AccessTools.Method(typeof(BattleProgressATBFF6), "ATBCalc");
-                                double want = (float)calc.Invoke(prog, new object[] { u }) / Mathf.Max(1e-6f, Time.deltaTime);
-                                string statuses = string.Join(",", u.BattleUnitDataInfo?.Parameter?.CurrentConditionList?.ToArray().Select(c => c?.Id ?? 0) ?? new int[0]);
-                                Check(b < 99.9f && (Near((b - a) / dt, want, 0.15) || Near((b - a) / dt, want0[u.Pointer], 0.15)),
-                                      $"atb: real fill {(u.TryCast<BattlePlayerData>() != null ? "party" : "monster")} speed {u.BattleUnitDataInfo?.Parameter?.ConfirmedAgility()} [{statuses}]: {a:0.0} -> {b:0.0} in {dt:0.00} s of game time ({dtReal:0.00} real) ({(b - a) / dt:0.000}/s; ATBCalc {want:0.000}/s, at the start {want0[u.Pointer]:0.000}/s)");
-                            }
-                        var cfg = UserDataManager.Instance()?.Config;
-                        if (cfg != null && savedMode >= 0) cfg.BattleModeIndex = savedMode;
-                        if (cfg != null && savedSpeed >= 0) cfg.BattleSpeed = savedSpeed;
-                        return false;
-                    }),
-                };
-            }
-            if (name == "snes_rules")
-            {
-                // SNES behaviour the PR lost, put back for WC (WcSnesRules, pr/SNES_PR_DISCREPANCIES.md):
-                // the x1.25 hit-rate list without Charm, and Umaro's toss of Mog a sure critical, run
-                // through the game's act flow (SnesUmaro.TossSelfTest) in a real battle
-                return new List<(float, Func<bool>)>
-                {
-                    (0, () =>
-                    {
-                        var plus = PrKit.Ff6.SnesHitRates.Names(global::Last.Battle.CalcExecuteFF6.HitRatePlusConditions);
-                        Check(!plus.Contains("Temptation") && plus.Contains("Blind"), $"snes_rules: the x1.25 hit-rate list {plus} ({WcSnesRules.HitRates})");
-                        Plugin.L.LogInfo(PrKit.Ff6.SnesUmaro.Check());
-                        WcBattles.Queue(7);
-                        return true;
-                    }),
-                    (8, () =>
-                    {
-                        var line = PrKit.Ff6.SnesUmaro.TossSelfTest();
-                        if (line != null) Plugin.L.LogInfo(line);
-                        Check(line != null && line.Contains("self-test ok"), "snes_rules: " + (line ?? "no battle to test in"));
-                        // the Offering's and the Genji Glove's penalties as the SNES has them (SnesRelicPenalties)
-                        var relics = PrKit.Ff6.SnesRelicPenalties.SelfTest();
-                        if (relics != null) Plugin.L.LogInfo(relics);
-                        Check(relics != null && relics.Contains("self-test ok"), "snes_rules: " + (relics ?? "no battle for the relic penalties"));
-                        // Suplex misses a monster that can't be suplexed (SnesSuplex)
-                        var suplex = PrKit.Ff6.SnesSuplex.SelfTest();
-                        if (suplex != null) Plugin.L.LogInfo(suplex);
-                        Check(suplex != null && suplex.Contains("self-test ok"), "snes_rules: " + (suplex ?? "no battle for Suplex"));
-                        // joins without the PR's level averaging, as WC's SNES recruit (WcJoinLevels)
-                        var joins = WcJoinLevels.SelfTest();
-                        Plugin.L.LogInfo("[wc test] " + joins);
-                        Check(joins.Contains("self-test ok"), "snes_rules: " + joins);
-                        return true;
-                    }),
-                };
-            }
+            if (name == "airship_crew") return AirshipCrewPlan();
+            if (name == "eu_unequip") return EuUnequipPlan();
+            if (name == "eu_equip") return Plan_eu_equip(name);
+            if (name == "reward_wallet") return Plan_reward_wallet(name);
+            if (name == "reward_mp") return Plan_reward_mp(name);
+            if (name == "thamasa_town") return ThamasaTownPlan();
+            if (name == "thamasa_inn") return ThamasaInnPlan();
+            if (name == "mt_zozo_books") return MtZozoBooksPlan();
+            if (name == "doma_family") return DomaFamilyPlan();
+            if (name == "ghost_shop") return GhostShopPlan();
+            if (name == "siegfried_gate") return SiegfriedGatePlan();
+            if (name == "morph_start") return MorphStartPlan();
+            if (name == "forest_spring") return ForestSpringPlan();
+            if (name == "empty_chest") return Plan_empty_chest(name);
+            if (name == "train_chest") return Plan_train_chest(name);
+            if (name == "monster_box") return Plan_monster_box(name);
+            if (name == "veldt") return Plan_veldt(name);
+            if (name == "veldt_reward") return Plan_veldt_reward(name);
+            if (name == "doma_play") return Plan_doma_play(name);
+if (name == "doma_start") return Plan_doma_start(name);
+            if (name == "vargas") return Plan_vargas(name);
+            if (name == "fc_trip") return Plan_fc_trip(name);
+            if (name == "encounters") return Plan_encounters(name);
+            if (name == "atb") return Plan_atb(name);
+            if (name == "snes_rules") return Plan_snes_rules(name);
             if (name == "status_ticks")
                 return StatusTicksPlan();
             if (name == "turn_cycle")
                 return TurnCyclePlan();
             if (name == "status_timers")
                 return StatusTimersPlan();
-if (name == "enemy_ai")
-            {
-                // every monster runs its WC script in the plugin (WcEnemyAi, SnesAi.cs; the user, 2026-11-12:
-                // "please make all enemies/bosses behave like WC SNES"): Atma at Doma (the user's seed:
-                // party 410 -> 20036), the party kept alive on auto. Its first turn is only the flash (no
-                // act: the PR's "nothing"), its rotation casts WC's scaled placeholders (7601-7607 swapped
-                // by WcAbilityScaling) or N. Cross, being hit runs its counter (the shared variable 3
-                // counts hits; the 13th sets the charge: "Unknown light surrounded Atma!", two idle turns,
-                // the big spell)
-                int party = 0, turnsAt = 0, countersAt = 0;
-                float lastDiag = 0;
-                var turns = new List<string>();
-                var steps = new List<(float, Func<bool>)>
-                {
-                    (0, () =>
-                    {
-                        Check(WcSeeds.Active?.SnesAi != null && WcSeeds.Active.SnesAi.Scripts.Count == 384,
-                              $"enemy_ai: the seed carries every monster's script ({WcSeeds.Active?.SnesAi?.Scripts.Count ?? 0})");
-                        // Atma = SNES 381 = PR monster 382, found by monster: where the seed's boss shuffle put it
-                        // (a swapped event battle's party: the user's seed, Doma's 410 -> 20036), else its own
-                        // party (483). Not Doma's 410 itself: a seed that keeps the Leader there (PR 335, kittest3
-                        // 2026-11-20) fought the Leader, whose script has no low-HP branch, charge or death block
-                        const int AtmaPr = 382;
-                        bool HasAtma(int id)
-                        {
-                            var p = MasterManager.Instance.GetData<global::Last.Data.Master.MonsterParty>(id);
-                            return p != null && new[] { p.Monster1, p.Monster2, p.Monster3, p.Monster4, p.Monster5, p.Monster6, p.Monster7, p.Monster8, p.Monster9 }.Contains(AtmaPr);
-                        }
-                        int want = WcSeeds.Active?.Battles.Values.SelectMany(x => x).Where(HasAtma).DefaultIfEmpty(0).Min() ?? 0;
-                        if (want == 0)
-                            foreach (var kv in MasterManager.Instance.GetList<global::Last.Data.Master.MonsterParty>())
-                                if (kv.Value != null && kv.Value.Id < 2000 && (want == 0 || kv.Value.Id < want) && HasAtma(kv.Value.Id)) want = kv.Value.Id;
-                        party = want;
-                        Check(want > 0 && HasAtma(party), $"enemy_ai: Atma's party {party}");
-                        turnsAt = WcEnemyAi.Turns; countersAt = WcEnemyAi.Counters;
-                        WcBattles.Queue(party);
-                        return true;
-                    }),
-                    (8, () =>
-                    {
-                        var battle = BattlePlugManager.Instance();
-                        Check(battle != null && battle.IsBattle(), "enemy_ai: in battle");
-                        var ui = Last.UI.BattleUIManager.Instance;
-                        ui?.SetIsAuto(true);
-                        // the party kept alive: what the monster does is the test, not the outcome
-                        string lastTurn = "", lastCounter = "";
-                        recorder = () =>
-                        {
-                            var b = BattlePlugManager.Instance();
-                            if (b == null || !b.IsBattle()) return;
-                            foreach (var p in b.GetPlayerUnits())
-                            {
-                                var pr = p?.BattleUnitDataInfo?.Parameter;
-                                // no spell kills them: current HP is capped at max HP, so max HP too (as WcScaling sets monsters')
-                                if (pr != null && pr.CurrentHP > 0 && pr.CurrentHP < 9999)
-                                {
-                                    if (pr.BaseMaxHp < 9999) pr.BaseMaxHp = 9999;
-                                    pr.CurrentHP = 9999;
-                                }
-                            }
-                            // its low-HP rotation (FC 06 36 3C: HP < 7680) whatever HP WC's scaling gives it where it's fought
-                            foreach (var e in b.GetEnemyUnits())
-                            {
-                                var pe = e?.BattleUnitDataInfo?.Parameter;
-                                if (pe != null && pe.CurrentHP >= 7680) pe.CurrentHP = 7679;
-                            }
-                            if (WcEnemyAi.LastTurn != lastTurn) { lastTurn = WcEnemyAi.LastTurn; turns.Add(lastTurn); }
-                            if (WcEnemyAi.LastCounter != lastCounter) lastCounter = WcEnemyAi.LastCounter;
-                            // every 2 s: each monster's act-select state (where a stalled battle waits)
-                            if (Time.realtimeSinceStartup - lastDiag > 2)
-                            {
-                                lastDiag = Time.realtimeSinceStartup;
-                                var parts = new List<string>();
-                                foreach (var e in b.GetEnemyUnits())
-                                {
-                                    var ed = e?.TryCast<BattleEnemyData>();
-                                    var ctl = e?.BattleUnitDataInfo?.ActSelectController?.TryCast<ActSelectEnemyController>();
-                                    if (ed == null) continue;
-                                    parts.Add($"monster {ed.GetMonster()?.Id} unique {ed.UniqueId} HP {e.BattleUnitDataInfo?.Parameter?.CurrentHP} playedAI {ed.IsPlayedAI} " +
-                                              (ctl == null ? "no controller" : $"turn {ctl.GetActTurn()} normal {ctl.IsReadyActNormal()} counter {ctl.IsReadyActCounter()} final {ctl.IsReadyActFinalAttack()} viewMes {ctl.IsViewMes()}/{ctl.IsViewMesAfterEffect()}"));
-                                }
-                                var hp = new List<string>();
-                                foreach (var pu in b.GetPlayerUnits()) hp.Add($"{pu?.BattleUnitDataInfo?.Parameter?.CurrentHP}");
-                                Plugin.L.LogInfo($"[wc test] enemy_ai state: turns {WcEnemyAi.Turns - turnsAt}, counters {WcEnemyAi.Counters - countersAt}; party HP {string.Join("/", hp)}; {string.Join("; ", parts)}");
-                            }
-                        };
-                        return true;
-                    }),
-                };
-                for (int k = 0; k < 24; k++)
-                {
-                    int round = k;
-                    steps.Add((5f, () =>
-                    {
-                        var ui = Last.UI.BattleUIManager.Instance;
-                        if (ui != null && !ui.IsAuto()) ui.SetIsAuto(true);
-                        if (round < 23) return true;
-                        recorder = null;
-                        int t = WcEnemyAi.Turns - turnsAt, c = WcEnemyAi.Counters - countersAt;
-                        Check(t >= 4, $"enemy_ai: Atma's turns ran its WC script ({t} turns; last: {WcEnemyAi.LastTurn})");
-                        Check(c >= 1, $"enemy_ai: being hit ran its counter script ({c} counters; last: {WcEnemyAi.LastCounter})");
-                        // at this level Atma's HP (4920) is under its 7680 check: its low-HP rotation from the
-                        // first turn (WC's fire+1/water+1/earth+2, then fire+1/non-elem+1, ...), all placeholders
-                        Check(turns.Count >= 4 && turns.Take(4).All(x => x.Contains("attack 37") || x.Contains("attack 46") || x.Contains("attack 41") || x.Contains("attack 4f")),
-                              $"enemy_ai: its low-HP rotation casts WC's placeholders: {string.Join(" | ", turns.Take(4))}");
-                        // the 13th hit's charge: "Unknown light surrounded Atma!" (the PR's own line for it)
-                        Check(WcEnemyAi.LinesSeen.Contains("E0977_00_554_b_08"),
-                              $"enemy_ai: the charge's battle line showed ({string.Join(", ", WcEnemyAi.LinesSeen)})");
-                        foreach (var x in turns) Plugin.L.LogInfo("[wc test] enemy_ai turn: " + x);
-                        return true;
-                    }));
-                }
-                int finalsAt = 0, winsAt = 0;
-                bool ended = false;
-                steps.Add((1f, () =>
-                {
-                    finalsAt = WcEnemyAi.Finals;
-                    winsAt = WcScaling.Victories;
-                    foreach (var e in BattlePlugManager.Instance()?.GetEnemyUnits() ?? new Il2CppInterop.Runtime.InteropTypes.Arrays.Il2CppReferenceArray<BattleEnemyData>(0))
-                    {
-                        var pr = e?.BattleUnitDataInfo?.Parameter;
-                        if (pr != null && pr.CurrentHP > 1) pr.CurrentHP = 1;   // the party's next hit kills it
-                    }
-                    return true;
-                }));
-                for (int k = 0; k < 8; k++)
-                {
-                    int round = k;
-                    steps.Add((5f, () =>
-                    {
-                        bool over = WcScaling.Victories > winsAt;   // won (the result screen waits for a button headless)
-                        if (ended || (!over && round < 7)) return true;
-                        ended = true;
-                        recorder = null;
-                        Check(WcEnemyAi.Finals > finalsAt && WcEnemyAi.LastFinal.Contains("=> 735"),
-                              $"enemy_ai: Atma's death runs its death block: everyone leaves like a boss ({WcEnemyAi.LastFinal})");
-                        Check(over, "enemy_ai: the battle was won after Atma's death");
-                        return true;
-                    }));
-                }
-                return steps;
-            }
-            if (name == "entry_exit_probe")
-            {
-                // what the PR's own conditions do to a monster (for WC's F5 entries/exits): Escape (3) on A,
-                // then lifted; NotTargeting (667) on B; does the party still hit B, does A come back, does
-                // the battle end when C dies with B untargetable and A gone
-                int party = 0, winsAt = 0, turnsAtAdd = 0, addedCell = 0;
-                BattleEnemyData A = null, B = null, C = null;
-                int hpB = 0, hpC = 0;
-                string State(BattleEnemyData e)
-                {
-                    if (e == null) return "none";
-                    var b = BattlePlugManager.Instance();
-                    var pr = e.BattleUnitDataInfo?.Parameter;
-                    var conds = new List<string>();
-                    if (pr?.CurrentConditionList != null) foreach (var c in pr.CurrentConditionList) if (c != null) conds.Add(((int)c.ConditionType).ToString());
-                    bool listed = false, dust = false;
-                    if (b != null)
-                    {
-                        foreach (var u in b.GetEnemyUnits()) if (u != null && u.Pointer == e.Pointer) listed = true;
-                        foreach (var u in b.GetDustEnemyUnits()) if (u != null && u.Pointer == e.Pointer) dust = true;
-                    }
-                    var ent = b?.EventCommand?.GetEnemyEntity(e.UniqueId);
-                    return $"unique {e.UniqueId} HP {pr?.CurrentHP} conditions [{string.Join(",", conds)}] listed {listed} dust {dust} entity {(ent == null ? "none" : ent.gameObject.activeInHierarchy.ToString())}";
-                }
-                return new List<(float, Func<bool>)>
-                {
-                    (0, () =>
-                    {
-                        foreach (var kv in MasterManager.Instance.GetList<global::Last.Data.Master.MonsterParty>())
-                        {
-                            var p = kv.Value;
-                            if (p == null || p.Id >= 600) continue;
-                            var ms = new[] { p.Monster1, p.Monster2, p.Monster3, p.Monster4, p.Monster5, p.Monster6, p.Monster7, p.Monster8, p.Monster9 }.Where(m => m > 0).ToArray();
-                            if (ms.Length == 3) { party = p.Id; break; }
-                        }
-                        Check(party > 0, $"entry_exit_probe: a party of three ({party})");
-                        if (party <= 0) return false;
-                        winsAt = WcScaling.Victories;
-                        WcBattles.Queue(party);
-                        return true;
-                    }),
-                    (8, () =>
-                    {
-                        var b = BattlePlugManager.Instance();
-                        Check(b != null && b.IsBattle(), "entry_exit_probe: in battle");
-                        if (b == null) return false;
-                        var es = new List<BattleEnemyData>();
-                        foreach (var u in b.GetEnemyUnits()) { var ed = u?.TryCast<BattleEnemyData>(); if (ed != null) es.Add(ed); }
-                        es = es.OrderBy(x => x.UniqueId).ToList();
-                        if (es.Count < 3) { Check(false, $"entry_exit_probe: three monsters ({es.Count})"); return false; }
-                        A = es[0]; B = es[1]; C = es[2];
-                        foreach (var e in es) { var pr = e.BattleUnitDataInfo.Parameter; if (pr.BaseMaxHp < 60000) pr.BaseMaxHp = 60000; pr.CurrentHP = 50000; }
-                        recorder = () =>
-                        {
-                            var bb = BattlePlugManager.Instance();
-                            if (bb == null || !bb.IsBattle()) return;
-                            foreach (var u in bb.GetPlayerUnits())
-                            {
-                                var pr = u?.BattleUnitDataInfo?.Parameter;
-                                if (pr != null && pr.CurrentHP > 0 && pr.CurrentHP < 9999) { if (pr.BaseMaxHp < 9999) pr.BaseMaxHp = 9999; pr.CurrentHP = 9999; }
-                            }
-                        };
-                        Last.UI.BattleUIManager.Instance?.SetIsAuto(true);
-                        Plugin.L.LogInfo("[wc test] entry_exit_probe: before: A " + State(A) + " | B " + State(B) + " | C " + State(C));
-                        b.EventCommand.AddConditionEnemy(A.UniqueId, 3);
-                        Plugin.L.LogInfo("[wc test] entry_exit_probe: A given Escape (3): " + State(A));
-                        return true;
-                    }),
-                    (3, () =>
-                    {
-                        Plugin.L.LogInfo("[wc test] entry_exit_probe: A 3 s after Escape: " + State(A));
-                        var b = BattlePlugManager.Instance();
-                        b?.EventCommand?.AddConditionEnemy(B.UniqueId, 667);
-                        hpB = B.BattleUnitDataInfo.Parameter.CurrentHP; hpC = C.BattleUnitDataInfo.Parameter.CurrentHP;
-                        Plugin.L.LogInfo("[wc test] entry_exit_probe: B given NotTargeting (667): " + State(B));
-                        return true;
-                    }),
-                    (12, () =>
-                    {
-                        int dB = hpB - B.BattleUnitDataInfo.Parameter.CurrentHP, dC = hpC - C.BattleUnitDataInfo.Parameter.CurrentHP;
-                        Plugin.L.LogInfo($"[wc test] entry_exit_probe: 12 s of the party on auto: B (untargetable) lost {dB} HP, C lost {dC}; A {State(A)}");
-                        var b = BattlePlugManager.Instance();
-                        b?.EventCommand?.RecoveryConditionEnemy(A.UniqueId, 3);
-                        Plugin.L.LogInfo("[wc test] entry_exit_probe: A's Escape lifted: " + State(A));
-                        return true;
-                    }),
-                    (4, () =>
-                    {
-                        Plugin.L.LogInfo("[wc test] entry_exit_probe: A 4 s later: " + State(A) + " | B " + State(B) + " | C " + State(C));
-                        // a monster brought in the PR's way (its AddEnemy abilities: EventCommand.InBattleEnemy)
-                        // into a cell no monster has: does it appear there and take turns?
-                        var b = BattlePlugManager.Instance();
-                        var used = new HashSet<int>();
-                        foreach (var u in b.GetEnemyUnits()) { var ed = u?.TryCast<BattleEnemyData>(); if (ed != null) used.Add(ed.UniqueId); }
-                        int cell = Enumerable.Range(1, 9).FirstOrDefault(k => !used.Contains(k));
-                        int mon = A.GetMonster()?.Id ?? 0;
-                        turnsAtAdd = WcEnemyAi.Turns;
-                        Plugin.L.LogInfo($"[wc test] entry_exit_probe: InBattleEnemy({mon}, cell {cell}); enemies before: {string.Join(",", used.OrderBy(x => x))}");
-                        if (cell > 0 && mon > 0) b.EventCommand.InBattleEnemy(mon, cell);
-                        addedCell = cell;
-                        return true;
-                    }),
-                    (8, () =>
-                    {
-                        var b = BattlePlugManager.Instance();
-                        var now = new List<string>();
-                        BattleEnemyData added = null;
-                        foreach (var u in b.GetEnemyUnits())
-                        {
-                            var ed = u?.TryCast<BattleEnemyData>();
-                            if (ed == null) continue;
-                            now.Add($"{ed.UniqueId}:{ed.GetMonster()?.Id}");
-                            if (ed.UniqueId == addedCell) added = ed;
-                        }
-                        Plugin.L.LogInfo($"[wc test] entry_exit_probe: 8 s after InBattleEnemy: enemies {string.Join(",", now)}; the new one: {State(added)}; " +
-                                         $"turns since {WcEnemyAi.Turns - turnsAtAdd} (last {WcEnemyAi.LastTurn})");
-                        return true;
-                    }),
-                    (1, () =>
-                    {
-                        // A gone again, B untargetable: C's death alone ends the battle?
-                        var b = BattlePlugManager.Instance();
-                        b?.EventCommand?.AddConditionEnemy(A.UniqueId, 3);
-                        C.BattleUnitDataInfo.Parameter.CurrentHP = 1;
-                        winsAt = WcScaling.Victories;
-                        return true;
-                    }),
-                    (15, () =>
-                    {
-                        var b = BattlePlugManager.Instance();
-                        bool won = WcScaling.Victories > winsAt;
-                        Plugin.L.LogInfo($"[wc test] entry_exit_probe: 15 s after C at 1 HP: won {won}, in battle {b != null && b.IsBattle()}; A {State(A)} | B {State(B)} | C {State(C)}");
-                        recorder = null;
-                        if (b != null && b.IsBattle() && !won && b.BattleEndJugment != null)
-                        {
-                            b.BattleEndJugment.SetEnabled(true);
-                            b.BattleEndJugment.CurrentEndJugmentType = BattleEndJugment.EndJugmentType.Normal;
-                            b.BattleEndJugment.isForce = true;
-                        }
-                        return true;
-                    }),
-                    (6, () => false),
-                };
-            }
-            if (name == "enemy_ai_sweep" || name.StartsWith("enemy_ai_sweep@"))
-            {
-                // many fights in a row (the plugin's hooks must never stall a battle): a spread of the
-                // parties with a monster whose turns the plugin runs (the seed's list), each on auto for
-                // a while with both sides kept alive, then ended the way the PR's BattleForceExit ends
-                // one (BattleEndJugment.isForce); a fight whose monsters took no turn is a stall
-                int want = name.Contains("@") ? int.Parse(name.Substring(name.IndexOf('@') + 1)) : 30;
-                var parties = new List<int>();
-                var report = new List<string>();
-                var idle = new List<string>();
-                int turnsAt = 0, countersAt = 0, current = 0, done = 0, notStarted = 0, notEnded = 0;
-                string Mons(BattlePlugManager b)
-                {
-                    var ids = new List<string>();
-                    foreach (var e in b.GetEnemyUnits()) ids.Add($"{e?.GetMonster()?.Id ?? 0}");
-                    return string.Join("/", ids);
-                }
-                var steps = new List<(float, Func<bool>)>
-                {
-                    (0, () =>
-                    {
-                        var d = WcSeeds.Active?.SnesAi;
-                        Check(d != null && d.Plugin.Count > 0, $"enemy_ai_sweep: the seed lists the monsters the plugin runs ({d?.Plugin.Count ?? 0})");
-                        if (d == null || d.Plugin.Count == 0) return false;
-                        var seenSets = new HashSet<string>();
-                        var all = new List<int>();
-                        foreach (var kv in MasterManager.Instance.GetList<global::Last.Data.Master.MonsterParty>())
-                        {
-                            var p = kv.Value;
-                            if (p == null || p.Id >= 2000) continue;
-                            var ms = new[] { p.Monster1, p.Monster2, p.Monster3, p.Monster4, p.Monster5, p.Monster6 }.Where(m => m > 0).ToArray();
-                            if (ms.Length == 0 || !ms.Any(m => d.Plugin.Contains(m - 1))) continue;
-                            if (!seenSets.Add(string.Join(",", ms.OrderBy(x => x)))) continue;
-                            all.Add(p.Id);
-                        }
-                        all.Sort();
-                        for (int i = 0; i < want && all.Count > 0; i++)
-                        {
-                            int at = (int)((long)i * all.Count / want);
-                            if (!parties.Contains(all[at])) parties.Add(all[at]);
-                        }
-                        Plugin.L.LogInfo($"[wc test] enemy_ai_sweep: {parties.Count} of {all.Count} parties: {string.Join(", ", parties)}");
-                        recorder = () =>
-                        {
-                            var b = BattlePlugManager.Instance();
-                            if (b == null || !b.IsBattle()) return;
-                            foreach (var u in b.GetPlayerUnits())
-                            {
-                                var pr = u?.BattleUnitDataInfo?.Parameter;
-                                if (pr != null && pr.CurrentHP > 0 && pr.CurrentHP < 9999) { if (pr.BaseMaxHp < 9999) pr.BaseMaxHp = 9999; pr.CurrentHP = 9999; }
-                            }
-                            // no win (the result screen waits for a button headless): enemies get HP no
-                            // early party can take in one hit, topped up every frame
-                            foreach (var u in b.GetEnemyUnits())
-                            {
-                                var pr = u?.BattleUnitDataInfo?.Parameter;
-                                if (pr == null || pr.CurrentHP <= 0) continue;
-                                if (pr.BaseMaxHp < 60000) pr.BaseMaxHp = 60000;
-                                int max = pr.ConfirmedMaxHp();
-                                if (pr.CurrentHP < max) pr.CurrentHP = max;
-                            }
-                        };
-                        return true;
-                    }),
-                };
-                for (int k = 0; k < want; k++)
-                {
-                    int i = k;
-                    steps.Add((1f, () =>
-                    {
-                        if (i >= parties.Count) return true;
-                        current = parties[i];
-                        turnsAt = WcEnemyAi.Turns; countersAt = WcEnemyAi.Counters;
-                        WcBattles.Queue(current);
-                        return true;
-                    }));
-                    steps.Add((7f, () =>
-                    {
-                        if (i >= parties.Count) return true;
-                        var b = BattlePlugManager.Instance();
-                        if (b == null || !b.IsBattle()) { notStarted++; report.Add($"party {current}: did not start"); return true; }
-                        Last.UI.BattleUIManager.Instance?.SetIsAuto(true);
-                        return true;
-                    }));
-                    steps.Add((18f, () =>
-                    {
-                        if (i >= parties.Count) return true;
-                        var b = BattlePlugManager.Instance();
-                        if (b == null || !b.IsBattle()) return true;
-                        int t = WcEnemyAi.Turns - turnsAt, c = WcEnemyAi.Counters - countersAt;
-                        string mons = Mons(b);
-                        report.Add($"party {current} [{mons}]: {t} turns, {c} counters; last turn {WcEnemyAi.LastTurn}");
-                        if (t == 0) idle.Add($"{current} [{mons}]");
-                        // the judge honours isForce only when enabled and of the Normal type (a battle
-                        // script can switch either: party 71's 9026 does)
-                        var j = b.BattleEndJugment;
-                        if (j != null)
-                        {
-                            j.SetEnabled(true);
-                            j.CurrentEndJugmentType = BattleEndJugment.EndJugmentType.Normal;
-                            j.isForce = true;
-                        }
-                        return true;
-                    }));
-                    for (int w = 0; w < 6; w++)
-                    {
-                        int wait = w;
-                        steps.Add((3f, () =>
-                        {
-                            if (i >= parties.Count || i < done) return true;   // done: ended already
-                            var b = BattlePlugManager.Instance();
-                            bool still = b != null && b.IsBattle();
-                            if (still && wait < 5) return true;
-                            if (still) { notEnded++; report.Add($"party {current}: still in battle 18 s after the forced end"); }
-                            done++;
-                            return true;
-                        }));
-                    }
-                }
-                steps.Add((1f, () =>
-                {
-                    recorder = null;
-                    foreach (var r in report) Plugin.L.LogInfo("[wc test] enemy_ai_sweep: " + r);
-                    Check(parties.Count > 0 && notStarted == 0, $"enemy_ai_sweep: every fight started ({parties.Count - notStarted} of {parties.Count})");
-                    Check(idle.Count == 0, $"enemy_ai_sweep: the monsters took WC turns in every fight (none in: {string.Join(", ", idle)})");
-                    Check(notEnded == 0, $"enemy_ai_sweep: every fight ended when told to ({notEnded} did not)");
-                    return true;
-                }));
-                return steps;
-            }
-            if (name.StartsWith("enemy_ai_each@"))
-            {
-                // several monsters' fights in one run (PR monster ids after the @, "+"-separated; the request
-                // splits checks at commas): each monster's first party, 30 s on auto with both sides kept alive
-                // (monsters get HP no early party takes in a hit, topped up), its turns, counters and
-                // entries/exits logged; then "Nk" lets the party kill the monster, "No" its partners, and 15 s
-                // more show what the deaths bring in; the battle is then ended as the PR's BattleForceExit
-                // ends one. A fight whose monsters took no turn fails.
-                var list = name.Substring(14).Split('+', ' ').Where(x => x.Trim().Length > 0).Select(x => x.Trim()).ToList();
-                var steps = new List<(float, Func<bool>)>();
-                int turnsAt = 0, countersAt = 0, entriesAt = 0, finalsAt = 0, party = 0;
-                var exposed = new HashSet<int>();   // unique ids no longer kept alive
-                var low = new HashSet<int>();       // unique ids held at 2000 HP (their low-HP branches)
-                string Enemies(BattlePlugManager b)
-                {
-                    var l = new List<string>();
-                    foreach (var e in b.GetEnemyUnits())
-                    {
-                        var ed = e?.TryCast<BattleEnemyData>();
-                        if (ed == null) continue;
-                        var pr = ed.BattleUnitDataInfo?.Parameter;
-                        var conds = new List<string>();
-                        if (pr?.CurrentConditionList != null) foreach (var c in pr.CurrentConditionList) if (c != null) conds.Add(((int)c.ConditionType).ToString());
-                        l.Add($"{ed.UniqueId}:{ed.GetMonster()?.Id} HP {pr?.CurrentHP} [{string.Join(",", conds)}]");
-                    }
-                    return string.Join("; ", l);
-                }
-                recorder = () =>
-                {
-                    var b = BattlePlugManager.Instance();
-                    if (b == null || !b.IsBattle()) return;
-                    foreach (var u in b.GetPlayerUnits())
-                    {
-                        var pr = u?.BattleUnitDataInfo?.Parameter;
-                        if (pr != null && pr.CurrentHP > 0 && pr.CurrentHP < 9999) { if (pr.BaseMaxHp < 9999) pr.BaseMaxHp = 9999; pr.CurrentHP = 9999; }
-                    }
-                    foreach (var u in b.GetEnemyUnits())
-                    {
-                        var ed = u?.TryCast<BattleEnemyData>();
-                        var pr = ed?.BattleUnitDataInfo?.Parameter;
-                        if (pr == null || pr.CurrentHP <= 0 || exposed.Contains(ed.UniqueId)) continue;
-                        if (pr.BaseMaxHp < 30000) pr.BaseMaxHp = 30000;
-                        int max = low.Contains(ed.UniqueId) ? 2000 : pr.ConfirmedMaxHp();
-                        if (pr.CurrentHP < max) pr.CurrentHP = max;
-                    }
-                };
-                foreach (var item in list)
-                {
-                    char mode = char.IsLetter(item[item.Length - 1]) ? item[item.Length - 1] : ' ';
-                    int monster = int.Parse(mode == ' ' ? item : item.Substring(0, item.Length - 1));
-                    steps.Add((1f, () =>
-                    {
-                        party = 0;
-                        exposed.Clear();
-                        low.Clear();
-                        foreach (var kv in MasterManager.Instance.GetList<global::Last.Data.Master.MonsterParty>())
-                        {
-                            var p = kv.Value;
-                            if (p == null || p.Id >= 2000) continue;
-                            if (new[] { p.Monster1, p.Monster2, p.Monster3, p.Monster4, p.Monster5, p.Monster6, p.Monster7, p.Monster8, p.Monster9 }.Contains(monster)) { party = p.Id; break; }
-                        }
-                        Check(party > 0, $"enemy_ai_each@{monster}: a party with it ({party})");
-                        if (party <= 0) return true;
-                        turnsAt = WcEnemyAi.Turns; countersAt = WcEnemyAi.Counters; entriesAt = WcEnemyAi.Entries; finalsAt = WcEnemyAi.Finals;
-                        WcBattles.Queue(party);
-                        return true;
-                    }));
-                    steps.Add((7f, () =>
-                    {
-                        if (party <= 0) return true;
-                        var b = BattlePlugManager.Instance();
-                        Check(b != null && b.IsBattle(), $"enemy_ai_each@{monster}: in battle (party {party})");
-                        Last.UI.BattleUIManager.Instance?.SetIsAuto(true);
-                        if (b != null) Plugin.L.LogInfo($"[wc test] enemy_ai_each@{monster}: start: {Enemies(b)}");
-                        return true;
-                    }));
-                    for (int k = 0; k < 11; k++)
-                    {
-                        int round = k;
-                        steps.Add((5f, () =>
-                        {
-                            if (party <= 0) return true;
-                            var b = BattlePlugManager.Instance();
-                            var ui = Last.UI.BattleUIManager.Instance;
-                            if (ui != null && !ui.IsAuto()) ui.SetIsAuto(true);
-                            if (b == null || !b.IsBattle()) return true;
-                            Plugin.L.LogInfo($"[wc test] enemy_ai_each@{monster}: {5 * (round + 1)} s: {Enemies(b)}");
-                            if (round == 5 && mode != ' ')
-                            {
-                                // the deaths: the monster itself (k) or its partners (o), at 1 HP for the party to finish
-                                foreach (var u in b.GetEnemyUnits())
-                                {
-                                    var ed = u?.TryCast<BattleEnemyData>();
-                                    if (ed == null) continue;
-                                    bool it = ed.GetMonster()?.Id == monster;
-                                    if ((mode == 'o') == it) continue;
-                                    var pr = ed.BattleUnitDataInfo.Parameter;
-                                    if (mode == 'l') { low.Add(ed.UniqueId); pr.CurrentHP = 2000; continue; }
-                                    exposed.Add(ed.UniqueId);
-                                    if (pr.CurrentHP > 1) pr.CurrentHP = 1;
-                                }
-                                Plugin.L.LogInfo($"[wc test] enemy_ai_each@{monster}: {(mode == 'k' ? "it at 1 HP" : mode == 'l' ? "it held at 2000 HP" : "its partners at 1 HP")} " +
-                                                 $"(units {string.Join(",", exposed.Concat(low))})");
-                            }
-                            if (round < 10) return true;
-                            int t = WcEnemyAi.Turns - turnsAt;
-                            Check(t > 0, $"enemy_ai_each@{monster}: its fight's monsters took WC turns ({t}; {WcEnemyAi.Counters - countersAt} counters, " +
-                                         $"{WcEnemyAi.Entries - entriesAt} entries/exits, last {WcEnemyAi.LastEntry}; {WcEnemyAi.Finals - finalsAt} deaths)");
-                            var j = b.BattleEndJugment;
-                            if (j != null) { j.SetEnabled(true); j.CurrentEndJugmentType = BattleEndJugment.EndJugmentType.Normal; j.isForce = true; }
-                            return true;
-                        }));
-                    }
-                    steps.Add((8f, () =>
-                    {
-                        var b = BattlePlugManager.Instance();
-                        if (b != null && b.IsBattle()) Plugin.L.LogInfo($"[wc test] enemy_ai_each@{monster}: still in battle 8 s after the forced end");
-                        return true;
-                    }));
-                }
-                steps.Add((1f, () => { recorder = null; return true; }));
-                return steps;
-            }
-            if (name.StartsWith("enemy_ai@"))
-            {
-                // any monster that runs its WC script in the plugin: a party with it (PR monster id after
-                // the @), the party kept alive on auto for 45 s: its turns and counters run the
-                // interpreter (logged), then it dies (its death block, if any)
-                int monster = int.Parse(name.Substring(9)), party = 0, turnsAt = 0, countersAt = 0, finalsAt = 0, winsAt = 0, queuedAt = 0, shownAt = 0, seenAt = 0;
-                bool ended = false;
-                var steps = new List<(float, Func<bool>)>
-                {
-                    (2, () =>
-                    {
-                        foreach (var kv in MasterManager.Instance.GetList<global::Last.Data.Master.MonsterParty>())
-                        {
-                            var p = kv.Value;
-                            if (p == null || p.Id >= 2000) continue;
-                            if (new[] { p.Monster1, p.Monster2, p.Monster3, p.Monster4, p.Monster5, p.Monster6, p.Monster7, p.Monster8, p.Monster9 }.Contains(monster)) { party = p.Id; break; }
-                        }
-                        Check(party > 0, $"enemy_ai@{monster}: a party with it ({party})");
-                        if (party <= 0) return false;
-                        turnsAt = WcEnemyAi.Turns; countersAt = WcEnemyAi.Counters; finalsAt = WcEnemyAi.Finals; winsAt = WcScaling.Victories;
-                        queuedAt = WcEnemyAi.LinesQueued; shownAt = WcEnemyAi.LinesShown; seenAt = WcEnemyAi.LinesSeen.Count;
-                        WcBattles.Queue(party);
-                        return true;
-                    }),
-                    (8, () =>
-                    {
-                        var battle = BattlePlugManager.Instance();
-                        Check(battle != null && battle.IsBattle(), $"enemy_ai@{monster}: in battle (party {party})");
-                        Last.UI.BattleUIManager.Instance?.SetIsAuto(true);
-                        recorder = () =>
-                        {
-                            var b = BattlePlugManager.Instance();
-                            if (b == null || !b.IsBattle()) return;
-                            foreach (var p in b.GetPlayerUnits())
-                            {
-                                var pr = p?.BattleUnitDataInfo?.Parameter;
-                                if (pr != null && pr.CurrentHP > 0 && pr.CurrentHP < 9999) { if (pr.BaseMaxHp < 9999) pr.BaseMaxHp = 9999; pr.CurrentHP = 9999; }
-                            }
-                        };
-                        return true;
-                    }),
-                };
-                for (int k = 0; k < 9; k++)
-                {
-                    int round = k;
-                    steps.Add((5f, () =>
-                    {
-                        var ui = Last.UI.BattleUIManager.Instance;
-                        if (ui != null && !ui.IsAuto()) ui.SetIsAuto(true);
-                        if (round < 8) return true;
-                        Check(WcEnemyAi.Turns > turnsAt, $"enemy_ai@{monster}: its turns ran its WC script ({WcEnemyAi.Turns - turnsAt}; last {WcEnemyAi.LastTurn})");
-                        Plugin.L.LogInfo($"[wc test] enemy_ai@{monster}: {WcEnemyAi.Counters - countersAt} counters (last {WcEnemyAi.LastCounter})");
-                        if (WcEnemyAi.LinesQueued > queuedAt)
-                            Check(WcEnemyAi.LinesShown > shownAt, $"enemy_ai@{monster}: its battle lines showed ({WcEnemyAi.LinesQueued - queuedAt} filed; " +
-                                  $"shown: {string.Join(", ", WcEnemyAi.LinesSeen.Skip(seenAt))})");
-                        foreach (var e in BattlePlugManager.Instance()?.GetEnemyUnits() ?? new Il2CppInterop.Runtime.InteropTypes.Arrays.Il2CppReferenceArray<BattleEnemyData>(0))
-                        {
-                            var pr = e?.BattleUnitDataInfo?.Parameter;
-                            if (pr != null && pr.CurrentHP > 1) pr.CurrentHP = 1;
-                        }
-                        return true;
-                    }));
-                }
-                for (int k = 0; k < 8; k++)
-                {
-                    int round = k;
-                    steps.Add((5f, () =>
-                    {
-                        bool over = WcScaling.Victories > winsAt;
-                        if (ended || (!over && round < 7)) return true;
-                        ended = true;
-                        recorder = null;
-                        Plugin.L.LogInfo($"[wc test] enemy_ai@{monster}: {WcEnemyAi.Finals - finalsAt} deaths (last {WcEnemyAi.LastFinal}); " +
-                                         (over ? "won" : "not won in time (an evasive monster the party keeps missing)"));
-                        return true;
-                    }));
-                }
-                return steps;
-            }
-            if (name == "ability_scaling")
-            {
-                // WC's ability scaling (-ase) as monsters act (WcAbilityScaling; the user's seed
-                // gaadl68ix7j4, 2026-11-11: its Sandhorse always cast Wind Slash). (1) the tier
-                // formula against WC's assembly (expected digits from a model of
-                // enemy_script_custom_commands.py: rolls 0, 0x19, 0x59, 0xb2, 0xf2); (2) in a battle
-                // with a Sandhorse (its script casts WIND1 = ability 7613): the act the game builds
-                // for it, many times, holds WC's spell mix for its level, aimed at the party;
-                // (3) its own AI turns swap the spell too.
-                int swapsBefore = 0, natural = 0, party = 0;
-                BattleUnitData horse = null;
-                return new List<(float, Func<bool>)>
-                {
-                    (0, () =>
-                    {
-                        const string want = "00012 00123 01234 00012 00123 01234 00123 01234 12345 00123 01234 12345 01234 12345 23456 12345 23456 34567 34567 45678 56789 56789 6789a 789ab 6789a 789ab 89abb 6789a 789ab 89abb 6789a 789ab 89abb 6789a 789ab 89abb 00012 00123 01234 00012 00123 01234 00012 00123 01234 00123 01234 12345 00123 01234 12345 01234 12345 23456 23456 34567 45678 56789 6789a 789ab 56789 6789a 789ab 56789 6789a 789ab 6789a 789ab 89abb 6789a 789ab 89abb";
-                        var got = new List<string>();
-                        foreach (var f in new[] { 2.0, 2.5 })
-                            foreach (var lv in new[] { 1, 4, 5, 9, 10, 16, 27, 39, 40, 43, 44, 99 })
-                                for (int off = 0; off < 3; off++)
-                                    got.Add(string.Concat(new[] { 0, 0x19, 0x59, 0xb2, 0xf2 }.Select(r => WcAbilityScaling.Tier(lv, off, f, r).ToString("x"))));
-                        Check(string.Join(" ", got) == want, $"ability scaling: WC's tier formula ({string.Join(" ", got)})");
-                        var s = WcSeeds.Active?.Scaling;
-                        Check(s != null && s.Base == 7600 && s.Count == 36 && s.Tiers.Length == 12,
-                              $"ability scaling: the seed's tiers ({(s == null ? "none" : $"base {s.Base}, {s.Tiers.Length} categories, factor {s.Factor}")})");
-                        foreach (var kv in MasterManager.Instance.GetList<MonsterParty>())
-                        {
-                            var p = kv.Value;
-                            if (p == null) continue;
-                            if (new[] { p.Monster1, p.Monster2, p.Monster3, p.Monster4, p.Monster5, p.Monster6 }.Contains(96)) { party = p.Id; break; }
-                        }
-                        Check(party > 0, $"ability scaling: a party with a Sandhorse ({party})");
-                        if (party <= 0 || s == null) return false;
-                        WcBattles.Queue(party);
-                        Plugin.L.LogInfo($"[wc test] ability_scaling: party {party} queued");
-                        return true;
-                    }),
-                    (8, () =>
-                    {
-                        var battle = BattlePlugManager.Instance();
-                        Check(battle != null && battle.IsBattle(), "ability scaling: in battle");
-                        horse = battle?.GetEnemyUnits()?.ToArray().FirstOrDefault(u => u?.GetMonster()?.Id == 96);
-                        var act = horse?.BattleUnitDataInfo?.ActSelectController?.GetAct()?.TryCast<ActSelectEnemy>();
-                        var create = HarmonyLib.AccessTools.Method(typeof(ActSelectEnemy), "CreateActData");
-                        if (act == null || create == null) { Check(false, $"ability scaling: the Sandhorse's act ({horse != null}, {act != null}, {create != null})"); return false; }
-                        var s = WcSeeds.Active.Scaling;
-                        int level = horse.BattleUnitDataInfo.Parameter.ConfirmedLevel();
-                        // WC's odds for each spell: tier = base + 1 (WIND1) + (x - 2), weights 25/64/89/64/14 of 256
-                        double per = s.Factor + 3;
-                        int baseTier = level >= (int)(per * 8) ? 8 : level * 2 / (int)(per * 2);
-                        var odds = new Dictionary<int, double>();
-                        int[] weights = { 25, 64, 89, 64, 14 };
-                        for (int x = 0; x < 5; x++)
-                        {
-                            var pool = s.Tiers[4][Math.Clamp(baseTier + 1 + x - 2, 0, 11)];
-                            foreach (var a in pool) odds[a] = odds.GetValueOrDefault(a) + weights[x] / 256.0 / pool.Length;
-                        }
-                        swapsBefore = WcAbilityScaling.Swaps;
-                        var seen = new Dictionary<int, int>();
-                        int n = 400, aimed = 0;
-                        for (int i = 0; i < n; i++)
-                        {
-                            var made = create.Invoke(act, new object[] { s.Base + 13, null, BattleActData.ActType.Normal }) as BattleActData;
-                            int id = made?.abilityList != null && made.abilityList.Count > 0 ? made.abilityList[0]?.Id ?? 0 : 0;
-                            seen[id] = seen.GetValueOrDefault(id) + 1;
-                            var t = made?.TargetUnitDatas;
-                            if (t != null && t.Length > 0 && t.All(u => u?.TryCast<BattlePlayerData>() != null)) aimed++;
-                        }
-                        string mix = string.Join(", ", seen.OrderBy(kv => kv.Key).Select(kv => $"{kv.Key}: {kv.Value / (double)n:0.00} (WC {odds.GetValueOrDefault(kv.Key):0.00})"));
-                        Plugin.L.LogInfo($"[wc test] ability_scaling: Sandhorse Lv {level}, base tier {baseTier}: {mix}");
-                        Check(WcAbilityScaling.Swaps - swapsBefore == n, $"ability scaling: every act swapped ({WcAbilityScaling.Swaps - swapsBefore} of {n})");
-                        Check(seen.Keys.All(odds.ContainsKey), $"ability scaling: only spells of WC's tiers for Lv {level} ({mix})");
-                        Check(odds.All(kv => Math.Abs(seen.GetValueOrDefault(kv.Key) / (double)n - kv.Value) < 0.08), $"ability scaling: WC's odds ({mix})");
-                        Check(aimed == n, $"ability scaling: every act aimed at the party ({aimed} of {n})");
-                        swapsBefore = WcAbilityScaling.Swaps;
-                        return true;
-                    }),
-                    (25, () =>
-                    {
-                        natural = WcAbilityScaling.Swaps - swapsBefore;
-                        Check(natural > 0, $"ability scaling: the Sandhorse's own turns swapped its spell ({natural}; last: {WcAbilityScaling.LastSwap})");
-                        return false;
-                    }),
-                };
-            }
-            if (name == "mug_auto")
-            {
-                // auto-battle with Mug as a character's first command and no Fight (the user's seed
-                // gaadl68ix7j4: Gau, 2026-11-11, mugged himself): with no history the game builds
-                // Fight, swaps it for Defend on the character itself (no Fight command), and
-                // SnesAutobattle makes the default a Mug: at an enemy, never the character.
-                // Then a second battle (2026-11-12, Gau "sits there with a full ATB bar, sometimes it
-                // works"): its first replay starts from the first battle's Mug, aimed at a monster of
-                // that battle; the character must go on mugging this battle's monsters.
-                // Request "mug=old": the earlier patch's replay (the remembered act as it was), to
-                // show the stall it left
-                int lead = -1;
-                var saved = new int[6];
-                Il2CppSystem.Collections.Generic.List<Command> savedList = null;
-                CharacterStatus row = null;
-                var firstFoes = new List<BattleEnemyData>();
-                int split = -1, waits = 0;
-                bool requeued = false;
-                SnesAutobattle.ReplayAsBefore = req != null && req.GetValueOrDefault("mug", "") == "old";
-                BattleUnitData Me() => BattlePlugManager.Instance()?.GetPlayerUnits()?.ToArray()
-                    .FirstOrDefault(u => u?.GetOwnedCharacterData()?.characterStatusId == lead);
-                // The party never dies, nor does one monster (the anchor): a won fight waits on its
-                // results screen (no input in a headless run); the forced end skips the results. In
-                // the first battle (party 9: four monsters) the others die, so the character's
-                // remembered Mug target dies under it; in the second every monster is kept
-                int fight = 1, deathsAt = -1;
-                IntPtr anchor = IntPtr.Zero;
-                var dead = new HashSet<IntPtr>();
-                bool toldList = false;
-                void KeepAlive()
-                {
-                    var b = BattlePlugManager.Instance();
-                    if (b == null || !b.IsBattle()) return;
-                    var foes = b.GetEnemyUnits();
-                    if (fight == 1 && anchor == IntPtr.Zero && foes != null && foes.Length > 0 && foes[foes.Length - 1] != null)
-                        anchor = foes[foes.Length - 1].Pointer;
-                    for (int i = 0; foes != null && i < foes.Length; i++)
-                    {
-                        var e = foes[i];
-                        var ep = e?.BattleUnitDataInfo?.Parameter;
-                        if (ep == null || fight != 1 || e.Pointer == anchor) continue;
-                        if (ep.CurrentHP <= 0 && dead.Add(e.Pointer))
-                        {
-                            if (deathsAt < 0) deathsAt = WcBattles.Acts.Count;
-                            Plugin.L.LogInfo($"[wc test] mug_auto: a monster died after {WcBattles.Acts.Count} acts");
-                        }
-                    }
-                    // the battle reads the character's commands from the unit's own data, which the
-                    // field-side change above didn't reach (the first runs: [1 26 19 ...], so the game's
-                    // IsHaveMagic turned every replay down and only the default Mug ran); a seed's Mug
-                    // is there, as the user's Gau's is
-                    var mine = Me()?.GetOwnedCharacterData();
-                    var cmds = mine?.CommandList;
-                    if (cmds != null && (cmds.Count == 0 || cmds[0]?.Id != 11))
-                    {
-                        var list = new Il2CppSystem.Collections.Generic.List<Command>();
-                        list.Add(MasterManager.Instance.GetData<Command>(11));
-                        foreach (var c in cmds) if (c != null && c.Id != 1 && c.Id != 11) list.Add(c);
-                        mine.CommandList = list;
-                        if (!toldList)
-                        {
-                            toldList = true;
-                            var field = UserDataManager.Instance()?.GetPartyMemberData()?.ToArray().FirstOrDefault(c => c?.characterStatusId == lead);
-                            Plugin.L.LogInfo($"[wc test] mug_auto: the battle unit's commands were [{string.Join(" ", cmds.ToArray().Select(c => c?.Id ?? 0))}]; " +
-                                             $"its data is the party's: {field != null && field.Pointer == mine.Pointer}");
-                        }
-                    }
-                    var units = new List<BattleUnitData>();
-                    foreach (var p in b.GetPlayerUnits()) units.Add(p);
-                    foreach (var e in b.GetEnemyUnits())
-                        if (e != null && (fight != 1 || e.Pointer == anchor)) units.Add(e);
-                    foreach (var u in units)
-                    {
-                        var pr = u?.BattleUnitDataInfo?.Parameter;
-                        if (pr != null && pr.CurrentHP > 0 && pr.CurrentHP < 9999)
-                        {
-                            if (pr.BaseMaxHp < 9999) pr.BaseMaxHp = 9999;
-                            pr.CurrentHP = 9999;
-                        }
-                    }
-                }
-                void Restore()
-                {
-                    recorder = null;
-                    SnesAutobattle.ReplayAsBefore = false;
-                    if (row != null)
-                    {
-                        row.CommandId1 = saved[0]; row.CommandId2 = saved[1]; row.CommandId3 = saved[2];
-                        row.CommandId4 = saved[3]; row.CommandId5 = saved[4]; row.CommandId6 = saved[5];
-                    }
-                    var owned = UserDataManager.Instance()?.GetPartyMemberData()?.ToArray().FirstOrDefault(c => c?.characterStatusId == lead);
-                    if (owned != null && savedList != null) owned.CommandList = savedList;
-                }
-                string Show(IEnumerable<(int Who, int Command, string Targets)> acts) =>
-                    string.Join("; ", acts.Select(a => $"{a.Who}:{a.Command}->[{a.Targets}]"));
-                var steps = new List<(float, Func<bool>)>
-                {
-                    (0, () =>
-                    {
-                        var party = UserDataManager.Instance()?.GetPartyMemberData();
-                        var owned = party != null && party.Count > 0 ? party[0] : null;
-                        if (owned == null) { Check(false, "mug_auto: no party"); return false; }
-                        lead = owned.characterStatusId;
-                        row = MasterManager.Instance.GetData<CharacterStatus>(lead);
-                        saved = new[] { row.CommandId1, row.CommandId2, row.CommandId3, row.CommandId4, row.CommandId5, row.CommandId6 };
-                        row.CommandId1 = 11;
-                        if (row.CommandId2 == 1) row.CommandId2 = 0;
-                        if (row.CommandId3 == 1) row.CommandId3 = 0;
-                        if (row.CommandId4 == 1) row.CommandId4 = 0;
-                        if (row.CommandId5 == 1) row.CommandId5 = 0;
-                        if (row.CommandId6 == 1) row.CommandId6 = 0;
-                        savedList = owned.CommandList;
-                        var list = new Il2CppSystem.Collections.Generic.List<Command>();
-                        list.Add(MasterManager.Instance.GetData<Command>(11));
-                        if (savedList != null)
-                            foreach (var c in savedList) if (c != null && c.Id != 1 && c.Id != 11) list.Add(c);
-                        owned.CommandList = list;
-                        WcBattles.Acts.Clear();
-                        recorder = KeepAlive;
-                        WcBattles.Queue(9);
-                        Plugin.L.LogInfo($"[wc test] mug_auto: character {lead} has Mug first, no Fight; battle 9 queued");
-                        return true;
-                    }),
-                    (8, () =>
-                    {
-                        var battle = BattlePlugManager.Instance();
-                        Check(battle != null && battle.IsBattle(), "mug_auto: in battle");
-                        var ui = Last.UI.BattleUIManager.Instance;
-                        ui?.SetIsAuto(true);
-                        Check(ui != null && ui.IsAuto(), "mug_auto: auto-battle on");
-                        // a Mug aimed at the character itself, as the earlier default made it and
-                        // its replays kept it: turned on an enemy
-                        var me = Me();
-                        if (me != null)
-                        {
-                            var fixedAct = SnesAutobattle.ReplayMug(null, MugAt(me, me), lead);
-                            var t = fixedAct?.TargetUnitDatas;
-                            Check(t != null && t.Length == 1 && SnesAutobattle.Muggable(t[0], battle.GetEnemyUnits()) && (int)fixedAct.CurrentTargetType == 3,
-                                  $"mug_auto: a Mug aimed at itself is turned on an enemy (type {(fixedAct == null ? -1 : (int)fixedAct.CurrentTargetType)})");
-                        }
-                        else Check(false, "mug_auto: the character's battle unit");
-                        firstFoes.Clear();
-                        foreach (var e in battle?.GetEnemyUnits() ?? new Il2CppInterop.Runtime.InteropTypes.Arrays.Il2CppReferenceArray<BattleEnemyData>(0))
-                            if (e != null) firstFoes.Add(e);
-                        return true;
-                    }),
-                    (22, () =>
-                    {
-                        var mine = WcBattles.Acts.Where(a => a.Who == lead).ToList();
-                        Plugin.L.LogInfo($"[wc test] mug_auto: battle 1 acts {Show(WcBattles.Acts)}");
-                        var mugs = mine.Where(a => a.Command == 11).ToList();
-                        Check(mugs.Count > 0, $"mug_auto: character {lead} mugged in auto-battle ({mine.Count} acts)");
-                        Check(mugs.All(a => a.Targets.Length > 0 && a.Targets.Split(' ').All(t => t == "e")),
-                              $"mug_auto: every Mug at an enemy ({string.Join(", ", mugs.Select(a => a.Targets))})");
-                        // after the first monster died: the character kept its turns (a stalled one sits
-                        // with a full gauge while the others go on acting)
-                        if (deathsAt < 0) Check(false, "mug_auto: a monster died in the first battle");
-                        else
-                        {
-                            var after = WcBattles.Acts.Skip(deathsAt).Where(a => a.Who > 0).ToList();
-                            int last = after.FindLastIndex(a => a.Who == lead);
-                            int trailing = last < 0 ? after.Count : after.Count - 1 - last;
-                            Check(last >= 0 && trailing <= 4,
-                                  $"mug_auto: character {lead} kept acting after monsters died ({after.Count(a => a.Who == lead)} of its acts after the first death; " +
-                                  $"{trailing} by the others since its last; {dead.Count} died)");
-                        }
-                        split = WcBattles.Acts.Count;
-                        // the judge honours isForce only when enabled and of the Normal type
-                        var j = BattlePlugManager.Instance()?.BattleEndJugment;
-                        if (j != null)
-                        {
-                            j.SetEnabled(true);
-                            j.CurrentEndJugmentType = BattleEndJugment.EndJugmentType.Normal;
-                            j.isForce = true;
-                        }
-                        return true;
-                    }),
-                };
-                // the first battle's end (the results screen), then the second battle
-                for (int w = 0; w < 8; w++)
-                    steps.Add((3f, () =>
-                    {
-                        if (requeued) return true;
-                        var b = BattlePlugManager.Instance();
-                        if (b != null && b.IsBattle()) { waits++; return true; }
-                        fight = 2;
-                        WcBattles.Queue(7);
-                        requeued = true;
-                        Plugin.L.LogInfo($"[wc test] mug_auto: battle 1 over; battle 7 queued again");
-                        return true;
-                    }));
-                steps.Add((10f, () =>
-                {
-                    var battle = BattlePlugManager.Instance();
-                    bool on = requeued && battle != null && battle.IsBattle();
-                    Check(on, $"mug_auto: a second battle ({(requeued ? "queued" : $"the first still on after {waits * 3} s")})");
-                    if (!on) { Restore(); return false; }
-                    Last.UI.BattleUIManager.Instance?.SetIsAuto(true);
-                    // the history's Mug, aimed at a monster of the first battle: re-aimed at one of this battle
-                    var me = Me();
-                    var stale = firstFoes.FirstOrDefault();
-                    if (me != null && stale != null)
-                    {
-                        var fixedAct = SnesAutobattle.ReplayMug(null, MugAt(me, stale), lead);
-                        var t = fixedAct?.TargetUnitDatas;
-                        Check(!SnesAutobattle.Muggable(stale, battle.GetEnemyUnits()) && t != null && t.Length == 1 &&
-                              SnesAutobattle.Muggable(t[0], battle.GetEnemyUnits()),
-                              "mug_auto: a Mug aimed at the first battle's monster is turned on one of this battle");
-                    }
-                    else Check(false, $"mug_auto: the character's battle unit ({me != null}) and the first battle's monsters ({firstFoes.Count})");
-                    return true;
-                }));
-                steps.Add((20f, () =>
-                {
-                    var after = WcBattles.Acts.Skip(Math.Max(0, split)).ToList();
-                    Plugin.L.LogInfo($"[wc test] mug_auto: battle 2 acts {Show(after)}");
-                    var mugs = after.Where(a => a.Who == lead && a.Command == 11).ToList();
-                    Check(mugs.Count > 0 && mugs.All(a => a.Targets.Length > 0 && a.Targets.Split(' ').All(t => t == "e")),
-                          $"mug_auto: character {lead} went on mugging in the second battle ({mugs.Count} Mugs: {string.Join(", ", mugs.Select(a => a.Targets))}; " +
-                          $"{after.Count(a => a.Who != lead)} acts by the others)");
-                    Restore();
-                    return false;
-                }));
-                return steps;
-            }
+if (name == "enemy_ai") return Plan_enemy_ai(name);
+            if (name == "entry_exit_probe") return Plan_entry_exit_probe(name);
+            if (name == "enemy_ai_sweep" || name.StartsWith("enemy_ai_sweep@")) return Plan_enemy_ai_sweep(name);
+            if (name.StartsWith("enemy_ai_each@")) return Plan_enemy_ai_each(name);
+            if (name.StartsWith("enemy_ai@")) return Plan_enemy_ai_2(name);
+            if (name == "ability_scaling") return Plan_ability_scaling(name);
+            if (name == "mug_auto") return Plan_mug_auto(name);
             if (name == "nxppd")
                 return new List<(float, Func<bool>)> { (0f, NxppdCheck) };
-            if (name == "getitem")
-            {
-                // the game's own GetItem op in a script, as vanilla's story pick-ups give gil (the Cave to
-                // the Sealed Gate's sc_e_0453: 293 gil): the porter's scripted chests give their contents
-                // that way in mods without the WC plugin (BNW)
-                int had = -1;
-                return new List<(float, Func<bool>)>
-                {
-                    (0, () => { Check(WcEvents.GotoMap(408, 1), "getitem: to the Cave to the Sealed Gate (map 408)"); return true; }),
-                    (4, () =>
-                    {
-                        had = UserDataManager.Instance()?.OwendGil ?? -1;
-                        Check(WcEvents.RunScript("sc_e_0453"), "getitem: sc_e_0453 ran");
-                        return true;
-                    }),
-                    (5, () =>
-                    {
-                        int now = UserDataManager.Instance()?.OwendGil ?? -1;
-                        Check(now == had + 293, $"getitem: gil {had} -> {now} (GetItem [1, 293])");
-                        return false;
-                    }),
-                };
-            }
-            if (name == "kt_skip")
-            {
-                // -fbs (both presets): Kefka's Tower's drop past the Demon statue (WC's Poltergeist:
-                // map 564, the door at (36, 25), the ledge at (36, 28)) only once the Demon is beaten
-                // (ScenarioFlag2 238); before, the drop pushes the party back (tools/wc_events.py)
-                var cells = new Dictionary<int, UnityEngine.Vector3?>();
-                var plan = new List<(float, Func<bool>)>();
-                foreach (int beaten in new[] { 0, 1 })
-                {
-                    int b = beaten;
-                    plan.Add((1f, () =>
-                    {
-                        DataStorage.Instance.Set(DataStorage.Category.kScenarioFlag2, 238, b);
-                        Check(WcEvents.GotoMap(564, 1), $"kt_skip: to the Demon's back door (from map 570), Demon {(b == 1 ? "beaten" : "standing")}");
-                        return true;
-                    }));
-                    plan.Add((4f, () =>
-                    {
-                        // where things are at run time (cells, not the map file's tiles)
-                        var fc = Field();
-                        var found = new List<string>();
-                        if (fc?.entityList != null)
-                            foreach (var e in fc.entityList)
-                            {
-                                var pe = e?.Property?.TryCast<Last.Map.PropertyEvent>();
-                                if (pe == null || pe.ScriptId <= 0) continue;
-                                var c = fc.ConvertWorldPositionToCellPosition(e.transform.position);
-                                found.Add($"{pe.ObjectType}/{pe.ActionId}:{pe.ScriptId}@({Mathf.Round(c.x)},{Mathf.Round(c.y)})");
-                            }
-                        Plugin.L.LogInfo($"[wc test] kt_skip: player at {WcEvents.PlayerCell()}, scripted {string.Join(" ", found)}");
-                        return true;
-                    }));
-                    // one step onto the ledge (10, 9 at run time), then hands off: the test's stick
-                    // reaches the field even while an event runs, which a player's can't
-                    plan.Add((0.5f, () => { Walk(0, -1, 0.25f); return true; }));
-                    plan.Add((3f, () =>
-                    {
-                        cells[b] = WcEvents.PlayerCell();
-                        Plugin.L.LogInfo($"[wc test] kt_skip: Demon {(b == 1 ? "beaten" : "standing")}: walked south to {cells[b]} (map {UserDataManager.Instance()?.CurrentMapId})");
-                        return true;
-                    }));
-                }
-                plan.Add((0f, () =>
-                {
-                    bool on = WcSeeds.Active?.Flags.Split(' ').Contains("-fbs") == true;
-                    var standing = cells.GetValueOrDefault(0); var beatenCell = cells.GetValueOrDefault(1);
-                    Check(standing.HasValue && beatenCell.HasValue && (on ? standing.Value != beatenCell.Value : standing.Value == beatenCell.Value),
-                          $"kt_skip (-fbs {(on ? "on" : "off")}): Demon standing -> {standing}, beaten -> {beatenCell} (the drop {(on ? "only once beaten" : "always open")})");
-                    return false;
-                }));
-                return plan;
-            }
-            if (name == "fade_selftest")
-            {
-                // the black-screen check sees a black screen: faded out it says black, faded in not
-                var black = new Color(0, 0, 0, 1);
-                return new List<(float, Func<bool>)>
-                {
-                    (0, () => { Il2CppSystem.Fade.FadeManager.Instance.FadeOut(0.2f, black); return true; }),
-                    (2, () => { var (b, s) = ScreenBlack(); Check(b, $"fade self-test: faded out reads black ({s})"); return true; }),
-                    (0, () => { Il2CppSystem.Fade.FadeManager.Instance.FadeIn(0.2f, black); return true; }),
-                    (2, () => { var (b, s) = ScreenBlack(); Check(!b, $"fade self-test: faded in reads not black ({s})"); return true; }),
-                };
-            }
+            if (name == "getitem") return Plan_getitem(name);
+            if (name == "kt_skip") return Plan_kt_skip(name);
+            if (name == "fade_selftest") return Plan_fade_selftest(name);
             var seed = WcSeeds.Active;
             var (module, rn) = SubChecks.TryGetValue(name, out var sub) ? sub : (name, 0);
             if (!seed.Checks.TryGetValue(module, out var c)) { Check(false, $"the seed has no check {module}"); return null; }
@@ -3798,7 +2336,7 @@ if (name == "enemy_ai")
                 c.Rewards[0] = (parts[0], int.Parse(parts[1]));
                 Plugin.L.LogInfo($"[wc test] {name}'s reward set to {forced} for this test");
             }
-            int flag = CheckFlags.TryGetValue(name, out var f) ? f : -1;
+            int flag = CheckFlags.TryGetValue(name == "search_skies" ? module : name, out var f) ? f : -1;
             int F4(int i) => WcEvents.Flag(DataStorage.Category.kScenarioFlag4, i);
             int before = 0, picks = 0;
             Func<bool> Warp(int map, int point) => () => { Check(WcEvents.GotoMap(map, point), $"warp to map {map}"); return true; };
@@ -3879,6 +2417,115 @@ if (name == "enemy_ai")
                     return true;
                 };
                 return check;
+            }
+            if (name == "search_skies")
+            {
+                // WC event/airship.py: the Falcon's wheel in the WoR offers (Search The Skies) while
+                // Doom Gaze's gate is met (Setzer, with -cg) and he isn't beaten (tools/wc_events.py
+                // falcon_helm). Gate closed: not offered; the check done: not offered; open: offered and
+                // picked: the Falcon takes off (ScenarioFlag4 128 pending) and its arrival in the sky
+                // starts the PR's Doom Gaze fight (party 464, the seed's boss swapped in), ended here by
+                // force; then the sky fight's own scripts: his reward scene once he falls (sc_e_0964_2:
+                // the seed's reward, the check flag), or he flies off with his HP kept (no reward, the
+                // choice stays). Each wheel run in a visit of its own (deck 268, from the cabin 269)
+                const int Deck = 268, Cabin = 269, DoomGazeParty = 464, SkiesPending = 128;
+                const string Skies = "WC_HELM_SKIES", NeverMind = "E0412_00_119_c_02", Wheel = "sc_e_FAoutboard";
+                var steps = new List<(float, Func<bool>)>
+                {
+                    (0f, () =>
+                    {
+                        // in the WoR with the Falcon, as the Blackjack's wheel leaves it (worlds=2)
+                        WcEvents.MoveAirship(4, 5, 2);
+                        DataStorage.Instance.Set(DataStorage.Category.kScenarioFlag2, 97, 1);
+                        DataStorage.Instance.Set(DataStorage.Category.kScenarioFlag2, 41, 1);
+                        return true;
+                    }),
+                };
+                void Visit() { steps.Add((0f, Warp(Cabin, 1))); steps.Add((5f, Warp(Deck, 1))); }
+                Func<bool> Offered(bool want, string when) => () =>
+                {
+                    var menu = WcEvents.TestSelects.FirstOrDefault() ?? "";
+                    Check(menu != "" && menu.Split('/').Contains(Skies) == want,
+                          $"search_skies ({when}): the wheel {(want ? "offers" : "doesn't offer")} (Search the skies.): [{menu}] " +
+                          $"(gate {c.Gate}, recruited {(c.Gate > 0 && WcEvents.IsRecruited(c.Gate))}, check flag {F4(flag)})");
+                    return true;
+                };
+                Func<bool> SetDone(int v) => () => { DataStorage.Instance.Set(DataStorage.Category.kScenarioFlag4, flag, v); return true; };
+                if (c.Gate > 0 && !WcEvents.IsRecruited(c.Gate))
+                {
+                    Visit();
+                    steps.Add((0f, GateIs(false)));
+                    steps.Add((6f, RunAnswering(Wheel, NeverMind, name)));
+                    steps.Add((3f, Offered(false, "gate closed")));
+                    steps.Add((0f, Recruit(c.Gate)));
+                }
+                Visit();
+                steps.Add((0f, GateIs(true)));
+                steps.Add((0f, SetDone(1)));
+                steps.Add((6f, RunAnswering(Wheel, NeverMind, name)));
+                steps.Add((3f, Offered(false, "Doom Gaze's check done")));
+                steps.Add((0f, SetDone(0)));
+                Visit();
+                steps.Add((0f, () =>
+                {
+                    before = RewardCount(c, rn);
+                    picks = WcEvents.PartyRefreshes;
+                    WcEvents.TestStoryShownWhy.Clear();
+                    return true;
+                }));
+                // the take-off ends the wheel's script with its ChangeMap (no Exit): the plan goes on
+                steps.Add((6f, RunAnswering(Wheel, Skies, name, hold: false)));
+                steps.Add((1f, Offered(true, "gate open, Doom Gaze not beaten")));
+                int fightPolls = 0;
+                Func<bool> fight = null;
+                fight = () =>
+                {
+                    var b = BattlePlugManager.Instance();
+                    bool on = b != null && b.IsBattle();
+                    if (!on && ++fightPolls < 30) { plan.Insert(0, (2f, fight)); return true; }
+                    Check(on, $"search_skies: a battle after the take-off within {fightPolls * 2} s (map {UserDataManager.Instance()?.CurrentMapId}, " +
+                              $"pending flag {F4(SkiesPending)}, script '{Integrator.Instance?.scriptName}')");
+                    return on;
+                };
+                steps.Add((2f, fight));
+                steps.Add((3f, () =>
+                {
+                    var b = BattlePlugManager.Instance();
+                    var ids = b?.GetEnemyUnits()?.Select(e => e?.GetMonster()?.Id ?? 0).Where(i => i > 0).ToList() ?? new List<int>();
+                    Check(WcBattles.CurrentOriginal == DoomGazeParty,
+                          $"search_skies: Doom Gaze's fight: the sky's party {WcBattles.CurrentOriginal} (want {DoomGazeParty}; the seed's {WcBattles.Map(DoomGazeParty)}), " +
+                          $"battle party {b?.MonsterParty?.Id}, monsters [{string.Join(" ", ids)}]");
+                    Check(F4(SkiesPending) == 0 && UserDataManager.Instance()?.CurrentMapId == WcEvents.WorMap,
+                          $"search_skies: fought in the WoR sky (map {UserDataManager.Instance()?.CurrentMapId}), the pending flag cleared ({F4(SkiesPending)})");
+                    // over by force (a won fight's result screen waits for a button headless)
+                    var j = b?.BattleEndJugment;
+                    if (j != null)
+                    {
+                        j.SetEnabled(true);
+                        j.CurrentEndJugmentType = BattleEndJugment.EndJugmentType.Normal;
+                        j.isForce = true;
+                    }
+                    return true;
+                }));
+                int quiet = 0, looks = 0;
+                Func<bool> settle = null;
+                settle = () =>
+                {
+                    var b = BattlePlugManager.Instance();
+                    bool idle = (b == null || !b.IsBattle()) && Object.FindObjectOfType<FieldMap>() != null && !WcEvents.EventBusy();
+                    quiet = idle ? quiet + 1 : 0;
+                    if (quiet < 3 && ++looks < 40) { plan.Insert(0, (2f, settle)); return true; }
+                    Plugin.L.LogInfo($"[wc test] search_skies: after the fight: map {UserDataManager.Instance()?.CurrentMapId}, check flag {F4(flag)}, " +
+                                     $"Doom Gaze's kept HP (ScenarioVariable 3) {WcEvents.Flag(DataStorage.Category.kScenarioVariable, 3)}, quiet {quiet} after {looks} looks");
+                    Check(quiet >= 3, $"search_skies: the field is back after the fight (map {UserDataManager.Instance()?.CurrentMapId})");
+                    if (F4(flag) == 1) return ExpectNow(true);   // he fell: the reward scene gave the seed's reward
+                    Check(RewardCount(c, rn) == before && F4(flag) == 0,
+                          $"search_skies: Doom Gaze flew off (the forced end): no reward, the check (and the wheel's choice) stays open ({WcEvents.LastReward})");
+                    return true;
+                };
+                steps.Add((3f, settle));
+                steps.Add((0f, NotBlack()));
+                return steps;
             }
             if (name == "sealed_gate")
             {
@@ -4362,6 +3009,222 @@ if (name == "enemy_ai")
         }
         static int gilBefore, itemsBefore;
 
+        // a script started on the current map with its menu answered by an option's key (the game
+        // refuses a script for a while after a warp or another script: again every 2 s, up to
+        // 30 s). hold = false: the plan goes on while the script runs (a take-off ends its script
+        // with ChangeMap, no Exit, and the plan would wait 90 s for the scene to finish)
+        static Func<bool> RunAnswering(string script, string key, string what, bool hold = true)
+        {
+            int tries = 0;
+            Func<bool> run = null;
+            run = () =>
+            {
+                WcEvents.TestMessages.Clear();
+                WcEvents.TestSelects.Clear();
+                WcEvents.TestAnswers.Clear();
+                WcEvents.TestAnswerKeys.Clear();
+                WcEvents.TestAnswerKeys.Enqueue(key);
+                if (WcEvents.RunScript(script))
+                {
+                    if (!hold) WcEvents.Running = false;
+                    return true;
+                }
+                WcEvents.TestAnswerKeys.Clear();
+                if (tries == 5) WcEvents.ResetMainCore();
+                if (++tries < 15) { plan.Insert(0, (2f, run)); return true; }
+                Check(false, $"{what}: {script} didn't start in 30 s");
+                return false;
+            };
+            return run;
+        }
+
+        static List<int> PartyIds()
+        {
+            var ids = new List<int>();
+            var party = UserDataManager.Instance()?.GetPartyMemberData();
+            if (party != null) foreach (var p in party) if (p != null) ids.Add(p.characterStatusId);
+            return ids;
+        }
+
+        static OwnedCharacterData OwnedChar(int statusId)
+        {
+            var owned = UserDataManager.Instance()?.OwnedCharacterList;
+            if (owned != null) foreach (var o in owned) if (o != null && o.characterStatusId == statusId) return o;
+            return null;
+        }
+
+        // what a character wears (content ids)
+        static List<int> Equipped(int statusId)
+        {
+            var list = new List<int>();
+            var eq = OwnedChar(statusId)?.EquipmentData;
+            // 93 and 197-200 are the game's empty-slot placeholders (content.csv MSG_SYSTEM_187/188), not gear
+            if (eq != null) foreach (var kv in eq) if (kv.Value != null && kv.Value.ContentId > 0 && kv.Value.ContentId != 93 && (kv.Value.ContentId < 197 || kv.Value.ContentId > 200)) list.Add(kv.Value.ContentId);
+            return list;
+        }
+
+        // every kind (equipment too) in the bag
+        static int OwnedCount(int content)
+        {
+            int n = 0;
+            var all = UserDataManager.Instance()?.GetAllOwnedItemsClone();
+            if (all != null) foreach (var it in all) if (it != null && it.ContentId == content) n += it.Count;
+            return n;
+        }
+
+        // the seed's starting items by content id (WcSeeds.GrantStart adds each entry)
+        static Dictionary<int, int> StartItems(WcSeeds.Seed s)
+        {
+            var d = new Dictionary<int, int>();
+            foreach (var it in s.Items) d[it[0]] = d.GetValueOrDefault(it[0]) + it[1];
+            return d;
+        }
+
+        // a relic (an armor of parts group 5: the two accessory slots, Slot5 / Slot6) any character
+        // may wear, Umaro included (the PR keeps him to relics)
+        static int relic = -1;
+        static int Relic()
+        {
+            if (relic > 0) return relic;
+            var mm = MasterManager.Instance;
+            foreach (var kv in mm.GetList<Last.Data.Master.Content>())
+            {
+                var ct = kv.Value;
+                if (ct == null || ct.TypeId != 3) continue;   // armor
+                if (mm.GetData<Last.Data.Master.Armor>(ct.TypeValue)?.PartsGroupId == 5) { relic = ct.Id; break; }
+            }
+            return relic;
+        }
+
+        // one relic from the bag put on a character (the game's own equip; the character's data as
+        // a fallback), for the unequip test
+        static string EquipRelic(int statusId)
+        {
+            var oc = OwnedChar(statusId);
+            int r = Relic();
+            if (oc == null || r < 0) return $"character {statusId}: {(oc == null ? "not owned" : "no relic in the game data")}";
+            new OwnedItemClient().AddOwnedItem(r, 1);
+            OwnedItemData item = null;
+            foreach (var it in UserDataManager.Instance().GetAllOwnedItemsClone()) if (it != null && it.ContentId == r) item = it;
+            if (item == null) return $"character {statusId}: relic {r} not in the bag";
+            string how = "OwnedCharacterClient.SetEquip";
+            try { new OwnedCharacterClient().SetEquip(oc.Id, Last.Defaine.EquipSlotType.Slot5, item, false, true); }
+            catch (Exception e) { how = $"SetEquip threw {e.Message}"; }
+            if (Equipped(statusId).Count == 0)
+            {
+                oc.SetEquip(Last.Defaine.EquipSlotType.Slot5, item);
+                how += "; the data's SetEquip";
+            }
+            return $"character {statusId} wears [{string.Join(" ", Equipped(statusId))}] (relic {r}: {how})";
+        }
+
+        // WC's "Change party members." on the airships' unequip NPC (WC event/airship.py
+        // unequip_party_members_npc_mod; tools/wc_events.py airship_party_npc), the Blackjack's cabin
+        // (map 120, sc_e_0345): its question and menu (WC's text from Magicite), the party menu (stood
+        // in for: the party's last member put in front), the leader redrawn where the party stands
+        static List<(float, Func<bool>)> AirshipCrewPlan()
+        {
+            const int Cabin = 120;
+            const string Party = "WC_AIRSHIP_PARTY";
+            int want = -1, picks = 0, refreshes = 0;
+            return new List<(float, Func<bool>)>
+            {
+                (0f, () => { Check(WcEvents.GotoMap(Cabin, 1), "airship_crew: warp to the Blackjack's cabin (map 120)"); return true; }),
+                (5f, () =>
+                {
+                    var party = PartyIds();
+                    if (party.Count < 2) { WcEvents.Join(Enumerable.Range(1, 12).First(i => !party.Contains(i))); party = PartyIds(); }
+                    want = party.Last();
+                    WcEvents.PickRecruit = want;
+                    picks = WcEvents.PartyPicks;
+                    refreshes = WcEvents.PartyRefreshes;
+                    Plugin.L.LogInfo($"[wc test] airship_crew: party [{string.Join(" ", party)}]; the menu's stand-in puts {want} in front");
+                    return true;
+                }),
+                (1f, RunAnswering("sc_e_0345", Party, "airship_crew")),
+                (5f, () =>
+                {
+                    var menu = WcEvents.TestSelects.FirstOrDefault() ?? "";
+                    Check(menu == $"{Party}/E0345_00_120_c_01/E0345_00_120_c_02/E0345_00_120_c_03", $"airship_crew: the crew member offers [{menu}]");
+                    var option = MessageManager.Instance?.GetMessage(Party, false);
+                    Check(WcEvents.TestMessages.Contains("WC_AIRSHIP_SERVICE: What do you need?") && option == "Change party members.",
+                          $"airship_crew: WC's text from Magicite: [{string.Join(" | ", WcEvents.TestMessages)}], option '{option}'");
+                    var party = PartyIds();
+                    Check(WcEvents.PartyPicks == picks + 1, $"airship_crew: the party menu opened ({WcEvents.PartyPicks - picks} time(s))");
+                    Check(WcEvents.PartyRefreshes == refreshes + 1 && WcEvents.PickLeader == want && party.FirstOrDefault() == want,
+                          $"airship_crew: the leader redrawn ({WcEvents.PartyRefreshes - refreshes} refresh): {WcEvents.PickLeader}, party [{string.Join(" ", party)}] (want {want} in front)");
+                    Check(UserDataManager.Instance()?.CurrentMapId == Cabin, $"airship_crew: still in the cabin (map {UserDataManager.Instance()?.CurrentMapId})");
+                    var (black, how) = ScreenBlack();
+                    Check(!black, $"airship_crew: the cabin shown after the menu: {how}");
+                    return true;
+                }),
+            };
+        }
+
+        // -eu (WC event/airship.py equipable_umaro): the unequip NPC's two services also take Gogo's and
+        // Umaro's equipment, if recruited ("those not in the party": out of it); without -eu, Gogo's
+        // only (as vanilla). The Blackjack's cabin (map 120, sc_e_0345): the party filled to four so
+        // Gogo and Umaro join in reserve (unless the seed started them), a relic on each, then each
+        // service in a visit of its own (from the deck, 119)
+        static List<(float, Func<bool>)> EuUnequipPlan()
+        {
+            const int Cabin = 120, Deck = 119, Gogo = 13, Umaro = 14;
+            bool eu = WcSeeds.Active?.Flags.Split(' ').Contains("-eu") == true;
+            var inParty = new Dictionary<int, bool>();
+            Func<bool> Warp(int map, string where) => () => { Check(WcEvents.GotoMap(map, 1), $"eu_unequip: warp to {where} (map {map})"); return true; };
+            Func<bool> equip = () =>
+            {
+                foreach (var g in new[] { Gogo, Umaro })
+                {
+                    if (Equipped(g).Count == 0) Plugin.L.LogInfo("[wc test] eu_unequip: " + EquipRelic(g));
+                    inParty[g] = PartyIds().Contains(g);
+                }
+                Check(Equipped(Gogo).Count > 0 && Equipped(Umaro).Count > 0,
+                      $"eu_unequip: Gogo wears [{string.Join(" ", Equipped(Gogo))}], Umaro [{string.Join(" ", Equipped(Umaro))}] " +
+                      $"(in the party: Gogo {inParty[Gogo]}, Umaro {inParty[Umaro]}; -eu {(eu ? "on" : "off")})");
+                return true;
+            };
+            Func<bool> Expect(bool all) => () =>
+            {
+                foreach (var g in new[] { Gogo, Umaro })
+                {
+                    bool covered = (g == Gogo || eu) && (all || !inParty[g]);
+                    var left = Equipped(g);
+                    Check((left.Count == 0) == covered,
+                          $"eu_unequip ({(all ? "all members" : "those not in the party")}, -eu {(eu ? "on" : "off")}): {(g == Gogo ? "Gogo" : "Umaro")} " +
+                          $"{(inParty[g] ? "in" : "out of")} the party {(covered ? "unequipped" : "keeps his")}: wears [{string.Join(" ", left)}]; {WcRecruits.LastUnequip}");
+                }
+                return true;
+            };
+            return new List<(float, Func<bool>)>
+            {
+                (0f, Warp(Cabin, "the Blackjack's cabin")),
+                (5f, () =>
+                {
+                    var party = PartyIds();
+                    foreach (var id in Enumerable.Range(1, 12))
+                    {
+                        if (party.Count >= 4) break;
+                        if (party.Contains(id)) continue;
+                        WcEvents.Join(id);
+                        party = PartyIds();
+                    }
+                    foreach (var g in new[] { Gogo, Umaro }) if (!party.Contains(g)) WcEvents.Join(g);
+                    Check(WcEvents.IsRecruited(Gogo) && WcEvents.IsRecruited(Umaro) && OwnedChar(Gogo) != null && OwnedChar(Umaro) != null,
+                          $"eu_unequip: Gogo and Umaro recruited; party [{string.Join(" ", PartyIds())}]");
+                    return true;
+                }),
+                (1f, equip),
+                (1f, RunAnswering("sc_e_0345", "E0345_00_120_c_01", "eu_unequip")),
+                (5f, Expect(false)),
+                (0f, Warp(Deck, "the Blackjack's deck")),
+                (5f, Warp(Cabin, "the Blackjack's cabin")),
+                (5f, equip),
+                (1f, RunAnswering("sc_e_0345", "E0345_00_120_c_02", "eu_unequip")),
+                (5f, Expect(true)),
+            };
+        }
+
         // how many of the check's first reward the party has (espers: 0/1)
         static int RewardCount(WcSeeds.Check c, int n = 0)
         {
@@ -4668,9 +3531,17 @@ if (name == "enemy_ai")
                         if (seed != null && udm != null)
                         {
                             int gil = udm.OwendGil;
+                            var startItems = StartItems(seed);
+                            var had = startItems.Keys.ToDictionary(k => k, OwnedCount);
                             var msg = WcSeeds.GrantStart(seed);
                             Check(msg != null && udm.OwendGil == Math.Min(9999999, gil + seed.Gold),
                                   $"start state granted: {msg ?? "failed"}; gil {gil} -> {udm.OwendGil} (seed {seed.Gold}), items {string.Join(" ", seed.Items.Select(i => $"{i[0]}x{i[1]}"))}");
+                            // each of the seed's items added (a stack stops at 99), every one of its espers owned
+                            var short_ = startItems.Where(kv => OwnedCount(kv.Key) != Math.Min(99, had[kv.Key] + kv.Value))
+                                                   .Select(kv => $"content {kv.Key}: {had[kv.Key]} -> {OwnedCount(kv.Key)} (+{kv.Value})").ToList();
+                            Check(short_.Count == 0, $"start items granted: {startItems.Count} kinds{(short_.Count > 0 ? ": " + string.Join("; ", short_) : "")}");
+                            var noStone = seed.Espers.Where(e => !udm.OwnedMagicStoneList.Contains(e)).ToList();
+                            Check(noStone.Count == 0, $"start espers granted: {seed.Espers.Count}{(noStone.Count > 0 ? ", missing " + string.Join(" ", noStone) : "")}");
                             // battle with that seed active (scaling); the install is put back in Finish
                             if (req.GetValueOrDefault("battle", "0") == "1" && WcSeeds.Apply(seed) == null)
                             {
@@ -4758,6 +3629,34 @@ if (name == "enemy_ai")
                             Check(party.OrderBy(x => x).SequenceEqual(seed.StartCharacters.OrderBy(x => x)),
                                   $"New Game party [{string.Join(" ", party)}] = the seed's [{string.Join(" ", seed.StartCharacters)}]");
                             Check(udm.OwendGil == seed.Gold, $"gil {udm.OwendGil} = the seed's {seed.Gold}");
+                            {
+                                // the seed's starting items and espers (WcSeeds.GrantStart at WC's start):
+                                // each item at least the seed's count and at most that plus what else a
+                                // New Game may hold of it (the PR's own start item, initialize_data
+                                // INIT_ITEM_n; item gifts of objectives met at the start), so a missing or
+                                // second grant shows; exactly the seed's espers
+                                var want = StartItems(seed);
+                                var also = new Dictionary<int, int>();
+                                foreach (var kv in MasterManager.Instance.GetList<Last.Data.Master.InitializeData>())
+                                    if (kv.Value != null && (kv.Value.KeyName ?? "").StartsWith("INIT_ITEM_"))
+                                        also[kv.Value.Value1] = also.GetValueOrDefault(kv.Value.Value1) + kv.Value.Value2;
+                                foreach (var o in seed.Objectives)
+                                    foreach (var it in o.Items) also[it[0]] = also.GetValueOrDefault(it[0]) + it[1];
+                                var itemsBad = new List<string>();
+                                foreach (var kv in want)
+                                {
+                                    int have = OwnedCount(kv.Key), most = kv.Value + also.GetValueOrDefault(kv.Key);
+                                    if (have < kv.Value || have > most) itemsBad.Add($"content {kv.Key}: {have} (the seed's {kv.Value}{(most > kv.Value ? $", up to {most}" : "")})");
+                                }
+                                Check(itemsBad.Count == 0, $"start items: the seed's {want.Count} kinds, {want.Values.Sum()} in all, in the bag" +
+                                      (itemsBad.Count > 0 ? ": " + string.Join("; ", itemsBad) : $" [{string.Join(" ", want.Select(kv => $"{kv.Key}x{kv.Value}"))}]"));
+                                var stones = new List<int>();
+                                var owned = udm.OwnedMagicStoneList;
+                                for (int i = 0; owned != null && i < owned.Count; i++) stones.Add(owned[i]);
+                                var seedStones = seed.Espers.Distinct().OrderBy(x => x).ToList();
+                                Check(stones.OrderBy(x => x).SequenceEqual(seedStones),
+                                      $"start espers [{string.Join(" ", stones.OrderBy(x => x))}] = the seed's [{string.Join(" ", seedStones)}]");
+                            }
                             Check(report.Contains("Blackjack map 1 at 84,34"), $"on the Blackjack's deck: {report}; {WcEvents.LastStart}");
                             Check(report.Contains("WC game 1"), "WC game flag set (ScenarioFlag4 0)");
                             Check(WcEvents.Flag(DataStorage.Category.kScenarioFlag2, WcEvents.CollapseFlag) == 0,

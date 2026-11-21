@@ -56,9 +56,32 @@ def say(text):
     print(f"[wc] {text}", flush=True)
 
 
-def port_in_process(rom, name, log):
+WAITING = "waiting for another seed to finish"   # the plugin's screen knows this line (WcGenerator.Waiting)
+
+
+def lock_seed(out):
+    """One generation per seed folder at a time: the kit porter's lock (port.lock_out: <out>.porting
+    with the holder's pid, waited for up to PORT_LOCK_WAIT s, taken over when its process is gone).
+    A second run into the same --out would otherwise clear the first one's .work folder under it.
+    Returns the lock's path (port.unlock_out)."""
+    import port
+
+    def told(m):
+        print(m, flush=True)   # the kit's own line (the holder's pid, start, command): the generator's log
+        if m.startswith("port lock: waiting"):
+            say(WAITING)
+
+    try:
+        return port.lock_out(out, told)
+    except SystemExit as e:   # waited PORT_LOCK_WAIT seconds
+        say(f"error: {e.code}")
+        raise SystemExit(1)
+
+
+def port_in_process(rom, name, log, out=None):
     """port.py's main in this process (it was a second Python: start-up and imports again, seconds
-    under Proton on the Deck); its report goes to the log as before."""
+    under Proton on the Deck); its report goes to the log as before. `out`: the folder it ports
+    into (a generation's own, in its .work folder); else the porter's shared mods/<name>."""
     import contextlib
     t = time.time()
     cwd = os.getcwd()
@@ -66,7 +89,10 @@ def port_in_process(rom, name, log):
         os.chdir(ROOT)
         import port
         import profiles
-        prof = profiles.Profile()
+        cls = profiles.Profile
+        if out:
+            cls = type("SeedProfile", (cls,), {"out": property(lambda self: out)})
+        prof = cls()
         prof.rom, prof.mod_name = rom, name
         with contextlib.redirect_stdout(log):
             port.main(prof)
@@ -311,6 +337,31 @@ def main():
     if a.preset:
         flags = json.load(open(PRESETS, encoding="utf-8"))[a.preset] + " " + flags
     out = os.path.abspath(a.out)
+    lock = lock_seed(out)
+    try:
+        generate(a, flags, out)
+    finally:
+        import port
+        port.unlock_out(lock)
+
+
+def box_pools():
+    """WC's -chrm monster-in-a-box pools by tier, as data/chests.py chest_random_monsters makes them: {"noboss": every
+    event pack (0-255) not avoided and unnamed, "boss": the boss packs but Phunbaba 3}. Its dragons test reads
+    args.mix_bosses_dragons, which args/bosses.py has already cleared, so dragons never join. WC's
+    data/enemy_battle_groups.py (no imports) is loaded by its path: pr/ has a data folder of its own."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("wc_enemy_battle_groups", os.path.join(WC, "data", "enemy_battle_groups.py"))
+    g = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(g)
+    noboss = [a for a in range(256) if a not in g.event_battle_groups_to_avoid and a not in g.event_battle_group_name]
+    boss = [a for a in range(256) if a in g.boss_event_battle_groups and a != g.name_event_battle_group["Phunbaba 3"]]
+    return {"boss": boss, "noboss": noboss}
+
+
+def generate(a, flags, out):
+    """The seed folder `out` (main() holds its lock): WC and the port in out.work, packed into out.
+    Everything this run writes is in those two: generations into other folders run side by side."""
     work = out + ".work"
     shutil.rmtree(work, ignore_errors=True)
     os.makedirs(work)
@@ -351,8 +402,10 @@ def main():
     else:
         os.environ.pop("WC_AI_TIERS", None)
     os.environ["WC_SNES_AI"] = "1"    # monsters run WC's own scripts in the plugin (port_ai shims)
-    port_in_process(rom, name, log)
-    port_dir = os.path.join(ROOT, "mods", name)
+    # this run's own port folder (it was the shared mods/WCSeed: two generations at once ported into
+    # one folder and the first to finish deleted it under the other); same drive as out: files move
+    port_dir = os.path.join(work, "port")
+    port_in_process(rom, name, log, port_dir)
     import port_ai
     snes_ai = getattr(port_ai.port, "snes_ai", None)
     # WC's check NPCs show their reward (tools/wc_npcs.py), in the port's copies of their maps
@@ -524,7 +577,11 @@ def main():
         # (the plugin empties the chest and starts the battle; a PR chest can't without a script)
         # the SNES boxes' PR scripts: the port decides their battles (port_chests.box_scripts)
         import seed_info
-        info.update(seed_info.monster_chests(P.VANILLA_ROM, rom))
+        # with the seed folder: no box fights a party with a story battle script (seed_info.BOX_SCRIPTS; -chrm > 0);
+        # a box whose formation has no PR party fights one made from its monsters, or, for WC's "Empty" packs and
+        # the other blank ones, another pack of its pool (box_pools)
+        info.update(seed_info.monster_chests(P.VANILLA_ROM, rom, out, lambda m: log.write(m + chr(10)),
+                                             make_missing=True, pools=box_pools()))
     except Exception as e:  # noqa: BLE001
         log.write(f"monster chests: {e}" + chr(10))
     clock = os.path.splitext(dump)[0] + "_clock.json"
@@ -580,10 +637,9 @@ def main():
         json.dump(info, f, indent=1)
     log.close()
     shutil.copyfile(os.path.join(work, "generate.log"), os.path.join(out, "generate.log"))
-    # WC's SNES ROM stays in the work folder and goes with it: the mod is distributed and never
-    # hands out a ROM (testing only: tools/dev, outside the bundle)
+    # WC's SNES ROM stays in the work folder and goes with it (the port's folder too): the mod is
+    # distributed and never hands out a ROM (testing only: tools/dev, outside the bundle)
     shutil.rmtree(work, ignore_errors=True)
-    shutil.rmtree(port_dir, ignore_errors=True)
     changed_rows = sum(tables.values())
     say(f"done: seed {a.seed} ({info['hash']}): {changed_rows} rows in {sum(1 for v in tables.values() if v)} tables, "
         f"{sum(texts.values())} texts, {len(files)} files, {info['seconds']} s")
