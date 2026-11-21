@@ -2,7 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using WorldsCollide.PR;
+using PrKit.Seeds;
+using PrKit.Ff6;   // the SNES status clock is the kit's (PrKit/Ff6/SnesStatusClock.cs, was WcStatusClock.cs)   // the flag model is the kit's (PrKit/Seeds/Flags.cs, was WcFlags.cs)
 
 static class Program
 {
@@ -19,7 +20,7 @@ static class Program
     {
         var path = args.Length > 0 ? args[0] : Path.Combine("..", "WcPlugin", "wc_flags.json");
         var outPath = args.Length > 1 ? args[1] : "wc_flags_cases.tsv";
-        var set = WcFlagSet.Load(File.ReadAllText(path));
+        var set = FlagSet.Load(File.ReadAllText(path));
         Console.WriteLine($"WC {set.WcVersion}: {set.Flags.Count} flags, {set.Sections.Count} sections, {set.Presets.Count} presets");
         var cases = new List<(string Name, string Flags)>();
 

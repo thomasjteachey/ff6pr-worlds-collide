@@ -6,6 +6,7 @@ using Il2CppSystem.Input;
 using UnityEngine;
 using Device = Il2CppSystem.Input.KeyConfig.KeyValue.InputDeviceType;
 using Object = UnityEngine.Object;
+using PrKit.Seeds;
 
 namespace WorldsCollide.PR
 {
@@ -21,7 +22,7 @@ namespace WorldsCollide.PR
     static partial class WcScreen
     {
         internal static bool Open;
-        internal static WcFlagSet Defs => Plugin.FlagDefs;
+        internal static FlagSet Defs => Plugin.FlagDefs;
         static bool initialized;
         static FlagValues values;
         static string seedText = "", presetName = "";
@@ -47,7 +48,7 @@ namespace WorldsCollide.PR
             public Action<int, int> Step;  // dir, amount
         }
 
-        public static void Init(WcFlagSet defs)
+        public static void Init(FlagSet defs)
         {
             if (initialized) return;
             initialized = true;

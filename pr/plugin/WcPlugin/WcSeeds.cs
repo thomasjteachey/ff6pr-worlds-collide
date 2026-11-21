@@ -4,24 +4,24 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using PrKit;
+using PrKit.Seeds;
 using HarmonyLib;
 using Last.Management;
 using PrKit.Ff6;   // SnesAi: the kit's FF6 AI interpreter
 
 namespace WorldsCollide.PR
 {
-    // The seeds made in game (plugin folder seeds/<id>/, see tools/wc_seed.py) and which one
-    // the running game has: its master rows and text are set live (LiveData, full tables, so
-    // the previous seed is undone), its chest maps / AI scripts copied into the WorldsCollide
-    // Magicite folder over the baseline ones (tools/wc_live.py; Magicite reads them each time
-    // the game loads one). Each save remembers the seed it was played with: loading it brings
-    // that seed back. State: seeds/state.json {active, activeFiles, slots: {slot: id}}.
+    // The seeds made in game (BepInEx/WorldsCollide/seeds/<id>/, see tools/wc_seed.py) and which one
+    // the running game has: the kit's SeedLibrary (PrKit/Seeds; WC's own code until 2026-11-20) sets
+    // its master rows and text live (LiveData, full tables, so the previous seed is undone), copies its
+    // chest maps / AI scripts into the WorldsCollide Magicite folder over the baseline ones
+    // (tools/wc_live.py), and remembers each save's seed (loading it brings that seed back). WC's own
+    // here: what a WC seed holds (its json), the dice repair, -nosaves (Ironmog) and a New Game's start.
     static class WcSeeds
     {
-        public sealed class Seed
+        public sealed class Seed : SeedInfo
         {
-            public string Id, Dir, SeedText, Flags, Preset, Hash, Created, WcVersion;
-            public string[] Files = Array.Empty<string>();
+            public string WcVersion => Version;
             public int Gold;                                      // WC's start: gil, items (PR content id, count), espers (content ids)
             public List<int[]> Items = new List<int[]>();
             public List<int> Espers = new List<int>();
@@ -55,8 +55,6 @@ namespace WorldsCollide.PR
             public Dictionary<int, int[]> Coliseum = new Dictionary<int, int[]>();
             public AbilityScaling Scaling;   // -ase / -asr: WC's spell tiers, picked as monsters act (WcAbilityScaling)
             public SnesAiData SnesAi;        // every monster's WC script (the kit's SnesAiData), run by WcEnemyAi
-            public int Rows;
-            public double Seconds;
         }
 
         // the seed's ability_scaling (tools/ai_compile.py plugin_table): placeholder ability Base + k
@@ -69,83 +67,29 @@ namespace WorldsCollide.PR
             public int[][][] Tiers = Array.Empty<int[][]>();
         }
 
-        internal static int Keep = 30;
-        static string Root => WcDataDir.Seeds;
-        static string StatePath => Path.Combine(Root, "state.json");
-        static string ModDir => MagiciteDir.FolderPath("WorldsCollide");
-        static string BaselineDir => WcDataDir.Baseline;
-
-        public static Seed Active;
-        static string[] activeFiles = Array.Empty<string>();
-        static readonly Dictionary<int, string> slots = new Dictionary<int, string>();
-        static bool startupApplied;
-        static float startupRetryAt;
-        static int startupTries;
-        internal static int StartupFailed = -1;    // the startup apply's failed tables (-1: not done)
-        internal static bool StartupDone => startupApplied;
-        public static string LastApply = "";
-
-        public static void Init()
+        internal static readonly SeedLibrary Lib = new SeedLibrary
         {
-            Directory.CreateDirectory(Root);
-            try
-            {
-                if (File.Exists(StatePath))
-                {
-                    using var doc = JsonDocument.Parse(File.ReadAllText(StatePath));
-                    var r = doc.RootElement;
-                    var id = r.TryGetProperty("active", out var a) ? a.GetString() : null;
-                    if (r.TryGetProperty("activeFiles", out var af))
-                        activeFiles = af.EnumerateArray().Select(x => x.GetString()).ToArray();
-                    if (r.TryGetProperty("slots", out var s))
-                        foreach (var p in s.EnumerateObject())
-                            if (int.TryParse(p.Name, out int slot)) slots[slot] = p.Value.GetString();
-                    if (!string.IsNullOrEmpty(id)) Active = Load(id);
-                }
-            }
-            catch (Exception e) { Plugin.L.LogWarning($"[wc] {StatePath}: {e.Message}"); }
-            // Counting used to call All(), which parses every (now fairly large) wc_seed.json.
-            // With a few saved seeds that added several seconds to the opening logo even though
-            // startup needs only the active seed.  The screen still loads the full list when the
-            // player opens it; startup only needs a cheap count for this log line.
-            Plugin.L.LogInfo($"[wc] {Count()} seeds; active: {(Active == null ? "none (vanilla data)" : Describe(Active))}");
-            if (Plugin.WcMode) SyncFiles();
-        }
+            Tag = "[wc]", TestTag = "[wc test]", JsonName = "wc_seed.json", RefuseNote = "-nosaves",
+            Root = () => WcDataDir.Seeds, BaselineDir = () => WcDataDir.Baseline,
+            ModDir = () => MagiciteDir.FolderPath("WorldsCollide"),
+            Parse = (id, dir) => Parse(id, dir),
+            ModOn = () => Plugin.WcMode,
+            TestRunning = () => WcTestState.Running,
+            AllowsSave = slot => WcTest.AllowsSave(slot),
+            RefuseSaves = IronMog,
+            BeforeApply = s => RepairDiceAccuracy(s.Dir),
+            Warn = _ => WcScreen.Toast("Couldn't load this seed's data at startup: restart the game, or pick the seed again on the Worlds Collide screen."),
+            OnLoading = () => loadingSave = true,
+            Describe = s => s == null ? "none" : $"{s.SeedText} ({s.Hash})",
+        };
 
-        // Make the Magicite folder's files the active seed's (baseline where it changes none):
-        // deploy mirrors the baseline over the folder, and nothing reads these files before
-        // the game loads a map or a battle, long after this.
-        static void SyncFiles()
-        {
-            try
-            {
-                var basefiles = Path.Combine(BaselineDir, "files");
-                if (!Directory.Exists(basefiles)) { Plugin.L.LogWarning($"[wc] no baseline at {basefiles}"); return; }
-                var mine = new HashSet<string>(Active?.Files ?? Array.Empty<string>());
-                int copied = 0, total = 0;
-                foreach (var full in Directory.GetFiles(basefiles, "*", SearchOption.AllDirectories))
-                {
-                    var rel = Path.GetRelativePath(basefiles, full).Replace(Path.DirectorySeparatorChar, '/');
-                    var src = mine.Contains(rel) ? Path.Combine(Active.Dir, "files", rel) : full;
-                    var dst = Path.Combine(ModDir, rel);
-                    total++;
-                    if (File.Exists(dst) && Same(src, dst)) continue;
-                    Copy(src, dst);
-                    copied++;
-                }
-                activeFiles = mine.ToArray();
-                Plugin.L.LogInfo($"[wc] Magicite files: {copied} of {total} brought in line with {(Active == null ? "the baseline" : Describe(Active))}");
-            }
-            catch (Exception e) { Plugin.L.LogWarning($"[wc] file sync: {e.Message}"); }
-        }
+        internal static int Keep { get => Lib.Keep; set => Lib.Keep = value; }
+        public static Seed Active => (Seed)Lib.Active;
+        internal static int StartupFailed => Lib.StartupFailed;    // the startup apply's failed tables (-1: not done)
+        internal static bool StartupDone => Lib.StartupDone;
+        public static string LastApply => Lib.LastApply;
 
-        static bool Same(string a, string b)
-        {
-            var fa = new FileInfo(a);
-            var fb = new FileInfo(b);
-            if (fa.Length != fb.Length) return false;
-            return File.ReadAllBytes(a).AsSpan().SequenceEqual(File.ReadAllBytes(b));
-        }
+        public static void Init() => Lib.Init();
 
         // one WC event's choices: rewards ("character" status id / "esper" / "item" content id)
         public sealed class Check
@@ -176,24 +120,17 @@ namespace WorldsCollide.PR
 
         public static string Describe(Seed s) => $"{s.SeedText} ({s.Hash})";
 
-        public static Seed Load(string id)
+        public static Seed Load(string id) => (Seed)Lib.Load(id);
+
+        // a WC seed's json (the library catches and logs what goes wrong)
+        static Seed Parse(string id, string dir)
         {
-            var dir = Path.Combine(Root, id);
             var json = Path.Combine(dir, "wc_seed.json");
-            if (!File.Exists(json)) return null;
-            try
             {
                 using var doc = JsonDocument.Parse(File.ReadAllText(json));
                 var r = doc.RootElement;
-                string S(string k) => r.TryGetProperty(k, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : "";
-                var s = new Seed
-                {
-                    Id = id, Dir = dir, SeedText = S("seed"), Flags = S("flags"), Preset = S("preset"), Hash = S("hash"),
-                    Created = S("created"), WcVersion = S("wc_version"),
-                };
-                if (r.TryGetProperty("files", out var f)) s.Files = f.EnumerateArray().Select(x => x.GetString()).ToArray();
-                if (r.TryGetProperty("tables", out var t)) s.Rows = t.EnumerateObject().Sum(p => p.Value.GetInt32());
-                if (r.TryGetProperty("seconds", out var sec) && sec.ValueKind == JsonValueKind.Number) s.Seconds = sec.GetDouble();
+                var s = new Seed { Id = id, Dir = dir };
+                SeedLibrary.ReadCommon(s, r, "wc_version");
                 if (r.TryGetProperty("start", out var st))
                 {
                     if (st.TryGetProperty("gold", out var g)) s.Gold = g.GetInt32();
@@ -300,71 +237,19 @@ namespace WorldsCollide.PR
                     }
                 return s;
             }
-            catch (Exception e)
-            {
-                Plugin.L.LogWarning($"[wc] {json}: {e.Message}");
-                return null;
-            }
         }
 
         // newest first
-        static int Count()
-        {
-            if (!Directory.Exists(Root)) return 0;
-            return Directory.EnumerateDirectories(Root)
-                .Count(d => !d.EndsWith(".work", StringComparison.OrdinalIgnoreCase)
-                         && File.Exists(Path.Combine(d, "wc_seed.json")));
-        }
+        public static List<Seed> All() => Lib.All().Cast<Seed>().ToList();
 
-        public static List<Seed> All()
-        {
-            if (!Directory.Exists(Root)) return new List<Seed>();
-            return Directory.GetDirectories(Root)
-                .Where(d => !d.EndsWith(".work"))
-                .Select(d => Load(Path.GetFileName(d))).Where(s => s != null)
-                .OrderByDescending(s => s.Id, StringComparer.Ordinal).ToList();
-        }
+        public static string NewId(string seed) => SeedLibrary.NewId(seed);
 
-        public static string NewId(string seed)
-        {
-            var clean = new string(seed.Where(c => char.IsLetterOrDigit(c) || c == '-' || c == '_').Take(24).ToArray());
-            return $"{DateTime.Now:yyyyMMdd-HHmmss}-{(clean.Length > 0 ? clean : "seed")}";
-        }
-
-        public static string DirFor(string id) => Path.Combine(Root, id);
+        public static string DirFor(string id) => Lib.DirFor(id);
 
         // --- applying ---------------------------------------------------------------------
 
         // Make `s` the running game's seed (null: vanilla data where a seed had changed it).
-        public static string Apply(Seed s)
-        {
-            if (!LiveData.Ready) return "the game's data isn't loaded yet";
-            try
-            {
-                var files = SwapFiles(s);
-                string data;
-                if (s != null) RepairDiceAccuracy(s.Dir);
-                if (s != null) data = LiveData.Apply(s.Dir).ToString();
-                else
-                {
-                    // vanilla: every managed table/text back to the baseline copies
-                    var vanilla = Path.Combine(BaselineDir, "vanilla_data");
-                    data = Directory.Exists(vanilla) ? LiveData.Apply(vanilla).ToString() : "no vanilla tables to restore";
-                }
-                int evicted = Evict(files);
-                Active = s;
-                activeFiles = s?.Files ?? Array.Empty<string>();
-                Save();
-                LastApply = $"{(s == null ? "vanilla" : Describe(s))}: {data}; {files.Count} files, {evicted} cached assets dropped";
-                Plugin.L.LogInfo("[wc] applied " + LastApply);
-                return null;
-            }
-            catch (Exception e)
-            {
-                Plugin.L.LogError($"[wc] apply failed: {e}");
-                return e.Message;
-            }
-        }
+        public static string Apply(Seed s) => Lib.Apply(s);
 
         // Seeds made by 0.6.3-0.6.5 copied the SNES hit-rate byte onto every weapon, but Dice and
         // Fixed Dice keep their number of dice there (2, 3), and the PR rolls a physical hit
@@ -402,153 +287,18 @@ namespace WorldsCollide.PR
             catch (Exception e) { Plugin.L.LogWarning($"[wc] dice accuracy repair skipped: {e.Message}"); }
         }
 
-        // copy the seed's chest maps / AI scripts into the Magicite folder, and the baseline
-        // back for files the previous seed had changed and this one doesn't
-        static List<string> SwapFiles(Seed s)
-        {
-            var touched = new List<string>();
-            var want = new HashSet<string>(s?.Files ?? Array.Empty<string>());
-            foreach (var rel in activeFiles.Where(f => !want.Contains(f)))
-            {
-                var src = Path.Combine(BaselineDir, "files", rel);
-                if (File.Exists(src)) { Copy(src, Path.Combine(ModDir, rel)); touched.Add(rel); }
-                else Plugin.L.LogWarning($"[wc] no baseline copy of {rel}");
-            }
-            foreach (var rel in want)
-            {
-                Copy(Path.Combine(s.Dir, "files", rel), Path.Combine(ModDir, rel));
-                touched.Add(rel);
-            }
-            return touched;
-        }
+        public static void Prune() => Lib.Prune();
 
-        static void Copy(string from, string to)
-        {
-            Directory.CreateDirectory(Path.GetDirectoryName(to));
-            File.Copy(from, to, true);
-        }
+        // The player's Delete in the seed list (WcScreen): not the current seed, nor one a save uses
+        public static string Delete(Seed s) => Lib.Delete(s);
 
-        // Assets the game already loaded keep their old contents in ResourceManager's cache;
-        // drop the entries for files we just replaced so the next load reads the new ones.
-        static int Evict(List<string> files)
-        {
-            if (files.Count == 0) return 0;
-            var rm = ResourceManager.Instance;
-            var dic = rm?.completeAssetDic;
-            if (dic == null) return 0;
-            var stems = new HashSet<string>(files.Select(f => Path.GetFileNameWithoutExtension(f)), StringComparer.OrdinalIgnoreCase);
-            var maps = new HashSet<string>(files.Select(f => f.Split('/').Reverse().Skip(1).FirstOrDefault() ?? ""), StringComparer.OrdinalIgnoreCase);
-            var drop = new List<string>();
-            foreach (var key in dic.Keys)
-            {
-                var k = key.Replace('\\', '/');
-                var last = k.Split('/').Last();
-                var parent = k.Split('/').Reverse().Skip(1).FirstOrDefault() ?? "";
-                if (last.StartsWith("sc_ai_bnw_") && stems.Contains(last)) drop.Add(key);
-                else if (last == "entity_default" && maps.Contains(parent)) drop.Add(key);
-            }
-            foreach (var key in drop) dic.Remove(key);
-            return drop.Count;
-        }
+        // the headless test (WcTest): a save recorded for a seed, in memory only
+        internal static void TestSlot(int slot, string id) => Lib.TestSlot(slot, id);
 
-        static void Save()
-        {
-            try
-            {
-                Directory.CreateDirectory(Root);
-                var state = new Dictionary<string, object>
-                {
-                    ["active"] = Active?.Id ?? "",
-                    ["activeFiles"] = activeFiles,
-                    ["slots"] = slots.ToDictionary(kv => kv.Key.ToString(), kv => kv.Value),
-                };
-                // write a temporary file and swap it in: a crash mid-write (a power loss leaves zeros)
-                // keeps the previous state instead of an unreadable one
-                var tmp = StatePath + ".tmp";
-                File.WriteAllText(tmp, JsonSerializer.Serialize(state, new JsonSerializerOptions { WriteIndented = true }));
-                if (File.Exists(StatePath)) File.Replace(tmp, StatePath, null);
-                else File.Move(tmp, StatePath);
-            }
-            catch (Exception e) { Plugin.L.LogWarning($"[wc] {StatePath}: {e.Message}"); }
-        }
+        public static string SlotSeed(int slot) => Lib.SlotSeed(slot);
 
-        public static void Prune()
-        {
-            var keep = new HashSet<string>(slots.Values) { Active?.Id ?? "" };
-            foreach (var s in All().Skip(Keep).Where(s => !keep.Contains(s.Id)))
-            {
-                try { Directory.Delete(s.Dir, true); Plugin.L.LogInfo($"[wc] removed old seed {s.Id}"); }
-                catch (Exception e) { Plugin.L.LogWarning($"[wc] {s.Dir}: {e.Message}"); }
-            }
-        }
-
-        // The player's Delete in the seed list (WcScreen): the seed's folder goes. Not the current
-        // seed, and not one a save still uses (that save would load without its seed's data).
-        // Returns why not, or null once it's gone.
-        public static string Delete(Seed s)
-        {
-            if (s == null || !Directory.Exists(s.Dir)) return "that seed is already gone";
-            if (s.Id == Active?.Id) return "it's the current seed: play another seed (or none) first";
-            var saves = slots.Where(kv => kv.Value == s.Id && SaveExists(kv.Key)).Select(kv => kv.Key).OrderBy(k => k).ToList();
-            if (saves.Count > 0)
-                return $"{string.Join(", ", saves.Select(SlotName))} {(saves.Count == 1 ? "uses" : "use")} it: " +
-                       "save over that with another seed first";
-            try { Directory.Delete(s.Dir, true); }
-            catch (Exception e) { return e.Message; }
-            Plugin.L.LogInfo($"[wc] deleted seed {s.Id}");
-            return null;
-        }
-
-        static string SlotName(int slot) => slot == SaveSlotManager.AutoSlotId ? "the autosave"
-            : slot == SaveSlotManager.SuspendedSlotId ? "the quick save" : $"save slot {slot}";
-
-        // whether a recorded save is still there (the game's own list; when it can't tell, yes)
-        static bool SaveExists(int slot)
-        {
-            if (testSlots.Contains(slot)) return true;
-            try
-            {
-                var have = SaveSlotManager.Instance()?.ExistenceSaveSlots;
-                if (have != null && have.ContainsKey(slot)) return have[slot];
-            }
-            catch (Exception) { }
-            return true;
-        }
-
-        // the headless test (WcTest): a save recorded for a seed, in memory only (a slot number
-        // the game doesn't have, so no real save's record is touched)
-        static readonly HashSet<int> testSlots = new HashSet<int>();
-        internal static void TestSlot(int slot, string id)
-        {
-            if (slot <= SaveSlotManager.LoadMaxSlotCount) throw new ArgumentException($"slot {slot} is a real save slot");
-            if (id == null) { slots.Remove(slot); testSlots.Remove(slot); }
-            else { slots[slot] = id; testSlots.Add(slot); }
-        }
-
-        public static string SlotSeed(int slot) => slots.TryGetValue(slot, out var id) ? id : null;
-
-        // the active seed's tables/text into the game once its data has loaded (its files are
-        // already in the Magicite folder from when it was applied)
-        public static void Update()
-        {
-            if (startupApplied || !Plugin.WcMode || !LiveData.Ready) return;
-            if (Active == null) { startupApplied = true; return; }
-            float now = UnityEngine.Time.realtimeSinceStartup;
-            if (now < startupRetryAt) return;
-            var r = LiveData.Apply(Active.Dir);   // tables already set are skipped on a retry
-            LastApply = $"{Describe(Active)}: {r}";
-            if (r.Failed != 0 && ++startupTries < 30)
-            {
-                // the game still loading its tables: again in 2 s (a minute at most)
-                startupRetryAt = now + 2f;
-                Plugin.L.LogInfo($"[wc] seed {LastApply} (startup, try {startupTries}: again in 2 s)");
-                return;
-            }
-            startupApplied = true;
-            StartupFailed = r.Failed;
-            Plugin.L.LogInfo($"[wc] seed {LastApply} (startup{(startupTries > 0 ? $", try {startupTries + 1}" : "")})");
-            if (r.Failed != 0) WcScreen.Toast("Couldn't load this seed's data at startup: restart the game, or pick the seed again on the Worlds Collide screen.");
-        }
+        // the active seed's tables/text into the game once its data has loaded
+        public static void Update() => Lib.Update();
 
         // --- a New Game gets WC's starting gil, items and espers --------------------------
         // The WC opening script (tools/wc_events.py) calls WC:start, which grants them
@@ -621,66 +371,10 @@ namespace WorldsCollide.PR
         }
 
         // --- saves ------------------------------------------------------------------------
+        // the kit's save hooks (SeedLibrary.Patch): each save records its seed, loading brings it back;
+        // a test run writes nothing but the slots WcTest allows; WC's -nosaves refuses saving
 
-        public static void Patch(Harmony h)
-        {
-            var t = typeof(SaveSlotManager);
-            foreach (var m in t.GetMethods().Where(m => m.Name == "Save" && m.GetParameters().FirstOrDefault()?.ParameterType == typeof(int)))
-            {
-                // the overload with a callback (autosaves) must hear "done", or whoever waits on it waits forever
-                bool withCallback = m.GetParameters().Any(p => p.Name == "callback");
-                h.Patch(m, prefix: new HarmonyMethod(typeof(WcSeeds), withCallback ? nameof(NoSaveInTestCallback) : nameof(NoSaveInTest)),
-                        postfix: new HarmonyMethod(typeof(WcSeeds), nameof(Saved)));
-            }
-            var load = t.GetMethod("GotoLoadSaveData");
-            if (load != null) h.Patch(load, prefix: new HarmonyMethod(typeof(WcSeeds), nameof(Loading)));
-            // Title-screen Continue/Load uses SaveSlotManager.LoadAsync directly (not
-            // GotoLoadSaveData). Without this marker, leaving the title after an autosave load was
-            // mistaken for New Game and WC granted the seed's starting inventory again.
-            foreach (var m in t.GetMethods().Where(m => m.Name == "LoadAsync"))
-                h.Patch(m, prefix: new HarmonyMethod(typeof(WcSeeds), nameof(LoadingAsync)));
-            var auto = AccessTools.Method(typeof(global::Last.Interpreter.Instructions.External.Misc), "AutoSave");
-            if (auto != null) h.Patch(auto, prefix: new HarmonyMethod(typeof(WcSeeds), nameof(AutoSave_Prefix)));
-            // the game's own data beside the slots, which test runs mustn't write either: the bestiary
-            // (a won battle records its monsters: the WC test battles rewrote the PC's, 2026-11-11)
-            // and the config (the BNW probe blocks both since 2026-11-07)
-            foreach (var dt in new[] { typeof(PictureBookSaveManager), typeof(SystemConfigManager) })
-                foreach (var m in dt.GetMethods().Where(m => m.Name == "Save"))
-                    h.Patch(m, prefix: new HarmonyMethod(typeof(WcSeeds), m.ReturnType == typeof(bool) ? nameof(NoDataSaveInTestBool) : nameof(NoDataSaveInTest)));
-            // ... and the bestiary's updates, which write it without its hooked Save: the Floating
-            // Continent trip's headless test (2026-11-12) rewrote it mid-run with no "Save skipped",
-            // around the Air Force fight's script registering Chupon (SysCall 図鑑登録：テュポーン)
-            foreach (var m in typeof(PictureBookSaveManager).GetMethods()
-                         .Where(m => m.Name is "Registration" or "UpdateDefeatCount" or "AddTotalSubjugationCount" or "UpdateScenarioFlags"))
-                h.Patch(m, prefix: new HarmonyMethod(typeof(WcSeeds), nameof(NoDataSaveInTest)));
-        }
-
-        public static bool NoDataSaveInTest(System.Reflection.MethodBase __originalMethod)
-        {
-            if (!WcTestState.Running) return true;
-            Plugin.L.LogInfo($"[wc test] {__originalMethod.DeclaringType?.Name}.{__originalMethod.Name} skipped (test run)");
-            return false;
-        }
-
-        public static bool NoDataSaveInTestBool(System.Reflection.MethodBase __originalMethod, ref bool __result)
-        {
-            if (!WcTestState.Running) return true;
-            Plugin.L.LogInfo($"[wc test] {__originalMethod.DeclaringType?.Name}.{__originalMethod.Name} skipped (test run)");
-            __result = true;
-            return false;
-        }
-
-        // A script's AutoSave instruction that won't save (a test run, WC's -nosaves) ends at once.
-        // Skipping only the save (its callback told "done") left the instruction waiting: the
-        // Blackjack's boarding arrival (sc_e_BJinboard_1) saves before it fades in, and stayed black
-        static bool AutoSave_Prefix(ref int __result)
-        {
-            bool test = WcTestState.Running, ironMog = !test && IronMog();
-            if (!test && !ironMog) return true;
-            Plugin.L.LogInfo(test ? "[wc test] a script's autosave skipped (test run)" : "[wc] -nosaves: a script's autosave skipped");
-            __result = 0;
-            return false;
-        }
+        public static void Patch(Harmony h) => Lib.Patch(h);
 
         // a headless self-test never writes the player's saves (the airship deck autosaves)
         // WC's -nosaves (Ironmog mode) in a WC game: no saving, autosaves included (save points still
@@ -689,73 +383,5 @@ namespace WorldsCollide.PR
             Plugin.WcMode && Active != null && Active.Flags.Split(' ').Contains("-nosaves") &&
             WcEvents.Flag(Last.Interpreter.DataStorage.Category.kScenarioFlag4, WcEvents.WcGameFlag) == 1;
 
-        static bool NoSaveInTest(int slotId)
-        {
-            if (!WcTestState.Running && IronMog()) { Plugin.L.LogInfo($"[wc] -nosaves: save to slot {slotId} refused"); return false; }
-            if (!WcTestState.Running) return true;
-            if (WcTest.AllowsSave(slotId)) return true;
-            Plugin.L.LogInfo($"[wc test] save to slot {slotId} skipped (test run)");
-            return false;
-        }
-
-        static bool NoSaveInTestCallback(int slotId, Il2CppSystem.Action<bool> callback)
-        {
-            if (!WcTestState.Running && IronMog())
-            {
-                Plugin.L.LogInfo($"[wc] -nosaves: autosave to slot {slotId} skipped");
-                try { callback?.Invoke(true); } catch (Exception e) { Plugin.L.LogWarning($"[wc] save callback: {e.Message}"); }
-                return false;
-            }
-            if (!WcTestState.Running) return true;
-            if (WcTest.AllowsSave(slotId)) return true;
-            Plugin.L.LogInfo($"[wc test] save to slot {slotId} skipped (test run), reported done");
-            try { callback?.Invoke(true); } catch (Exception e) { Plugin.L.LogWarning($"[wc test] save callback: {e.Message}"); }
-            return false;
-        }
-
-        static void Saved(int slotId)
-        {
-            if (WcTestState.Running && !WcTest.AllowsSave(slotId)) return;
-            try
-            {
-                // "" = saved in Worlds Collide with no seed: loading it goes back to the game's own data
-                if (Plugin.WcMode) slots[slotId] = Active?.Id ?? "";
-                else slots.Remove(slotId);
-                Save();
-                Plugin.L.LogInfo($"[wc] saved slot {slotId}: seed {(Plugin.WcMode && Active != null ? Active.Id : "none")}");
-            }
-            catch (Exception e) { Plugin.L.LogWarning($"[wc] save hook: {e.Message}"); }
-        }
-
-        static void Loading(SaveSlotData saveData)
-        {
-            loadingSave = true;
-            try
-            {
-                if (!Plugin.WcMode || saveData == null) return;
-                int slot = saveData.Id;
-                var id = SlotSeed(slot);
-                Plugin.L.LogInfo($"[wc] loading slot {slot}: its seed {id ?? "(not recorded)"}; active {Active?.Id ?? "none"}");
-                if (id == "")
-                {
-                    if (Active == null) return;
-                    var verr = Apply(null);
-                    if (verr != null) Plugin.L.LogWarning($"[wc] slot {slot} was saved without a seed; couldn't go back to the game's own data: {verr}");
-                    return;
-                }
-                if (id == null || id == Active?.Id) return;
-                var s = Load(id);
-                if (s == null) { Plugin.L.LogWarning($"[wc] slot {slot}'s seed {id} is gone; keeping {Active?.Id ?? "vanilla"}"); return; }
-                var err = Apply(s);
-                if (err != null) Plugin.L.LogWarning($"[wc] couldn't bring back seed {id}: {err}");
-            }
-            catch (Exception e) { Plugin.L.LogWarning($"[wc] load hook: {e.Message}"); }
-        }
-
-        static void LoadingAsync()
-        {
-            loadingSave = true;
-            Plugin.L.LogInfo("[wc] loading a save through Continue/LoadAsync");
-        }
     }
 }

@@ -7,6 +7,7 @@ using Last.Battle;
 using Last.Data.Master;
 using Last.Management;
 using Random = System.Random;
+using PrKit.Seeds;
 
 namespace WorldsCollide.PR
 {

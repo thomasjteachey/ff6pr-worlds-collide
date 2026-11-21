@@ -4,6 +4,7 @@ using HarmonyLib;
 using Last.Battle;
 using Last.Management;
 using Last.Systems;
+using PrKit.Seeds;
 
 namespace WorldsCollide.PR
 {

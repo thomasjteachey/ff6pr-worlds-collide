@@ -2,6 +2,7 @@
   <PropertyGroup>
     <PrGame>ff6</PrGame>
     <AssemblyName>WorldsCollide.PR</AssemblyName>
+    <PrKitSeeds>true</PrKitSeeds>   <!-- the kit's seed system (PrKit/Seeds): flags, generator, seed library -->
   </PropertyGroup>
   <!-- the modding kit (plugin/PrKit/*.cs: LiveData, MagiciteDir, SingleGamepad, ...) and the game's
        BepInEx + interop references; GameDir comes from plugin/PrKit/Games.props -->

@@ -6,6 +6,8 @@ using BepInEx.Unity.IL2CPP;
 using PrKit;
 using HarmonyLib;
 using UnityEngine;
+using PrKit.Seeds;
+using PrKit.Ff6;
 
 namespace WorldsCollide.PR
 {
@@ -16,12 +18,12 @@ namespace WorldsCollide.PR
     public class Plugin : BasePlugin
     {
         public const string Guid = "ff6mod.worldscollide";
-        public const string Version = "0.6.8";
+        public const string Version = "0.6.9";
         internal static ManualLogSource L;
         internal static string Folder;
         internal static bool WcMode;
         internal static FeatureHost Features;   // the kit's features (SingleGamepad)
-        internal static WcFlagSet FlagDefs;
+        internal static FlagSet FlagDefs;
 
         public override void Load()
         {
@@ -35,8 +37,8 @@ namespace WorldsCollide.PR
                 lapClock.Restart();
             }
             Folder = Path.GetDirectoryName(typeof(Plugin).Assembly.Location) ?? ".";
+            Kit.Init(Log, "Worlds Collide");   // the modding kit (plugin/PrKit): LiveData, MagiciteDir, SingleGamepad, Seeds
             WcDataDir.Init();   // generator, baseline, seeds: in BepInEx/WorldsCollide, not under plugins (WcDataDir.cs)
-            Kit.Init(Log, "Worlds Collide");   // the modding kit (plugin/PrKit): LiveData, MagiciteDir, SingleGamepad
             WcGenerator.PythonSetting = Config.Bind("Generator", "Python", "",
                 "python.exe for the seed generator. Empty: the bundled one (generator/python), else ProjectDir's pr/.venv.").Value.Trim();
             WcGenerator.ScriptSetting = Config.Bind("Generator", "Script", "",
@@ -47,6 +49,15 @@ namespace WorldsCollide.PR
             WcEvents.SkipStory = Config.Bind("Story", "SkipDialogue", true,
                 "In a Worlds Collide game, skip the story's lines in event scenes, as WC does (townsfolk, menus' questions, " +
                 "rewards and WC's own messages stay).").Value;
+            var genji = Config.Bind("Battle", "GenjiGlove", "SNES",
+                "The Genji Glove's damage penalty. SNES: vanilla's own (a bug): -25% when NOT holding two weapons, none with two. " +
+                "PR: the Pixel Remaster's (-25% on Attack while dual wielding). None: no penalty.").Value.Trim();
+            WcSnesRules.Genji = genji.Equals("PR", System.StringComparison.OrdinalIgnoreCase) ? PrKit.Ff6.GenjiRule.Pr
+                : genji.Equals("None", System.StringComparison.OrdinalIgnoreCase) ? PrKit.Ff6.GenjiRule.None : PrKit.Ff6.GenjiRule.SnesBug;
+            WcJoinLevels.Snes = !Config.Bind("Rules", "JoinLevels", "SNES",
+                "Levels of characters who join. SNES: as WC's SNES game, a recruit keeps the seed's start level (or with -sal the average " +
+                "of those recruited before) and a rejoin keeps its level. PR: the Pixel Remaster's own levelling on top (each join raised " +
+                "to the others' average, plus an offset on a first join).").Value.Trim().Equals("PR", System.StringComparison.OrdinalIgnoreCase);
             InputDiag.Enabled = Config.Bind("Input", "LogPresses", false,
                 "Log controller/keyboard presses frame by frame ([press] lines, at most 600 a session) to track down double presses.").Value;
 
@@ -58,10 +69,10 @@ namespace WorldsCollide.PR
             WcMode = MagiciteDir.Has("WorldsCollide") && WcGameData.Error == null;
             if (WcMode) L.LogInfo($"Worlds Collide's data: {MagiciteDir.FolderPath("WorldsCollide")}");
             else L.LogWarning($"Worlds Collide's data isn't installed (no WorldsCollide folder in {MagiciteDir.ImportDir}): seeds are off");
-            WcFlagSet defs;
+            FlagSet defs;
             try
             {
-                defs = WcFlagSet.Load(File.ReadAllText(Path.Combine(Folder, "wc_flags.json")));
+                defs = FlagSet.Load(File.ReadAllText(Path.Combine(Folder, "wc_flags.json")));
             }
             catch (Exception e)
             {
@@ -102,12 +113,14 @@ namespace WorldsCollide.PR
             Defer("track", () => WcTrack.Patch(harmony));
             // the option hooks: one that fails (a game update, an ambiguous method) only turns its own
             // options off, not the whole plugin
+            WcParity.Setup();   // the kit's SNES battle rules (PrKit/Ff6): on in a WC game
             foreach (var (name, patch) in new (string, Action<Harmony>)[]
             {
                 ("coliseum", WcColiseum.Patch), ("battles", WcBattles.Patch), ("espers", WcEspers.Patch),
                 ("recruits", WcRecruits.Patch), ("rages", WcRages.Patch), ("items", WcItems.Patch), ("challenges", WcChallenges.Patch),
                 ("achievements", WcAchievements.Patch), ("magitek", WcMagitek.Patch), ("veldt", WcVeldt.Patch),
-                ("autobattle", WcAutobattle.Patch), ("ability scaling", WcAbilityScaling.Patch), ("atb", WcAtb.Patch), ("status ticks", WcStatusTicks.Patch), ("encounters", WcEncounters.Patch), ("entrances", WcEntrances.Patch), ("enemy ai", WcEnemyAi.Patch),
+                ("autobattle", SnesAutobattle.Patch), ("ability scaling", WcAbilityScaling.Patch), ("atb", SnesAtb.Patch), ("status ticks", SnesStatusTicks.Patch), ("encounters", WcEncounters.Patch), ("entrances", WcEntrances.Patch), ("enemy ai", WcEnemyAi.Patch),
+                ("snes rules", WcSnesRules.Patch), ("join levels", WcJoinLevels.Patch),
             })
                 Defer(name, () => patch(harmony), $"{name} hooks failed, those options are off");
             // WcTest is intentionally not touched in a normal launch: its large IL2CPP type
@@ -176,8 +189,8 @@ namespace WorldsCollide.PR
                 if (WcScreenState.Active) WcScreen.Update(); t = WcPerf.Lap(5, "screen", t);
                 WcScaling.Update(); t = WcPerf.Lap(6, "scaling", t);
                 WcEnemyAi.Update(); t = WcPerf.Lap(11, "enemy-ai", t);
-                WcStatusTicks.Track();
-                WcAutobattle.Watch();
+                SnesStatusTicks.Track();
+                SnesAutobattle.Watch();
                 if (WcTestState.Running) WcTest.Update(); WcPerf.Lap(7, "test", t);
                 LiveData.UpdateSelfTest();
                 WcPerf.Frame();

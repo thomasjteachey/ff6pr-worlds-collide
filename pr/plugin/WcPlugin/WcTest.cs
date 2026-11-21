@@ -12,6 +12,7 @@ using Last.Map;
 using UnityEngine;
 using Object = UnityEngine.Object;
 using PrKit.Ff6;   // SnesAi: the kit's FF6 AI interpreter
+using PrKit.Seeds;
 
 namespace WorldsCollide.PR
 {
@@ -889,7 +890,7 @@ namespace WorldsCollide.PR
         // WC's random Zozo clock (-rc, always on): in the clock's room (map 386) the clock script
         // with the seed's answer sets the quest; the vanilla 6:10:50 doesn't (unless it is the
         // seed's); a clue NPC says WC's line ("It's now ...", N008_C00_390_06_01)
-        // WC's (the SNES's) Regen/Sap/Poison ticks (WcStatusTicks): a test battle with the monsters
+        // WC's (the SNES's) Regen/Sap/Poison ticks (SnesStatusTicks): a test battle with the monsters
         // stopped, Regen on the party's first member, Poison on the second, Sap on the third, Active
         // mode; the plugin's tick record (battle time, slot) against the SNES's clock: Regen and Sap
         // every 8.519 s, Poison 17.039 s; then Haste on the first (12-13 visits: 6.39-6.92 s); then
@@ -906,7 +907,7 @@ namespace WorldsCollide.PR
             BattlePlayerData[] party = null;
             List<double> Gaps(int slot, string kind, float from, float to)
             {
-                var ts = WcStatusTicks.Log.Where(x => x.Slot == slot && x.Kind == kind && x.Time >= from && x.Time < to).Select(x => (double)x.Time).ToList();
+                var ts = SnesStatusTicks.Log.Where(x => x.Slot == slot && x.Kind == kind && x.Time >= from && x.Time < to).Select(x => (double)x.Time).ToList();
                 return ts.Zip(ts.Skip(1), (a, b) => b - a).ToList();
             }
             string Show(List<double> g) => string.Join(" ", g.Select(x => x.ToString("0.000")));
@@ -931,7 +932,7 @@ namespace WorldsCollide.PR
                 var battle = BattlePlugManager.Instance();
                 if (battle == null || !battle.IsBattle()) { Check(false, "status_ticks: the battle ended early"); return false; }
                 Hold();
-                float now = WcStatusTicks.BattleTime;
+                float now = SnesStatusTicks.BattleTime;
                 if (phase == 0 && now - t0 >= 45)
                 {
                     var r = Gaps(0, "Regen", t0, now);
@@ -960,7 +961,7 @@ namespace WorldsCollide.PR
                 {
                     if (jumpEnd < 0 && now - jumpAt >= 20)
                     {
-                        var during = WcStatusTicks.Log.Where(x => x.Slot == 1 && x.Kind == "Poison" && x.Time >= jumpAt && x.Time < now).ToList();
+                        var during = SnesStatusTicks.Log.Where(x => x.Slot == 1 && x.Kind == "Poison" && x.Time >= jumpAt && x.Time < now).ToList();
                         Check(during.Count >= 1 && Has(party[1], 420), $"status_ticks: Poison ticks on while jumping ({during.Count} in {now - jumpAt:0.0} s, still jumping {Has(party[1], 420)})");
                         battle.BattleConditionController?.InterruptRemoveCondition(party[1], (Last.Defaine.ConditionType)420);
                         jumpEnd = now;
@@ -969,12 +970,12 @@ namespace WorldsCollide.PR
                     if (stopEnd < 0 && now - stopAt > 90) { Check(false, "status_ticks: Stop still on after 90 s"); battle.BattleConditionController?.InterruptRemoveCondition(party[0], (Last.Defaine.ConditionType)17); stopEnd = now; }
                     if (stopEnd >= 0 && jumpEnd >= 0 && now - stopEnd >= Regen + 2.2)
                     {
-                        var during = WcStatusTicks.Log.Where(x => x.Slot == 0 && x.Kind == "Regen" && x.Time > stopAt + 0.05f && x.Time < stopEnd).ToList();
-                        var after = WcStatusTicks.Log.Where(x => x.Slot == 0 && x.Kind == "Regen" && x.Time >= stopEnd).ToList();
+                        var during = SnesStatusTicks.Log.Where(x => x.Slot == 0 && x.Kind == "Regen" && x.Time > stopAt + 0.05f && x.Time < stopEnd).ToList();
+                        var after = SnesStatusTicks.Log.Where(x => x.Slot == 0 && x.Kind == "Regen" && x.Time >= stopEnd).ToList();
                         Check(during.Count == 0 && after.Count >= 1,
                               $"status_ticks: no Regen while stopped ({stopEnd - stopAt:0.0} s: {during.Count}), on again after ({after.Count}, first {(after.Count > 0 ? after[0].Time - stopEnd : -1):0.00} s on)");
-                        Plugin.L.LogInfo($"[wc test] status_ticks: {WcStatusTicks.Ticks} ticks, {WcStatusTicks.Steps} steps; log " +
-                                         string.Join(" ", WcStatusTicks.Log.Where(x => !x.Kind.EndsWith("-due")).Select(x => $"{x.Time:0.00}:{x.Slot}{x.Kind[0]}")));
+                        Plugin.L.LogInfo($"[wc test] status_ticks: {SnesStatusTicks.Ticks} ticks, {SnesStatusTicks.Steps} steps; log " +
+                                         string.Join(" ", SnesStatusTicks.Log.Where(x => !x.Kind.EndsWith("-due")).Select(x => $"{x.Time:0.00}:{x.Slot}{x.Kind[0]}")));
                         var cfg = UserDataManager.Instance()?.Config;
                         if (cfg != null && savedMode >= 0) cfg.BattleModeIndex = savedMode;
                         return false;
@@ -992,15 +993,15 @@ namespace WorldsCollide.PR
                     party = battle?.GetPlayerUnits()?.ToArray().Where(u => u != null).ToArray();
                     if (battle == null || !battle.IsBattle() || cfg == null || party == null || party.Length < 3)
                     { Check(false, $"status_ticks: a battle with 3 party members ({party?.Length ?? 0})"); return false; }
-                    Check(WcStatusTicks.Active, "status_ticks: the plugin's tick clock is on (a WC seed)");
+                    Check(SnesStatusTicks.Active, "status_ticks: the plugin's tick clock is on (a WC seed)");
                     savedMode = cfg.BattleModeIndex;
                     cfg.BattleModeIndex = 0;                                                   // Active
                     Hold();
                     BattleUtility.AddCondition(party[0], (Last.Defaine.ConditionType)25);      // Regen
                     BattleUtility.AddCondition(party[1], (Last.Defaine.ConditionType)10);      // Poison
                     BattleUtility.AddCondition(party[2], (Last.Defaine.ConditionType)407);     // Slip (Sap)
-                    WcStatusTicks.Log.Clear();
-                    t0 = WcStatusTicks.BattleTime;
+                    SnesStatusTicks.Log.Clear();
+                    t0 = SnesStatusTicks.BattleTime;
                     Check(Has(party[0], 25) && Has(party[1], 10) && Has(party[2], 407), "status_ticks: Regen, Poison and Sap on the party");
                     return true;
                 }),
@@ -1010,12 +1011,12 @@ namespace WorldsCollide.PR
             return steps;
         }
 
-        // WC's (the SNES's) status timers and Jump (WcStatusTicks, WcAtb): a test battle, the monsters
+        // WC's (the SNES's) status timers and Jump (SnesStatusTicks, SnesAtb): a test battle, the monsters
         // stopped. (1) Sleep, Reflect, Freeze, Stop on the party's four: each off after 18 / 26 / 34 / 18
         // of the clock's steps (a step 2.13 s; the first comes 1-4 visits after the status is found), not
         // the PR's (Stop measured 31.3 s before). (2) Condemned on the first, as from a level-60 attacker:
         // the SNES's count (19-20 steps, C2/09B4) and the death at its end. (3) The second jumps on auto
-        // (Jump dealt into its first slot: WcAutobattle's Fight-like default): its air time the SNES's (224/256 of a wait
+        // (Jump dealt into its first slot: SnesAutobattle's Fight-like default): its air time the SNES's (224/256 of a wait
         // timer at half the ATB rate: 10.10 s at Speed 43), not the PR's (measured 16.05 s).
         static List<(float, Func<bool>)> StatusTimersPlan()
         {
@@ -1062,13 +1063,13 @@ namespace WorldsCollide.PR
                     if (pp != null && !Dead(p) && pp.CurrentHP < pp.ConfirmedMaxHp() / 2) pp.CurrentHP = pp.ConfirmedMaxHp() / 2;
                 }
             }
-            List<(float T, string K)> Of(int slot) => WcStatusTicks.Log.Where(x => x.Slot == slot).Select(x => (x.Time, x.Kind)).ToList();
+            List<(float T, string K)> Of(int slot) => SnesStatusTicks.Log.Where(x => x.Slot == slot).Select(x => (x.Time, x.Kind)).ToList();
             bool Step()
             {
                 var battle = BattlePlugManager.Instance();
                 if (battle == null || !battle.IsBattle()) { Check(false, "status_timers: the battle ended early"); return false; }
                 Hold();
-                float now = WcStatusTicks.BattleTime;
+                float now = SnesStatusTicks.BattleTime;
                 if (phase == 0)
                 {
                     foreach (var kv in wantOff)
@@ -1085,7 +1086,7 @@ namespace WorldsCollide.PR
                     if (offAt.Count == wantOff.Count || now - t0 > 100)
                     {
                         Check(offAt.Count == wantOff.Count, $"status_timers: {offAt.Count} of {wantOff.Count} timed statuses off by {now - t0:0} s");
-                        WcStatusTicks.SetDoomCaster(party[0], 60);
+                        SnesStatusTicks.SetDoomCaster(party[0], 60);
                         BattleUtility.AddCondition(party[0], (Last.Defaine.ConditionType)404);
                         doomAt = now;
                         phase = 1;
@@ -1099,14 +1100,27 @@ namespace WorldsCollide.PR
                         doomLeft = int.Parse(set.K.Split(' ')[1]);
                         Check(doomLeft == 19 || doomLeft == 20, $"status_timers: Condemned from a level-60 attacker counts {doomLeft} (SNES: 19-20)");
                     }
-                    if (Dead(party[0]) || now - doomAt > 70)
+                    // the game's count reaching 0 (the clock's trace "doom 0/0"): the end on the SNES's clock. At 0 the PR's
+                    // DoomConditionFunction.Update kills, or, for a unit that resists the Doom ability (its equipment),
+                    // removes Condemned with a 0 and no death (decompiled, tools/decomp/status_timers; 2026-11-20 wc-4:
+                    // kittest3's first character resists): both are the game's own end, the timing is the plugin's
+                    var zero = Of(0).FirstOrDefault(x => x.K == "doom 0/0");
+                    bool resisted = zero.K != null && !Dead(party[0]) && !Has(party[0], 404);
+                    if (Dead(party[0]) || resisted || now - doomAt > 70)
                     {
-                        double got = set.K == null ? -1 : now - set.T;
-                        Check(Dead(party[0]) && doomLeft > 0 && got >= (doomLeft - 1) * StepS - 0.5 && got <= (doomLeft + 1) * StepS + 1.5,
-                              $"status_timers: Condemned's end {got:0.0} s after its count was set ({doomLeft} steps: {doomLeft * StepS:0.0} s; dead {Dead(party[0])})");
+                        double got = set.K == null ? -1 : (zero.K != null ? zero.T : now) - set.T;
+                        if (resisted)
+                            Plugin.L.LogInfo($"[wc test] status_timers: Condemned's target resists Doom: the game took Condemned off at 0 with no death, as the PR does");
+                        else if (!Dead(party[0]))
+                            Plugin.L.LogInfo($"[wc test] status_timers: Condemned's target alive after {got:0.0} s: HP {party[0].BattleUnitDataInfo?.Parameter?.CurrentHP}, " +
+                                             $"statuses [{string.Join(",", party[0].BattleUnitDataInfo?.Parameter?.CurrentConditionList?.ToArray().Select(c => c?.ConditionType ?? 0) ?? new int[0])}], " +
+                                             $"the clock's steps left {SnesStatusTicks.Find(party[0])?.DoomLeft}; trace " +
+                                             string.Join(" ", Of(0).Where(x => x.K.StartsWith("doom")).Select(x => $"{x.T:0.00}:{x.K}")));
+                        Check((Dead(party[0]) || resisted) && doomLeft > 0 && got >= (doomLeft - 1) * StepS - 0.5 && got <= (doomLeft + 1) * StepS + 1.5,
+                              $"status_timers: Condemned's end {got:0.0} s after its count was set ({doomLeft} steps: {doomLeft * StepS:0.0} s; dead {Dead(party[0])}, resisted {resisted})");
                         // (3) Jump: the second jumps on auto, first with the PR's own air time
                         // Jump dealt into its first slot, no Fight (as WC deals it): auto-battle's default is
-                        // the first slot's Jump (WcAutobattle's Fight-like commands), not the PR's Defend
+                        // the first slot's Jump (SnesAutobattle's Fight-like commands), not the PR's Defend
                         var owned1 = party[1].GetOwnedCharacterData();
                         jumpRow = owned1 == null ? null : MasterManager.Instance.GetData<CharacterStatus>(owned1.characterStatusId);
                         if (jumpRow != null)
@@ -1142,44 +1156,49 @@ namespace WorldsCollide.PR
                     int speed = hp.ConfirmedAgility();
                     int perTick = (speed + 20) * 96 >> 4;
                     double gauge = 65536.0 / perTick * 2 / 60.0988, snes = 224 * 256.0 / (perTick >> 1) * 2 / 60.0988;
-                    if (pairs.Count >= 1 && !jumpChecked)
+                    if (pairs.Count >= 2 && !jumpChecked)
                     {
                         jumpChecked = true;
                         fightsFrom = now;
-                        // the landing's chant is the SNES's air time (WcAtb.Chanting_Postfix); the PR's own:
-                        // 600 / (Agility / 2 + 20) s at the default battle speed
-                        double want = WcAtb.SnesJumpSeconds(speed, false, WcAtb.SnesBattleSpeed(), false, false);
+                        // the landing's chant is the SNES's air time (SnesAtb.Chanting_Postfix); the PR's own:
+                        // 600 / (Agility / 2 + 20) s at the default battle speed. The shortest of two: a landing
+                        // whose chant ran out while another fighter acted waits for that act (the game plays one
+                        // at a time; 2026-11-20: 12.54 s, then 10.79, 10.79)
+                        double want = SnesAtb.SnesJumpSeconds(speed, false, SnesAtb.SnesBattleSpeed(), false, false);
                         double pr = 600.0 / (speed / 2.0 + 20);
-                        Check(Math.Abs(pairs[0] - want) < 0.5 && WcAtb.JumpChants > 0,
-                              $"status_timers: Jump's air time {pairs[0]:0.00} s (Speed {speed}: SNES {want:0.00} s, 1.75 gauges; the PR's own chant {pr:0.00} s; landings re-timed {WcAtb.JumpChants})");
+                        double air = pairs.Min();
+                        Check(Math.Abs(air - want) < 0.5 && SnesAtb.JumpChants > 0,
+                              $"status_timers: Jump's air time {air:0.00} s (of {string.Join(" ", pairs.Select(x => x.ToString("0.00")))}; Speed {speed}: SNES {want:0.00} s, 1.75 gauges; the PR's own chant {pr:0.00} s; landings re-timed {SnesAtb.JumpChants})");
                     }
                     if (jumpChecked)
                     {
                         // the command waits: the third's Fights on auto, first with the SNES's wait (C2/067B:
-                        // 16, half the ATB's add a move), then with the game's own chant (WcAtb.CommandWaits
+                        // 16, half the ATB's add a move), then with the game's own chant (SnesAtb.CommandWaits
                         // off): its turns come the difference between the two closer together
                         var third = party.Length > 2 ? party[2] : null;
                         var tp = third?.BattleUnitDataInfo?.Parameter;
-                        var fights = WcAtb.ChantLog.Where(x => third != null && x.Unit == third.Pointer && x.Command == 1).ToList();
-                        if (WcAtb.CommandWaits)
+                        var fights = SnesAtb.ChantLog.Where(x => third != null && x.Unit == third.Pointer && x.Command == 1).ToList();
+                        if (SnesAtb.CommandWaits)
                         {
                             if (fights.Count < 4 && now - fightsFrom < 60) return true;
-                            WcAtb.CommandWaits = false;
+                            SnesAtb.CommandWaits = false;
                             fightsSnes = fights.Count;
                             fightsFrom = now;
                             return true;
                         }
                         if (fights.Count < fightsSnes + 4 && now - fightsFrom < 60) return true;
-                        WcAtb.CommandWaits = true;
+                        SnesAtb.CommandWaits = true;
                         if (tp != null && fightsSnes >= 3 && fights.Count >= fightsSnes + 3)
                         {
                             int sp = tp.ConfirmedAgility();
-                            double wait = WcAtb.SnesWaitSeconds(16, sp, false, 0, false, false), own = 60 / (sp / 2.0 + 20);
+                            double wait = SnesAtb.SnesWaitSeconds(16, sp, false, 0, false, false), own = 60 / (sp / 2.0 + 20);
                             List<double> GapsFrom(int from, int to) => Enumerable.Range(from, Math.Max(0, to - from)).Where(i => i + 1 < fights.Count)
                                 .Select(i => (double)(fights[i + 1].Time - fights[i].Time)).ToList();
                             var snesGaps = GapsFrom(1, fightsSnes - 1);           // (the first can hold the jump's turn)
                             var ownGaps = GapsFrom(fightsSnes, fights.Count - 1);
-                            double diff = ownGaps.Average() - snesGaps.Average();
+                            // the shortest gaps: a turn queued behind another fighter's act comes later (2026-11-20:
+                            // 11.29 and 10.47 s with the same wait), never sooner
+                            double diff = ownGaps.Min() - snesGaps.Min();
                             Check(Math.Abs(diff - (own - wait)) < 0.35 && fights.Take(fightsSnes).All(f => Math.Abs(f.Wait - wait) < 0.01),
                                   $"status_timers: Fight's wait {wait:0.00} s at Speed {sp} (SNES 16), the game's chant {own:0.00}: turns {string.Join(" ", snesGaps.Select(g => g.ToString("0.00")))} s apart with the SNES's, " +
                                   $"{string.Join(" ", ownGaps.Select(g => g.ToString("0.00")))} with the game's: {diff:0.00} s more (want {own - wait:0.00})");
@@ -1187,8 +1206,8 @@ namespace WorldsCollide.PR
                         else Check(false, $"status_timers: the third's Fights on auto ({fightsSnes} with the SNES's wait, {fights.Count - fightsSnes} with the game's)");
                         Last.UI.BattleUIManager.Instance?.SetIsAuto(false);
                         RestoreJumpRow();
-                        Plugin.L.LogInfo($"[wc test] status_timers: {WcStatusTicks.Removed} statuses taken off; log " +
-                                         string.Join(" ", WcStatusTicks.Log.Where(x => !x.Kind.EndsWith("-due")).Select(x => $"{x.Time:0.00}:{x.Slot}{x.Kind}")));
+                        Plugin.L.LogInfo($"[wc test] status_timers: {SnesStatusTicks.Removed} statuses taken off; log " +
+                                         string.Join(" ", SnesStatusTicks.Log.Where(x => !x.Kind.EndsWith("-due")).Select(x => $"{x.Time:0.00}:{x.Slot}{x.Kind}")));
                         var cfg = UserDataManager.Instance()?.Config;
                         if (cfg != null && savedMode >= 0) cfg.BattleModeIndex = savedMode;
                         return false;
@@ -1213,7 +1232,7 @@ namespace WorldsCollide.PR
                     party = battle?.GetPlayerUnits()?.ToArray().Where(u => u != null).ToArray();
                     if (battle == null || !battle.IsBattle() || cfg == null || party == null || party.Length < 3)
                     { Check(false, $"status_timers: a battle with 3 party members ({party?.Length ?? 0})"); return false; }
-                    Check(WcStatusTicks.Active, "status_timers: the plugin's status clock is on (a WC seed)");
+                    Check(SnesStatusTicks.Active, "status_timers: the plugin's status clock is on (a WC seed)");
                     savedMode = cfg.BattleModeIndex;
                     cfg.BattleModeIndex = 0;                                                   // Active
                     Hold();
@@ -1223,21 +1242,21 @@ namespace WorldsCollide.PR
                         BattleUtility.AddCondition(party[i], (Last.Defaine.ConditionType)add[i].Item1);
                         wantOff[i] = (add[i].Item2, add[i].Item3);
                     }
-                    WcStatusTicks.Log.Clear();
-                    t0 = WcStatusTicks.BattleTime;
+                    SnesStatusTicks.Log.Clear();
+                    t0 = SnesStatusTicks.BattleTime;
                     Plugin.L.LogInfo($"[wc test] status_timers: Doom pauses on [{string.Join(",", DoomConditionFunction.StopConditions?.ToArray().Select(c => (int)c) ?? new int[0])}]");
                     return true;
                 }),
             };
             for (int i = 0; i < 500; i++) steps.Add((1, Step));
-            steps.Add((1, () => { Check(false, "status_timers: didn't finish in 500 s"); RestoreJumpRow(); WcAtb.CommandWaits = true; return false; }));
+            steps.Add((1, () => { Check(false, "status_timers: didn't finish in 500 s"); RestoreJumpRow(); SnesAtb.CommandWaits = true; return false; }));
             return steps;
         }
 
         // Where a character's turn goes (the user, 2026-11-12: "look into" the ~2.1 s a turn beyond gauge +
         // wait): a test battle, monsters stopped and kept alive, Active mode, auto-battle on; the first
         // party member's gauge, charge (IsChantTimeActDataByUnit) and act (BattleActExection's staging
-        // act and state) recorded every frame with the real time and the battle's (WcStatusTicks). Each
+        // act and state) recorded every frame with the real time and the battle's (SnesStatusTicks). Each
         // turn split into: the fill (0 -> full), full -> its charge starts (the auto-battle's pick), the
         // charge, charge end -> its act starts, the act, the act's end -> the gauge rising again; each in
         // the battle's time (the PR's runs only outside acts) and real time. A record, not a pass/fail.
@@ -1247,7 +1266,10 @@ namespace WorldsCollide.PR
         {
             int savedMode = -1;
             BattlePlayerData me = null;
-            var rec = new List<(int F, float Real, float Bt, float Gauge, bool Chant, bool Acting, bool Mine, int State)>();
+            // Gt: the game's time (Time.time: the delta the game's chants and gauges count, capped by Unity on a
+            // long frame); Bt: the plugin's battle clock (runs only in the battle's update); Dt: the frame's
+            // delta as that clock takes it; Left: this unit's chant time left (the game's chantingInfo)
+            var rec = new List<(int F, float Real, float Bt, float Gauge, bool Chant, bool Acting, bool Mine, int State, float Gt, float Dt, float Left)>();
             float t0 = 0;
             void Hold()
             {
@@ -1273,10 +1295,22 @@ namespace WorldsCollide.PR
                 var staging = exe?.inStagingBattleActData;
                 bool acting = exe != null && exe.GetStatingAct();
                 bool mine = acting && staging?.AttackUnitData != null && staging.AttackUnitData.Pointer == me.Pointer;
-                rec.Add((f, Time.realtimeSinceStartup, WcStatusTicks.BattleTime, prog.GetAtbGaugeByUnitData(me),
-                         prog.IsChantTimeActDataByUnit(me), acting, mine, exe == null ? -1 : (int)exe.nowState));
+                float left = 99999f;
+                var infos = prog.chantingInfo;
+                if (infos != null)
+                    for (int k = 0; k < infos.Count; k++)
+                    {
+                        var info = infos[k];
+                        if (info.actData?.AttackUnitData != null && info.actData.AttackUnitData.Pointer == me.Pointer) { left = info.time; break; }
+                    }
+                rec.Add((f, Time.realtimeSinceStartup, SnesStatusTicks.BattleTime, prog.GetAtbGaugeByUnitData(me),
+                         prog.IsChantTimeActDataByUnit(me), acting, mine, exe == null ? -1 : (int)exe.nowState,
+                         Time.time, Mathf.Min(Time.deltaTime, 0.25f), left));
             }
-            var turns = new List<(double Pick, double Charge, double Restart, double Fill, double Scale, double ActScale, double ActReal)>();
+            // each interval's slack: the two frames at its ends (a long frame there moves an end by up to its own length; 2026-11-20
+            // wc-4: one pick 0.18 s and one charge 0.65 s among six good turns on a busy PC)
+            var turns = new List<(double Pick, double Charge, double Restart, double Fill, double Scale, double ActScale, double ActReal,
+                                  double PickSlack, double ChargeSlack, double RestartSlack, double FillSlack)>();
             string Analyse()
             {
                 var lines = new List<string>();
@@ -1293,16 +1327,27 @@ namespace WorldsCollide.PR
                     if (actEnd < 0) break;
                     int rise = rec.FindIndex(actEnd, r => r.Gauge > 0.5f && r.Gauge < 99.9f);
                     int next = rise < 0 ? -1 : rec.FindIndex(rise, r => r.Gauge >= 99.9f);
-                    string Bt(int a, int b) => a < 0 || b < 0 ? "?" : $"{rec[b].Bt - rec[a].Bt:0.00}";
+                    // intervals in the game's time (Gt), as its chants and gauges count (2026-11-20: the plugin's clock
+                    // drops part of a long frame, so a busy PC made them look off)
+                    string Bt(int a, int b) => a < 0 || b < 0 ? "?" : $"{rec[b].Gt - rec[a].Gt:0.00}";
                     string Re(int a, int b) => a < 0 || b < 0 ? "?" : $"{rec[b].Real - rec[a].Real:0.00}";
-                    int chantEnd = chant < 0 ? -1 : rec.FindIndex(chant, r => !r.Chant);
+                    // the charge ends when the chant's time runs out; an act waiting after that for another
+                    // fighter's act to finish (the game plays one at a time) isn't charging (2026-11-20: turns
+                    // queued behind an attack read 2.5-2.8 s)
+                    int chantEnd = chant < 0 ? -1 : rec.FindIndex(chant, r => !r.Chant || r.Left <= 0f);
                     var states = string.Join(",", rec.Skip(act).Take(Math.Max(0, actEnd - act)).Select(r => r.State).Distinct());
+                    // the plugin's battle clock against the frames' own deltas: 1.0 = it ran every frame
+                    double Clock(int a, int b)
+                    {
+                        double sum = 0;
+                        for (int k = a + 1; k <= b; k++) sum += rec[k].Dt;
+                        return (rec[b].Bt - rec[a].Bt) / Math.Max(1e-3, sum);
+                    }
                     if (chant >= 0 && chantEnd >= 0 && rise >= 0 && next >= 0)
                     {
-                        double scale = (rec[next].Bt - rec[full].Bt) / Math.Max(1e-3, rec[next].Real - rec[full].Real);
-                        double actScale = (rec[actEnd].Bt - rec[act].Bt) / Math.Max(1e-3, rec[actEnd].Real - rec[act].Real);
-                        turns.Add((rec[chant].Bt - rec[full].Bt, rec[chantEnd].Bt - rec[chant].Bt, rec[rise].Bt - rec[actEnd].Bt,
-                                   rec[next].Bt - rec[rise].Bt, scale, actScale, rec[actEnd].Real - rec[act].Real));
+                        turns.Add((rec[chant].Gt - rec[full].Gt, rec[chantEnd].Gt - rec[chant].Gt, rec[rise].Gt - rec[actEnd].Gt,
+                                   rec[next].Gt - rec[rise].Gt, Clock(full, next), Clock(act, actEnd), rec[actEnd].Real - rec[act].Real,
+                                   rec[full].Dt + rec[chant].Dt, rec[chant].Dt + rec[chantEnd].Dt, rec[actEnd].Dt + rec[rise].Dt, rec[rise].Dt + rec[next].Dt));
                     }
                     lines.Add($"turn: full->charge {Bt(full, chant)} (real {Re(full, chant)}), charge {Bt(chant, chantEnd)} (real {Re(chant, chantEnd)}), " +
                               $"charge end->act {Bt(chantEnd, act)} (real {Re(chantEnd, act)}), act {Bt(act, actEnd)} (real {Re(act, actEnd)}, states {states}), " +
@@ -1326,34 +1371,35 @@ namespace WorldsCollide.PR
                     cfg.BattleModeIndex = 0;                                                   // Active
                     Hold();
                     Last.UI.BattleUIManager.Instance?.SetIsAuto(true);
-                    WcStatusTicks.FrameHook = Record;
-                    t0 = WcStatusTicks.BattleTime;
+                    SnesStatusTicks.FrameHook = Record;
+                    t0 = SnesStatusTicks.BattleTime;
                     var p = me.BattleUnitDataInfo.Parameter;
                     Plugin.L.LogInfo($"[wc test] turn_cycle: recording {me.GetOwnedCharacterData()?.characterStatusId} (Agility {p.ConfirmedAgility()}: " +
-                                     $"a gauge {100 / WcAtb.SnesRate(p.ConfirmedAgility(), false, 0, false, false):0.00} s, Fight's wait {WcAtb.SnesWaitSeconds(16, p.ConfirmedAgility(), false, 0, false, false):0.00} s)");
+                                     $"a gauge {100 / SnesAtb.SnesRate(p.ConfirmedAgility(), false, 0, false, false):0.00} s, Fight's wait {SnesAtb.SnesWaitSeconds(16, p.ConfirmedAgility(), false, 0, false, false):0.00} s)");
                     return true;
                 }),
                 (15, () => { Hold(); return true; }), (15, () => { Hold(); return true; }), (15, () => { Hold(); return true; }), (15, () => { Hold(); return true; }),
+                (15, () => { Hold(); return true; }),
                 (5, () =>
                 {
-                    WcStatusTicks.FrameHook = null;
+                    SnesStatusTicks.FrameHook = null;
                     Last.UI.BattleUIManager.Instance?.SetIsAuto(false);
                     var cfg = UserDataManager.Instance()?.Config;
                     if (cfg != null && savedMode >= 0) cfg.BattleModeIndex = savedMode;
                     string a = Analyse();
-                    Plugin.L.LogInfo($"[wc test] turn_cycle: {rec.Count} frames, battle time {WcStatusTicks.BattleTime - t0:0.0} s\n{a}");
+                    Plugin.L.LogInfo($"[wc test] turn_cycle: {rec.Count} frames, battle time {SnesStatusTicks.BattleTime - t0:0.0} s\n{a}");
                     var mp = me.BattleUnitDataInfo.Parameter;
                     int sp = mp.ConfirmedAgility();
-                    double gauge = 100 / WcAtb.SnesRate(sp, false, 0, false, false), wait = WcAtb.SnesWaitSeconds(16, sp, false, 0, false, false);
+                    double gauge = 100 / SnesAtb.SnesRate(sp, false, 0, false, false), wait = SnesAtb.SnesWaitSeconds(16, sp, false, 0, false, false);
                     Check(turns.Count >= 3, $"turn_cycle: {turns.Count} whole turns recorded");
                     if (turns.Count > 0)
                     {
-                        Check(turns.All(t => t.Pick < 0.1 && t.Restart < 0.1),
+                        Check(turns.All(t => t.Pick < 0.1 + t.PickSlack && t.Restart < 0.1 + t.RestartSlack),
                               $"turn_cycle: the auto-battle's pick and the gauge's restart take no time (picks {string.Join(" ", turns.Select(t => t.Pick.ToString("0.00")))}, restarts {string.Join(" ", turns.Select(t => t.Restart.ToString("0.00")))})");
-                        Check(turns.All(t => Math.Abs(t.Charge - wait) < 0.06 && Math.Abs(t.Fill - gauge) < 0.12),
+                        Check(turns.All(t => Math.Abs(t.Charge - wait) < 0.06 + t.ChargeSlack && Math.Abs(t.Fill - gauge) < 0.12 + t.FillSlack),
                               $"turn_cycle: each charge the SNES's Fight wait {wait:0.00} s ({string.Join(" ", turns.Select(t => t.Charge.ToString("0.00")))}), each fill a SNES gauge {gauge:0.00} s ({string.Join(" ", turns.Select(t => t.Fill.ToString("0.00")))})");
-                        Check(turns.All(t => Math.Abs(t.ActScale - t.Scale) < 0.08),
-                              $"turn_cycle: the battle's time runs through the attack, as on the SNES (battle/real time over a turn {string.Join(" ", turns.Select(t => t.Scale.ToString("0.00")))}, " +
+                        Check(turns.All(t => Math.Abs(t.ActScale - 1) < 0.08 && Math.Abs(t.Scale - 1) < 0.08),
+                              $"turn_cycle: the battle's time runs through the attack, as on the SNES (the battle clock over the frames' time, 1 = every frame: over a turn {string.Join(" ", turns.Select(t => t.Scale.ToString("0.00")))}, " +
                               $"over the attack {string.Join(" ", turns.Select(t => t.ActScale.ToString("0.00")))}; the attack {string.Join(" ", turns.Select(t => t.ActReal.ToString("0.00")))} s real, the SNES's 1.43)");
                     }
                     return false;
@@ -2568,14 +2614,14 @@ if (name == "doma_start")
             }
             if (name == "atb")
             {
-                // WC's (the SNES's) ATB (WcAtb): the game's own BattleProgressATBFF6.ATBCalc per second
+                // WC's (the SNES's) ATB (SnesAtb): the game's own BattleProgressATBFF6.ATBCalc per second
                 // (its gauge: 0-100) for a party member and a monster at a sweep of Speeds, the monster
                 // at each of the PR's battle speeds, Haste and Slow, against the SNES's numbers (C2/09D2
                 // CalcSpeed, C2/111B UpdateBattleTime: expected values from tests/test_wc.py's model);
-                // then the gauges' real fill from 0 for 2.5 s. Measured before WcAtb: party
+                // then the gauges' real fill from 0 for 2.5 s. Measured before SnesAtb: party
                 // 0.260 x (Speed + 13), monsters 0.216 x (Speed + 21), Haste x1.5, the battle speed on both.
                 int savedSpeed = -1, savedMode = -1;
-                float t0 = 0;
+                float t0 = 0, t0Game = 0;
                 var g0 = new Dictionary<IntPtr, float>();
                 var want0 = new Dictionary<IntPtr, double>();
                 int[] speeds = { 1, 10, 30, 50, 100, 128 };
@@ -2646,6 +2692,7 @@ if (name == "doma_start")
                         // the gauges' real fill: Active mode, every gauge from 0, for 2.5 s
                         cfg.BattleModeIndex = 0;
                         t0 = Time.realtimeSinceStartup;
+                        t0Game = Time.time;
                         foreach (var u in battle.GetPlayerUnits().ToArray().Cast<BattleUnitData>().Concat(battle.GetEnemyUnits().ToArray()))
                         {
                             if (u == null) continue;
@@ -2659,7 +2706,10 @@ if (name == "doma_start")
                     {
                         var battle = BattlePlugManager.Instance();
                         var prog = battle?.BattleProgress?.TryCast<BattleProgressATBFF6>();
-                        float dt = Time.realtimeSinceStartup - t0;
+                        // the gauge fills by game time (ATBCalc x Time.deltaTime): a long frame's delta is
+                        // capped (Time.maximumDeltaTime), so on a busy PC real seconds outrun it; the check
+                        // uses game time and logs both (2026-11-20: 0.84 of real time, every unit alike)
+                        float dtReal = Time.realtimeSinceStartup - t0, dt = Time.time - t0Game;
                         if (prog != null)
                             foreach (var u in battle.GetPlayerUnits().ToArray().Cast<BattleUnitData>().Concat(battle.GetEnemyUnits().ToArray()))
                             {
@@ -2671,12 +2721,48 @@ if (name == "doma_start")
                                 double want = (float)calc.Invoke(prog, new object[] { u }) / Mathf.Max(1e-6f, Time.deltaTime);
                                 string statuses = string.Join(",", u.BattleUnitDataInfo?.Parameter?.CurrentConditionList?.ToArray().Select(c => c?.Id ?? 0) ?? new int[0]);
                                 Check(b < 99.9f && (Near((b - a) / dt, want, 0.15) || Near((b - a) / dt, want0[u.Pointer], 0.15)),
-                                      $"atb: real fill {(u.TryCast<BattlePlayerData>() != null ? "party" : "monster")} speed {u.BattleUnitDataInfo?.Parameter?.ConfirmedAgility()} [{statuses}]: {a:0.0} -> {b:0.0} in {dt:0.00} s ({(b - a) / dt:0.000}/s; ATBCalc {want:0.000}/s, at the start {want0[u.Pointer]:0.000}/s)");
+                                      $"atb: real fill {(u.TryCast<BattlePlayerData>() != null ? "party" : "monster")} speed {u.BattleUnitDataInfo?.Parameter?.ConfirmedAgility()} [{statuses}]: {a:0.0} -> {b:0.0} in {dt:0.00} s of game time ({dtReal:0.00} real) ({(b - a) / dt:0.000}/s; ATBCalc {want:0.000}/s, at the start {want0[u.Pointer]:0.000}/s)");
                             }
                         var cfg = UserDataManager.Instance()?.Config;
                         if (cfg != null && savedMode >= 0) cfg.BattleModeIndex = savedMode;
                         if (cfg != null && savedSpeed >= 0) cfg.BattleSpeed = savedSpeed;
                         return false;
+                    }),
+                };
+            }
+            if (name == "snes_rules")
+            {
+                // SNES behaviour the PR lost, put back for WC (WcSnesRules, pr/SNES_PR_DISCREPANCIES.md):
+                // the x1.25 hit-rate list without Charm, and Umaro's toss of Mog a sure critical, run
+                // through the game's act flow (SnesUmaro.TossSelfTest) in a real battle
+                return new List<(float, Func<bool>)>
+                {
+                    (0, () =>
+                    {
+                        var plus = PrKit.Ff6.SnesHitRates.Names(global::Last.Battle.CalcExecuteFF6.HitRatePlusConditions);
+                        Check(!plus.Contains("Temptation") && plus.Contains("Blind"), $"snes_rules: the x1.25 hit-rate list {plus} ({WcSnesRules.HitRates})");
+                        Plugin.L.LogInfo(PrKit.Ff6.SnesUmaro.Check());
+                        WcBattles.Queue(7);
+                        return true;
+                    }),
+                    (8, () =>
+                    {
+                        var line = PrKit.Ff6.SnesUmaro.TossSelfTest();
+                        if (line != null) Plugin.L.LogInfo(line);
+                        Check(line != null && line.Contains("self-test ok"), "snes_rules: " + (line ?? "no battle to test in"));
+                        // the Offering's and the Genji Glove's penalties as the SNES has them (SnesRelicPenalties)
+                        var relics = PrKit.Ff6.SnesRelicPenalties.SelfTest();
+                        if (relics != null) Plugin.L.LogInfo(relics);
+                        Check(relics != null && relics.Contains("self-test ok"), "snes_rules: " + (relics ?? "no battle for the relic penalties"));
+                        // Suplex misses a monster that can't be suplexed (SnesSuplex)
+                        var suplex = PrKit.Ff6.SnesSuplex.SelfTest();
+                        if (suplex != null) Plugin.L.LogInfo(suplex);
+                        Check(suplex != null && suplex.Contains("self-test ok"), "snes_rules: " + (suplex ?? "no battle for Suplex"));
+                        // joins without the PR's level averaging, as WC's SNES recruit (WcJoinLevels)
+                        var joins = WcJoinLevels.SelfTest();
+                        Plugin.L.LogInfo("[wc test] " + joins);
+                        Check(joins.Contains("self-test ok"), "snes_rules: " + joins);
+                        return true;
                     }),
                 };
             }
@@ -2704,9 +2790,22 @@ if (name == "enemy_ai")
                     {
                         Check(WcSeeds.Active?.SnesAi != null && WcSeeds.Active.SnesAi.Scripts.Count == 384,
                               $"enemy_ai: the seed carries every monster's script ({WcSeeds.Active?.SnesAi?.Scripts.Count ?? 0})");
-                        int want = WcSeeds.Active != null && WcSeeds.Active.Battles.TryGetValue(410, out var to) && to.Length > 0 ? to[0] : 410;
+                        // Atma = SNES 381 = PR monster 382, found by monster: where the seed's boss shuffle put it
+                        // (a swapped event battle's party: the user's seed, Doma's 410 -> 20036), else its own
+                        // party (483). Not Doma's 410 itself: a seed that keeps the Leader there (PR 335, kittest3
+                        // 2026-11-20) fought the Leader, whose script has no low-HP branch, charge or death block
+                        const int AtmaPr = 382;
+                        bool HasAtma(int id)
+                        {
+                            var p = MasterManager.Instance.GetData<global::Last.Data.Master.MonsterParty>(id);
+                            return p != null && new[] { p.Monster1, p.Monster2, p.Monster3, p.Monster4, p.Monster5, p.Monster6, p.Monster7, p.Monster8, p.Monster9 }.Contains(AtmaPr);
+                        }
+                        int want = WcSeeds.Active?.Battles.Values.SelectMany(x => x).Where(HasAtma).DefaultIfEmpty(0).Min() ?? 0;
+                        if (want == 0)
+                            foreach (var kv in MasterManager.Instance.GetList<global::Last.Data.Master.MonsterParty>())
+                                if (kv.Value != null && kv.Value.Id < 2000 && (want == 0 || kv.Value.Id < want) && HasAtma(kv.Value.Id)) want = kv.Value.Id;
                         party = want;
-                        Check(MasterManager.Instance.GetData<global::Last.Data.Master.MonsterParty>(party) != null, $"enemy_ai: Atma's party {party}");
+                        Check(want > 0 && HasAtma(party), $"enemy_ai: Atma's party {party}");
                         turnsAt = WcEnemyAi.Turns; countersAt = WcEnemyAi.Counters;
                         WcBattles.Queue(party);
                         return true;
@@ -2732,6 +2831,12 @@ if (name == "enemy_ai")
                                     if (pr.BaseMaxHp < 9999) pr.BaseMaxHp = 9999;
                                     pr.CurrentHP = 9999;
                                 }
+                            }
+                            // its low-HP rotation (FC 06 36 3C: HP < 7680) whatever HP WC's scaling gives it where it's fought
+                            foreach (var e in b.GetEnemyUnits())
+                            {
+                                var pe = e?.BattleUnitDataInfo?.Parameter;
+                                if (pe != null && pe.CurrentHP >= 7680) pe.CurrentHP = 7679;
                             }
                             if (WcEnemyAi.LastTurn != lastTurn) { lastTurn = WcEnemyAi.LastTurn; turns.Add(lastTurn); }
                             if (WcEnemyAi.LastCounter != lastCounter) lastCounter = WcEnemyAi.LastCounter;
@@ -3375,7 +3480,7 @@ if (name == "enemy_ai")
                 // auto-battle with Mug as a character's first command and no Fight (the user's seed
                 // gaadl68ix7j4: Gau, 2026-11-11, mugged himself): with no history the game builds
                 // Fight, swaps it for Defend on the character itself (no Fight command), and
-                // WcAutobattle makes the default a Mug: at an enemy, never the character.
+                // SnesAutobattle makes the default a Mug: at an enemy, never the character.
                 // Then a second battle (2026-11-12, Gau "sits there with a full ATB bar, sometimes it
                 // works"): its first replay starts from the first battle's Mug, aimed at a monster of
                 // that battle; the character must go on mugging this battle's monsters.
@@ -3388,7 +3493,7 @@ if (name == "enemy_ai")
                 var firstFoes = new List<BattleEnemyData>();
                 int split = -1, waits = 0;
                 bool requeued = false;
-                WcAutobattle.ReplayAsBefore = req != null && req.GetValueOrDefault("mug", "") == "old";
+                SnesAutobattle.ReplayAsBefore = req != null && req.GetValueOrDefault("mug", "") == "old";
                 BattleUnitData Me() => BattlePlugManager.Instance()?.GetPlayerUnits()?.ToArray()
                     .FirstOrDefault(u => u?.GetOwnedCharacterData()?.characterStatusId == lead);
                 // The party never dies, nor does one monster (the anchor): a won fight waits on its
@@ -3454,7 +3559,7 @@ if (name == "enemy_ai")
                 void Restore()
                 {
                     recorder = null;
-                    WcAutobattle.ReplayAsBefore = false;
+                    SnesAutobattle.ReplayAsBefore = false;
                     if (row != null)
                     {
                         row.CommandId1 = saved[0]; row.CommandId2 = saved[1]; row.CommandId3 = saved[2];
@@ -3505,9 +3610,9 @@ if (name == "enemy_ai")
                         var me = Me();
                         if (me != null)
                         {
-                            var fixedAct = WcAutobattle.ReplayMug(null, MugAt(me, me), lead);
+                            var fixedAct = SnesAutobattle.ReplayMug(null, MugAt(me, me), lead);
                             var t = fixedAct?.TargetUnitDatas;
-                            Check(t != null && t.Length == 1 && WcAutobattle.Muggable(t[0], battle.GetEnemyUnits()) && (int)fixedAct.CurrentTargetType == 3,
+                            Check(t != null && t.Length == 1 && SnesAutobattle.Muggable(t[0], battle.GetEnemyUnits()) && (int)fixedAct.CurrentTargetType == 3,
                                   $"mug_auto: a Mug aimed at itself is turned on an enemy (type {(fixedAct == null ? -1 : (int)fixedAct.CurrentTargetType)})");
                         }
                         else Check(false, "mug_auto: the character's battle unit");
@@ -3573,10 +3678,10 @@ if (name == "enemy_ai")
                     var stale = firstFoes.FirstOrDefault();
                     if (me != null && stale != null)
                     {
-                        var fixedAct = WcAutobattle.ReplayMug(null, MugAt(me, stale), lead);
+                        var fixedAct = SnesAutobattle.ReplayMug(null, MugAt(me, stale), lead);
                         var t = fixedAct?.TargetUnitDatas;
-                        Check(!WcAutobattle.Muggable(stale, battle.GetEnemyUnits()) && t != null && t.Length == 1 &&
-                              WcAutobattle.Muggable(t[0], battle.GetEnemyUnits()),
+                        Check(!SnesAutobattle.Muggable(stale, battle.GetEnemyUnits()) && t != null && t.Length == 1 &&
+                              SnesAutobattle.Muggable(t[0], battle.GetEnemyUnits()),
                               "mug_auto: a Mug aimed at the first battle's monster is turned on one of this battle");
                     }
                     else Check(false, $"mug_auto: the character's battle unit ({me != null}) and the first battle's monsters ({firstFoes.Count})");
@@ -4496,18 +4601,12 @@ if (name == "enemy_ai")
                         var title = Object.FindObjectOfType<Last.UI.KeyInput.TitleWindowController>();
                         if (title != null)
                         {
-                            int loadId = slotData.Id;
-                            Plugin.L.LogInfo($"[wc test] loading save slot {loadId} through the title's LoadAsync path");
-                            Action<bool> loaded = ok =>
-                            {
-                                if (!ok) { Check(false, $"save slot {loadId} failed to read"); Finish(); return; }
-                                var ld = new LoadData();
-                                ld.RestoreSaveData();
-                                MapLoadProcessor.Instance.Start(ld, true, false);
-                                title.StartCoroutine(title.SubSceneLoadingWait(false));
-                                Plugin.L.LogInfo($"[wc test] save slot {loadId} read; loading map {ld.MapId}");
-                            };
-                            title.StartCoroutine(mgr.LoadAsync(loadId, loaded, false));
+                            // the title's own load, all of it (PrKit ModSaves.LoadAtTitle: its fade-out and map-load pump;
+                            // without them this path read the save and stalled, and ~74 s later the title's idle demo
+                            // field passed for the loaded one, 2026-11-20); "[saves] save N read; loading its map M"
+                            Plugin.L.LogInfo($"[wc test] loading save slot {slotData.Id} the title's way (ModSaves.LoadAtTitle)");
+                            var why = ModSaves.LoadAtTitle(slotData);
+                            if (why != null) { Check(false, $"save slot {slotData.Id}: {why}"); Finish(); return; }
                         }
                         else
                         {

@@ -6,6 +6,7 @@ using Last.Data.Master;
 using Last.Interpreter;
 using Last.Interpreter.Instructions;
 using Last.Management;
+using PrKit.Seeds;
 
 namespace WorldsCollide.PR
 {

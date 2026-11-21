@@ -11,7 +11,10 @@
     <ImplicitUsings>disable</ImplicitUsings>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="..\WcPlugin\WcFlags.cs" />
-    <Compile Include="..\WcPlugin\WcStatusClock.cs" />
+    <!-- the kit's flag model: PrKit beside this folder (the project), else the kit/ submodule (the mod's repo) -->
+    <Compile Include="..\PrKit\Seeds\Flags.cs" Condition="Exists('..\PrKit\Seeds\Flags.cs')" />
+    <Compile Include="..\..\..\kit\pr\plugin\PrKit\Seeds\Flags.cs" Condition="!Exists('..\PrKit\Seeds\Flags.cs')" />
+    <Compile Include="..\PrKit\Ff6\SnesStatusClock.cs" Condition="Exists('..\PrKit\Ff6\SnesStatusClock.cs')" />
+    <Compile Include="..\..\..\kit\pr\plugin\PrKit\Ff6\SnesStatusClock.cs" Condition="!Exists('..\PrKit\Ff6\SnesStatusClock.cs')" />
   </ItemGroup>
 </Project>
