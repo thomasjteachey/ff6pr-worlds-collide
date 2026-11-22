@@ -2473,7 +2473,7 @@ if (name == "enemy_ai") return Plan_enemy_ai(name);
                     WcEvents.TestStoryShownWhy.Clear();
                     return true;
                 }));
-                // the take-off ends the wheel's script with its ChangeMap (no Exit): the plan goes on
+                // the pick ends the wheel's script with the deck's fight: the plan goes on
                 steps.Add((6f, RunAnswering(Wheel, Skies, name, hold: false)));
                 steps.Add((1f, Offered(true, "gate open, Doom Gaze not beaten")));
                 int fightPolls = 0;
@@ -2495,8 +2495,10 @@ if (name == "enemy_ai") return Plan_enemy_ai(name);
                     Check(WcBattles.CurrentOriginal == DoomGazeParty,
                           $"search_skies: Doom Gaze's fight: the sky's party {WcBattles.CurrentOriginal} (want {DoomGazeParty}; the seed's {WcBattles.Map(DoomGazeParty)}), " +
                           $"battle party {b?.MonsterParty?.Id}, monsters [{string.Join(" ", ids)}]");
-                    Check(F4(SkiesPending) == 0 && UserDataManager.Instance()?.CurrentMapId == WcEvents.WorMap,
-                          $"search_skies: fought in the WoR sky (map {UserDataManager.Instance()?.CurrentMapId}), the pending flag cleared ({F4(SkiesPending)})");
+                    // on the deck since 0.6.11 (the sky's start lost the game): the pending flag stays on until
+                    // the fight's follow-up (the wheel's own script) clears it
+                    Check(F4(SkiesPending) == 1 && UserDataManager.Instance()?.CurrentMapId != WcEvents.WorMap,
+                          $"search_skies: fought on the Falcon's deck (map {UserDataManager.Instance()?.CurrentMapId}), the pending flag on ({F4(SkiesPending)})");
                     // over by force (a won fight's result screen waits for a button headless)
                     var j = b?.BattleEndJugment;
                     if (j != null)
@@ -2518,6 +2520,7 @@ if (name == "enemy_ai") return Plan_enemy_ai(name);
                     Plugin.L.LogInfo($"[wc test] search_skies: after the fight: map {UserDataManager.Instance()?.CurrentMapId}, check flag {F4(flag)}, " +
                                      $"Doom Gaze's kept HP (ScenarioVariable 3) {WcEvents.Flag(DataStorage.Category.kScenarioVariable, 3)}, quiet {quiet} after {looks} looks");
                     Check(quiet >= 3, $"search_skies: the field is back after the fight (map {UserDataManager.Instance()?.CurrentMapId})");
+                    Check(F4(SkiesPending) == 0, $"search_skies: the follow-up cleared the pending flag ({F4(SkiesPending)})");
                     if (F4(flag) == 1) return ExpectNow(true);   // he fell: the reward scene gave the seed's reward
                     Check(RewardCount(c, rn) == before && F4(flag) == 0,
                           $"search_skies: Doom Gaze flew off (the forced end): no reward, the check (and the wheel's choice) stays open ({WcEvents.LastReward})");
@@ -3090,7 +3093,7 @@ if (name == "enemy_ai") return Plan_enemy_ai(name);
             foreach (var kv in mm.GetList<Last.Data.Master.Content>())
             {
                 var ct = kv.Value;
-                if (ct == null || ct.TypeId != 3) continue;   // armor
+                if (ct == null || ct.TypeId != 3 || (ct.Id >= 197 && ct.Id <= 200)) continue;   // armor, not an empty-slot placeholder
                 if (mm.GetData<Last.Data.Master.Armor>(ct.TypeValue)?.PartsGroupId == 5) { relic = ct.Id; break; }
             }
             return relic;

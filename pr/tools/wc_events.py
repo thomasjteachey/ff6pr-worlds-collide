@@ -177,10 +177,14 @@ PICK_PARTY = 99            # the plugin's answer to WC:reward: 1 = a character j
 REWARD_LINE = 129          # the plugin's: a reward given in a battle; the battle script shows its line
 PARTY_MENU = "\u30d1\u30fc\u30c6\u30a3\u7de8\u6210\uff1a\uff11\u30d1\u30fc\u30c6\u30a3"   # the PR's party select, one party
 AIRSHIP_PARTY_CHOICE = "WC_AIRSHIP_PARTY"
-SKIES_PENDING = 128        # ScenarioFlag4: the Falcon took off to (Search the skies.); its arrival starts the fight
+SKIES_PENDING = 128        # ScenarioFlag4: (Search the skies.)'s deck fight is on; the wheel's script, its follow-up, ends it
 # Off for 0.6.10 (2026-11-21, lean coordinator): wc-11's search_skies run lost the game both times as the fight started
-# (log ends at "[wc] battle: party 464 -> 20063"; build/test_logs/20261121-122657_wc10-search_skies.log). Back on once fixed.
-SEARCH_THE_SKIES = False
+# (log ends at "[wc] battle: party 464 -> 20063"; build/test_logs/20261121-122657_wc10-search_skies.log). Not the sky
+# background copy: wc-12 (22:48) with no copy (party 464 -> 488, bg 19) died the same way
+# (build/test_logs/20261121-224822_wc11-search_skies.log). Suspect this script's path: ChangeMap sc_e_FAoutboard_1,
+# デスゲイズ配置, boarding the Falcon (乗り物に乗る) and the bird's-eye view on the deck map, then the battle. Back on for 0.6.11
+# with the fight started on the deck instead (falcon_helm).
+SEARCH_THE_SKIES = True
 DOOM_GAZE_PARTY = 464      # the PR's Doom Gaze fight (sc_e_0964's EncountBoss; WcBattles swaps in the seed's boss)
 # the airship unequip NPC's two services (the PR's Current.RemoveEquipmentReserveMember / AllMember)
 UNEQUIP_RESERVE = "控えメンバーの装備を外す"   # those not in the party
@@ -381,48 +385,51 @@ def falcon_helm():
     """The Falcon's wheel (sc_e_FAoutboard, WoR): (Fly to the World of Balance.), and Doom Gaze's
     (Search the skies.) while its gate is met (WC: Setzer recruited, with -cg) and Doom Gaze isn't
     beaten (WC event/airship.py doom_gaze_mod: the wheel's 3rd choice until DEFEATED_DOOM_GAZE; here
-    until the check's flag, which his reward sets). Picked: the wheel's own take-off with
-    SKIES_PENDING set, and the arrival in the sky starts the PR's Doom Gaze fight
-    (falcon_skies_arrival). WC fights him from the deck (the camera pans off, then the battle);
-    the PR's fight and the scripts after it (sc_e_0964_1: he flies off with his HP kept, or the
-    reward on the deck, sc_e_0964_2, then back in the air) belong to the sky, so the Falcon takes
-    off first. Escaped (WC: back in the air), the choice stays."""
+    until the check's flag, which his reward sets). Picked: the PR's Doom Gaze fight (sc_e_0964's
+    EncountBoss) starts on the deck, as WC fights him, with SKIES_PENDING set. Starting it in the
+    sky instead (falcon_skies_arrival, 0.6.10's try) lost the game as the fight started, with or
+    without wc_seed.event_looks' copy (wc-11, wc-12 2026-11-21). A battle's follow-up loads from
+    the map it starts on, and the deck's package has this script and sc_e_0964_2 (the reward
+    scene), not the sky's sc_e_0964_1; so the follow-up is this script, whose added start does
+    sc_e_0964_1's work while SKIES_PENDING is set: beaten, the reward scene (sc_e_0964_2, then
+    back in the air); escaped (his HP kept), back on the deck, and the choice stays."""
     sc = S.load("sc_e_FAoutboard")
     ms = sc["Mnemonics"]
     assert [ms[i]["label"] for i in (4, 7, 12, 14)] == ["\u901a\u5e38\u6642", "\u767a\u9032\u3059\u308b",
                                                         "\u4f55\u3082\u3057\u306a\u3044", "hand_up"], "Falcon wheel changed"
     assert ms[11]["mnemonic"] == "ChangeMap" and ms[11]["operands"]["iValues"][0] == WOR_MAP and \
         ms[11]["operands"]["sValues"][0] == "sc_e_FAoutboard_1", "Falcon take-off changed"
+    fight = S.load("sc_e_0964")["Mnemonics"][1]
+    assert fight["mnemonic"] == "EncountBoss" and fight["operands"]["iValues"][0] == DOOM_GAZE_PARTY and \
+        fight["operands"]["sValues"][0] == "sc_e_0964_1", "Doom Gaze's sky fight changed"
+    after = S.load("sc_e_0964_1")["Mnemonics"]
+    assert after[1]["mnemonic"] == "Branch" and after[1]["operands"]["iValues"][2] == 4 and \
+        after[3]["mnemonic"] == "ChangeMap" and after[3]["operands"]["sValues"][0] == "sc_e_0964_2" and \
+        after[6]["mnemonic"] == "FadeIn", "Doom Gaze's after-battle script changed"
+    assert ms[2]["mnemonic"] == "Branch" and ms[1]["label"], "Falcon wheel's start changed"
+    fight = copy.deepcopy(fight)
+    fight["label"] = ""
+    fight["operands"]["sValues"][0] = "sc_e_FAoutboard"
+    escaped = copy.deepcopy(after[1])           # his HP left (ScenarioVariable): not beaten
+    escaped["operands"]["iValues"][2] = "@escaped"
     wheel(sc, 5, lift_off=7, nothing=12, pose=14, choice_key="WC_HELM_WOB", call="WC:to_wob",
           world_flags=[reset(*GOT_FALCON), reset(*COLLAPSED)], to_map=WOB_MAP, arrive="sc_e_BJoutboard_1",
           third=("WC_HELM_SKIES", "doom_gaze", "doom_gaze", [
               flag(WC_FLAGS, SKIES_PENDING),
-              S.op("Jump", i=[7]),             # the wheel's take-off (pose, propellers, the WoR sky)
+              fight,
+              S.op("Exit"),
           ]) if SEARCH_THE_SKIES else None)
-    return sc
-
-
-def falcon_skies_arrival():
-    """The Falcon's arrival in the WoR sky (sc_e_FAoutboard_1: every take-off from its deck, the
-    world switch's, the one after Doom Gaze's reward scene): after (Search the skies.) the
-    SKIES_PENDING flag is cleared and, airborne, the Doom Gaze fight starts as in the sky
-    (sc_e_0964's own EncountBoss, its after-battle script sc_e_0964_1 included)."""
-    sc = S.load("sc_e_FAoutboard_1")
-    ms = sc["Mnemonics"]
-    assert ms[1]["mnemonic"] == "OnTheVehicle" and ms[8]["mnemonic"] == "FadeIn" and ms[9]["mnemonic"] == "Exit", \
-        "Falcon arrival changed"
-    fight = S.load("sc_e_0964")["Mnemonics"][1]
-    assert fight["mnemonic"] == "EncountBoss" and fight["operands"]["iValues"][0] == DOOM_GAZE_PARTY and \
-        fight["operands"]["sValues"][0] == "sc_e_0964_1", "Doom Gaze's sky fight changed"
-    fight = copy.deepcopy(fight)
-    fight["label"] = ""
-    S.hook(sc, 9, "wc_skies", [
-        if_flag(WC_FLAGS, SKIES_PENDING, 0, "@vanilla"),
-        reset(WC_FLAGS, SKIES_PENDING),
-        S.op("Wait", r=[0.5]),
-        fight,
-        S.op("Exit"),
-    ])
+    if SEARCH_THE_SKIES:
+        S.hook(sc, 2, "wc_skies_after", [
+            if_flag(WC_FLAGS, SKIES_PENDING, 0, "@vanilla"),
+            reset(WC_FLAGS, SKIES_PENDING),
+            escaped,
+            copy.deepcopy(after[3]),            # beaten: the reward scene on the deck, then the sky
+            S.op("Exit"),
+            S.label("escaped"),
+            copy.deepcopy(after[6]),
+            S.op("Exit"),
+        ])
     return sc
 
 
@@ -4847,7 +4854,7 @@ def kt_demon_drop():
     return [(sc, f[0])]
 
 
-SCRIPTS = [opening, blackjack_helm, falcon_helm] + ([falcon_skies_arrival] if SEARCH_THE_SKIES else []) + [blackjack_party_npc, falcon_party_npc_grounded, falcon_party_npc, tzen_wob, tzen_wor, tzen_map, ancient_castle, ancient_castle_room,
+SCRIPTS = [opening, blackjack_helm, falcon_helm, blackjack_party_npc, falcon_party_npc_grounded, falcon_party_npc, tzen_wob, tzen_wor, tzen_map, ancient_castle, ancient_castle_room,
            gau_father_house_map, gau_father_house, kohlingen_map, kohlingen_wor_map, kohlingen, kohlingen_wor, tritoch, tritoch_map, zozo_map, zozo,
            owzer_mansion_start, owzer_mansion, zone_eater, mt_zozo, umaro_cliff, umaro_cave, umaro_carving_line, umaro_carving_item,
            esper_mountain_start, esper_mountain, figaro_castle_wor_start, figaro_castle_wor,

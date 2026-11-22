@@ -361,7 +361,7 @@ class WcScripts(unittest.TestCase):
     def falcon_wheel(self, st, answer, gate_open):
         return Run(self.script("sc_e_FAoutboard"), st, [answer], {"WC:gate doom_gaze": gate(gate_open)})
 
-    @unittest.skipUnless(E.SEARCH_THE_SKIES, "Search the skies is off for 0.6.10")
+    @unittest.skipUnless(E.SEARCH_THE_SKIES, "Search the skies is off")
     def test_falcon_wheel_offers_search_the_skies(self):
         """WC's WoR wheel: Lift-off / World of Balance / Search The Skies / Not just yet while Doom
         Gaze's gate (Setzer, -cg) is met and he isn't beaten; without the gate, or once his check
@@ -382,39 +382,51 @@ class WcScripts(unittest.TestCase):
         self.assertEqual(E.MESSAGES["WC_HELM_SKIES"], "(Search the skies.)")
         self.assertEqual(E.TRACK_NAMES["doom_gaze"], "Search The Skies")
 
-    @unittest.skipUnless(E.SEARCH_THE_SKIES, "Search the skies is off for 0.6.10")
-    def test_search_the_skies_takes_off_into_doom_gaze(self):
-        """Picked: the wheel's own take-off (its pose, into the WoR sky, no world switch) with the
-        fight pending; the arrival clears it and starts the sky's Doom Gaze fight (sc_e_0964's own
-        EncountBoss and after-battle script); any other arrival takes off as before."""
+    @unittest.skipUnless(E.SEARCH_THE_SKIES, "Search the skies is off")
+    def test_search_the_skies_fights_doom_gaze_on_the_deck(self):
+        """Picked: the PR's Doom Gaze fight (sc_e_0964's EncountBoss) on the deck, as WC fights him
+        (the sky's start lost the game, wc-11/wc-12), with the wheel's own script as its follow-up
+        (a follow-up loads from the battle's map package: the deck's has it and sc_e_0964_2, not
+        sc_e_0964_1). It does sc_e_0964_1's work: beaten, the reward scene; escaped, the deck."""
         st = self.in_the_wor()
         r = self.falcon_wheel(st, "WC_HELM_SKIES", True)
-        self.assertEqual(r.end, ("ChangeMap", E.WOR_MAP, 1, "sc_e_FAoutboard_1"), r.end)
+        fights = r.did("EncountBoss")
+        self.assertEqual([(t[2][0], t[3][0]) for t in fights], [(E.DOOM_GAZE_PARTY, "sc_e_FAoutboard")])
+        self.assertEqual(r.end, ("Exit",))
         self.assertEqual(st.get(E.WC_FLAGS, E.SKIES_PENDING), 1)
-        self.assertTrue([t for t in r.did("Call") if t[2][0] == 14], "the deck's lift-off pose")
+        self.assertEqual(r.did("ChangeMap"), [], "no take-off")
         self.assertEqual([t for t in r.did("SysCall") if t[3][0] in ("WC:to_wob", "WC:to_wor")], [], "no world switch")
-        self.assertEqual((st.flag(COLLAPSED), st.flag(GOT_FALCON)), (1, 1), "still the WoR")
-        # the arrival (from after its ChangeScript, which the model ends on)
-        sc = self.script("sc_e_FAoutboard_1")
-        after = next(n for n, m in enumerate(sc["Mnemonics"]) if m["mnemonic"] == "ChangeScript") + 1
-        arrive = Run(sc, st, start=after)
-        fights = arrive.did("EncountBoss")
-        self.assertEqual([(t[2][0], t[3][0]) for t in fights], [(E.DOOM_GAZE_PARTY, "sc_e_0964_1")])
-        self.assertEqual(st.get(E.WC_FLAGS, E.SKIES_PENDING), 0, "the pending fight cleared")
-        self.assertLess(arrive.trace.index(arrive.did("FadeIn")[0]), arrive.trace.index(fights[0]), "airborne first")
-        sky = S.load("sc_e_0964")["Mnemonics"][1]          # the sky's own fight (vanilla: the WC copy gates it)
-        self.assertEqual(fights[0][2][:1] + fights[0][3][:1], sky["operands"]["iValues"][:1] + sky["operands"]["sValues"][:1])
-        again = Run(sc, st, start=after)
-        self.assertEqual(again.did("EncountBoss"), [], "the next take-off (after the reward scene too) is a plain one")
-        self.assertEqual(again.end, ("Exit",))
+        sky = S.load("sc_e_0964")["Mnemonics"][1]
+        self.assertEqual(fights[0][2][:1], sky["operands"]["iValues"][:1])
+        # escaped: his HP left (ScenarioVariable 3), back on the deck, the choice stays
+        st.set("ScenarioVariable", 3, 1000)
+        esc = Run(self.script("sc_e_FAoutboard"), st)
+        self.assertEqual((esc.end, len(esc.did("FadeIn"))), (("Exit",), 1))
+        self.assertEqual((st.get(E.WC_FLAGS, E.SKIES_PENDING), esc.did("Select")), (0, []))
+        self.assertEqual(self.falcon_wheel(st, OPT_NEVER_MIND, True).offered,
+                         [[OPT_WHEEL, "WC_HELM_WOB", "WC_HELM_SKIES", OPT_NEVER_MIND]])
+        # beaten: the reward scene
+        self.falcon_wheel(st, "WC_HELM_SKIES", True)
+        st.set("ScenarioVariable", 3, 0)
+        won = Run(self.script("sc_e_FAoutboard"), st)
+        self.assertEqual(won.end[:2] + won.end[-1:], ("ChangeMap", 268, "sc_e_0964_2"), won.end)
+        self.assertEqual(st.get(E.WC_FLAGS, E.SKIES_PENDING), 0)
+        self.assertEqual(Run(self.script("sc_e_FAoutboard"), st, [OPT_NEVER_MIND]).did("EncountBoss"), [],
+                         "talking to the wheel again: the plain wheel")
+        sa = S.load("sc_e_FAoutboard_1")
+        self.assertEqual(Run(sa, st, start=next(n for n, m in enumerate(sa["Mnemonics"])
+                                                if m["mnemonic"] == "ChangeScript") + 1).did("EncountBoss"), [],
+                         "take-offs are plain ones")
 
-    @unittest.skipUnless(E.SEARCH_THE_SKIES, "Search the skies is off for 0.6.10")
+    @unittest.skipUnless(E.SEARCH_THE_SKIES, "Search the skies is off")
     def test_search_the_skies_reward_hides_the_choice(self):
         """Winning: the sky fight's own reward scene (sc_e_0964_2) gives the seed's Doom Gaze reward
         and sets its check flag (as the random encounter does), then flies on; the wheel no longer
         offers the search."""
         st = self.in_the_wor()
         self.falcon_wheel(st, "WC_HELM_SKIES", True)
+        st.set("ScenarioVariable", 3, 0)
+        Run(self.script("sc_e_FAoutboard"), st)          # the fight's follow-up: beaten
         rewarded = []
         scene = Run(self.script("sc_e_0964_2"), st, syscalls={"WC:reward doom_gaze 0": lambda s: rewarded.append(1)})
         self.assertEqual(rewarded, [1])
