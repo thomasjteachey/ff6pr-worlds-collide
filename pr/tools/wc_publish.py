@@ -164,6 +164,21 @@ jobs:
               raise SystemExit("The zip has no Worlds Collide plugin")
           print(f"{len(names)} files ok")
 
+      - name: Read the release notes for the Nexus changelog
+        id: notes
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          gh release view "v$VERSION" --repo "$GITHUB_REPOSITORY" --json body --jq .body |
+            sed -e '/^#/d' -e 's/\\*\\*//g' -e 's/^- /* /' | sed -e '/./,$!d' > notes.txt
+          {
+            echo "changelog<<NOTES_END"
+            cat notes.txt
+            echo "NOTES_END"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Find the Nexus file to update
         id: nexus_file
         shell: bash
@@ -198,6 +213,7 @@ jobs:
           allow_mod_manager_download: "false"
           show_requirements_pop_up: "false"
           update_mod_version: "true"
+          changelog: ${{ steps.notes.outputs.changelog }}
           mod_id: 165
 """
 
