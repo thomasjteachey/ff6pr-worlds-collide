@@ -15,6 +15,8 @@ Owner: the Cross-mod coordinator. Moved verbatim from `pr/PORTING.md` on 2026-11
   a published release uploads its zip to Nexus with the repo secret NEXUSMODS_API_KEY (sealed over from the Ivalice repo's
   secret by a one-off workflow; nobody saw it). The file must be uploaded with primary_mod_manager_download true: the
   first 0.6.13 upload (false) stayed non-primary and the mod version didn't move, so it was uploaded again (621 archived).
+  Later that day (BNW 0.26.7's run): v3's changelog endpoint wants the mod's uid (game 4335 << 32 | 165), not 165; the
+  workflow passes the uid now (WC repo 5fb8f0a) and has a changelog_only manual run, which posted 0.6.13's changelog.
 
 ## From the Status section
 
