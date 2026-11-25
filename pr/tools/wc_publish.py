@@ -91,6 +91,8 @@ GITIGNORE = R.GITIGNORE_COMMON + "pr/data/wc_base.bin\n"
 # Publishing a GitHub release (not a pre-release) uploads its tested WorldsCollide-PR.zip to Nexus mod 165, the way
 # Ivalice ReMixed's publish-nexus.yml does (2026-11-25: the user chose releases without a browser). The key is the
 # repository's Actions secret NEXUSMODS_API_KEY, which the user sets (gh secret set); nobody else handles it.
+# v3's changelog endpoint takes the mod's uid, not 165 (BNW 0.26.7's first run: "Mod not found"). Run it by hand with
+# changelog_only to post a release's notes without uploading again.
 NEXUS_WORKFLOW = """name: Publish Nexus release
 
 on:
@@ -102,6 +104,11 @@ on:
         description: Release version to upload (for example, 0.6.13)
         required: true
         type: string
+      changelog_only:
+        description: Only post the release notes as that version's Nexus changelog (no upload)
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -197,8 +204,25 @@ jobs:
           file_id="$(jq -er '.data.mod_files | map(select(.is_active == true)) |
             if length == 1 then .[0].id else error("Expected exactly one active file, got \\(length)") end' <<<"$response")"
           echo "file_id=$file_id" >> "$GITHUB_OUTPUT"
+          echo "mod_uid=$mod_uid" >> "$GITHUB_OUTPUT"
+
+      - name: Post the changelog only
+        if: inputs.changelog_only == true
+        shell: bash
+        env:
+          NEXUSMODS_API_KEY: ${{ secrets.NEXUSMODS_API_KEY }}
+          MOD_UID: ${{ steps.nexus_file.outputs.mod_uid }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          jq -n --arg version "$VERSION" --rawfile changelog notes.txt '{version: $version, changelog: $changelog}' |
+            curl --fail-with-body --silent --show-error --request POST \\
+              --header "apikey: $NEXUSMODS_API_KEY" \\
+              --header "Content-Type: application/json" \\
+              --header "User-Agent: ff6pr-worlds-collide/release-workflow" \\
+              --data @- "https://api.nexusmods.com/v3/mods/$MOD_UID/changelogs"
 
       - name: Upload Worlds Collide to Nexus Mods
+        if: inputs.changelog_only != true
         uses: Nexus-Mods/upload-action@98532f7670c27cbecc78fae03fa3e278147827e2 # v1.0.0-beta.11
         with:
           api_key: ${{ secrets.NEXUSMODS_API_KEY }}
@@ -214,7 +238,7 @@ jobs:
           show_requirements_pop_up: "false"
           update_mod_version: "true"
           changelog: ${{ steps.notes.outputs.changelog }}
-          mod_id: 165
+          mod_id: ${{ steps.nexus_file.outputs.mod_uid }}
 """
 
 

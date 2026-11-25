@@ -4,13 +4,17 @@ Owner: the Cross-mod coordinator. Moved verbatim from `pr/PORTING.md` on 2026-11
 
 ## Live progress (newest first)
 
-- 2026-11-25 (coordinator local_7324b381): **0.6.13 built and gated; GitHub/Nexus waiting for the user.** Enemies' battle
+- 2026-11-25 (coordinator local_7324b381): **0.6.13 released (GitHub v0.6.13 Latest; Nexus file 622 main + primary, mod version 0.6.13), all without a browser.** Enemies' battle
   lines could freeze a fight: 0.6.12's generator wrote the AI shim's ExecMsg row with one integer (port_ai pad=False),
   and Message.Msg reads two, so ViewMes threw every frame (BNW's Vargas stall). Kit 892128a pads new rows and
   SnesAiHost.ViewMes_Prefix repairs old seeds' rows. WC tests never saw it: WcEvents.Msg_Prefix answers every Msg in a
   test run; the new request option msgs=1 lets battle lines run the game's own Msg. Gate wc-13 (build/batches/wc-13.py)
   10/10 PASS, test_wc OK, wc_gamedata selftest, Wc.Tests 0 failures. Source 12f9af1, kit 32d767f; zip sha256
   aee477b39085ff9deabc29db5cccedcab8cffa530d4f87d27f8ee893ec3dca5f; plugin md5 92035905 on the PC and the Deck's shelf.
+  Releases now go out with gh (installed for the user) and the WC repo's publish-nexus.yml (wc_publish.py NEXUS_WORKFLOW):
+  a published release uploads its zip to Nexus with the repo secret NEXUSMODS_API_KEY (sealed over from the Ivalice repo's
+  secret by a one-off workflow; nobody saw it). The file must be uploaded with primary_mod_manager_download true: the
+  first 0.6.13 upload (false) stayed non-primary and the mod version didn't move, so it was uploaded again (621 archived).
 
 ## From the Status section
 
