@@ -1,0 +1,108 @@
+name: Publish Nexus release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release version to upload (for example, 0.6.13)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nexus-mod-165
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.release.draft == false && github.event.release.prerelease == false)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Resolve release version
+        id: version
+        shell: bash
+        env:
+          DISPATCH_VERSION: ${{ inputs.version }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          version="${DISPATCH_VERSION:-$RELEASE_TAG}"
+          version="${version#v}"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Invalid release version: $version" >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Download the tested release zip
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          mkdir -p release
+          gh release download "v$VERSION" --repo "$GITHUB_REPOSITORY" --pattern "WorldsCollide-PR.zip" --dir release
+          test -f release/WorldsCollide-PR.zip
+
+      - name: Check the zip (the player package, no ROM)
+        shell: python
+        run: |
+          import pathlib
+          import zipfile
+
+          with zipfile.ZipFile("release/WorldsCollide-PR.zip") as archive:
+              names = [entry.filename for entry in archive.infolist() if not entry.is_dir()]
+          roots = {pathlib.PurePosixPath(name).parts[0] for name in names}
+          if roots != {"BepInEx", "WorldsCollide-README.txt"}:
+              raise SystemExit(f"Unexpected top-level entries: {sorted(roots)}")
+          for name in names:
+              path = pathlib.PurePosixPath(name)
+              if path.is_absolute() or ".." in path.parts:
+                  raise SystemExit(f"Unsafe archive path: {name}")
+              if path.suffix.lower() in (".smc", ".sfc", ".swc", ".fig"):
+                  raise SystemExit(f"A ROM in the zip: {name}")
+          if "BepInEx/plugins/WorldsCollide/WorldsCollide.PR.dll" not in names:
+              raise SystemExit("The zip has no Worlds Collide plugin")
+          print(f"{len(names)} files ok")
+
+      - name: Find the Nexus file to update
+        id: nexus_file
+        shell: bash
+        env:
+          NEXUSMODS_API_KEY: ${{ secrets.NEXUSMODS_API_KEY }}
+        run: |
+          mod_uid="$(curl --fail --silent --show-error \
+            --header "apikey: $NEXUSMODS_API_KEY" \
+            --header "User-Agent: ff6pr-worlds-collide/release-workflow" \
+            https://api.nexusmods.com/v1/games/finalfantasy6pixelremaster/mods/165.json |
+            jq -er '.uid')"
+          response="$(curl --fail --silent --show-error \
+            --header "apikey: $NEXUSMODS_API_KEY" \
+            --header "User-Agent: ff6pr-worlds-collide/release-workflow" \
+            "https://api.nexusmods.com/v3/mods/$mod_uid/files")"
+          file_id="$(jq -er '.data.mod_files | map(select(.is_active == true)) |
+            if length == 1 then .[0].id else error("Expected exactly one active file, got \(length)") end' <<<"$response")"
+          echo "file_id=$file_id" >> "$GITHUB_OUTPUT"
+
+      - name: Upload Worlds Collide to Nexus Mods
+        uses: Nexus-Mods/upload-action@98532f7670c27cbecc78fae03fa3e278147827e2 # v1.0.0-beta.11
+        with:
+          api_key: ${{ secrets.NEXUSMODS_API_KEY }}
+          file_id: ${{ steps.nexus_file.outputs.file_id }}
+          filename: release/WorldsCollide-PR.zip
+          version: ${{ steps.version.outputs.version }}
+          display_name: Worlds Collide ${{ steps.version.outputs.version }}
+          description: Worlds Collide for FINAL FANTASY VI Pixel Remaster. The install steps are on the mod page.
+          category: main
+          archive_existing_version: "true"
+          primary_mod_manager_download: "false"
+          allow_mod_manager_download: "false"
+          show_requirements_pop_up: "false"
+          update_mod_version: "true"
+          mod_id: 165
