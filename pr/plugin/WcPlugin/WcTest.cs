@@ -23,6 +23,7 @@ namespace WorldsCollide.PR
     //   read-only, with no seed generation or save)
     //   delete=1 (with seed2: the seed list's Delete refuses the current seed and one a save
     //   uses, then deletes the first seed through the screen's rows)
+    //   msgs=1 (enemies' battle lines run the game's own Msg instead of the test answering them)
     //   newgame=1 (after the seed: New Game from the title; WC's start must put the seed's party
     //   on the Blackjack's deck, airship outside Narshe; WcEvents)
     //   worlds=1 (with newgame: the Blackjack's wheel -> World of Ruin, the Falcon where the
@@ -3248,6 +3249,7 @@ if (name == "enemy_ai") return Plan_enemy_ai(name);
                 .ToDictionary(l => l.Substring(0, l.IndexOf('=')).Trim(), l => l.Substring(l.IndexOf('=') + 1).Trim());
             try { File.Delete(path); } catch { }
             WcTestState.Running = true;
+            WcTestState.RealBattleLines = req.GetValueOrDefault("msgs", "0") == "1";
             WcScreenState.Active = true;
             WcScreen.Init(Plugin.FlagDefs);
             step = Step.Wait;

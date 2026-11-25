@@ -311,6 +311,14 @@ namespace WorldsCollide.PR
             if (Trace > 0) Plugin.L.LogInfo("[wc trace] enter Msg");
             string key = null;
             try { key = c?.op?.sValues?[0]; } catch { }
+            // msgs=1: an enemy's battle line (the AI's ExecMsg -> ViewMes -> Msg) runs the game's own Msg, as
+            // in play. Answering it here hid 0.6.12's stall: its one-integer ExecMsg rows made Msg throw
+            // every frame (SnesAiHost.ViewMes_Prefix and port_ai's shim_script fix them).
+            if (WcTestState.RealBattleLines && c?.TryCast<BattleAICore>() != null)
+            {
+                Plugin.L.LogInfo($"[wc test] battle line {key}: the game's own Msg");
+                return true;
+            }
             var text = key == null ? "" : MessageManager.Instance?.GetMessage(key, false) ?? "";
             TestMessages.Add($"{key}: {text}");
             if (key == "WC_REWARD") RewardScreenBlack = WcTest.ScreenBlack().Item1;   // the reward line's screen (the pick's test)

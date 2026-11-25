@@ -5,5 +5,6 @@ namespace WorldsCollide.PR
     static class WcTestState
     {
         internal static bool Running;
+        internal static bool RealBattleLines;   // request msgs=1: enemies' battle lines go through the game's Msg
     }
 }
