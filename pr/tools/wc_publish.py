@@ -194,7 +194,7 @@ jobs:
           description: Worlds Collide for FINAL FANTASY VI Pixel Remaster. The install steps are on the mod page.
           category: main
           archive_existing_version: "true"
-          primary_mod_manager_download: "false"
+          primary_mod_manager_download: "true"
           allow_mod_manager_download: "false"
           show_requirements_pop_up: "false"
           update_mod_version: "true"
