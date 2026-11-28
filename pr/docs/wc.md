@@ -4,6 +4,19 @@ Owner: the Cross-mod coordinator. Moved verbatim from `pr/PORTING.md` on 2026-11
 
 ## Live progress (newest first)
 
+- 2026-11-27 (session "Kit StartSkills"): **0.6.14: skills taken away or taught reach the Abilities menu on a loaded save.**
+  A character's abilities are held twice, OwnedAbilityList and AbilityDictionary (by command, filled when a save loads);
+  the menu shows an ability known in either, and WC wrote only the list's copy (found on BNW's Gau, the Deck). WC now
+  un-learns and teaches through the kit's StartSkills (kit 8c62ad9: Forget / Teach / Knows / Shown / TeachNew over both
+  copies): Forget Spells, RepairBuiltIns, FreshRecruit's -srr/-slr/-sdr and Terra's Magitek, Learn Spells / Rages, the
+  technique objectives, Magitek Upgrade, -scan/-warp, WcSkills (Knows/Teach/Sync). Kit pin 32d767f -> 8c62ad9 (also
+  brings AI-host battle-event talk, port_chests gil gifts, ArtSwap); test_wc's chest test passes the porter's tables.
+  Gates: build/batches/wc-14.json 6/6 (skills, natural magic random + own, objectives, seed switch, newgame; the seed
+  switch's fail pattern no longer matches "join extras"), wc-14b.json 6/6 (Whelk battle line, search_skies, atb on a
+  re-run: the first lost 0.1 s of game time, snes_rules, enemy_ai, seeds/load), test_wc OK, Wc.Tests 0 failures,
+  wc_gamedata selftest; on a loaded save (BNW harness `skillcopies`, sandbox deck_gau_20261127, laptop) both copies go
+  to 0 and back to 100. Plugin md5 f9aaa9b1.
+
 - 2026-11-25 (coordinator local_7324b381): **0.6.13 released (GitHub v0.6.13 Latest; Nexus file 622 main + primary, mod version 0.6.13), all without a browser.** Enemies' battle
   lines could freeze a fight: 0.6.12's generator wrote the AI shim's ExecMsg row with one integer (port_ai pad=False),
   and Message.Msg reads two, so ViewMes threw every frame (BNW's Vargas stall). Kit 892128a pads new rows and

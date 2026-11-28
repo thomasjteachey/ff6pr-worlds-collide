@@ -2585,8 +2585,9 @@ class WcPort(unittest.TestCase):
         "Obtained (NUM) gil!")."""
         import port_chests as PC
         out = os.path.join(self.tmp, "chests")
-        PC.port(self.van, self.wc, out, lambda *a: None)
         import prdata as P
+        # the porter's tables, as port.py passes them (kit 22664ae: a scripted gil gift needs SetGilTag's price group)
+        PC.port(self.van, self.wc, out, lambda *a: None, {})
 
         def chests(path):
             out_ = {}

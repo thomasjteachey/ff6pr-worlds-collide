@@ -136,7 +136,7 @@ namespace WorldsCollide.PR
             int n = 0;
             foreach (var c in AllOwned())
             {
-                if (!MagitekBasic.Any(id => WcSkills.Knows(c, id))) continue;
+                if (!MagitekBasic.Any(id => PrKit.Ff6.StartSkills.Shown(c, id))) continue;
                 foreach (var id in MagitekTerra)
                     if (!WcSkills.Knows(c, id) && WcSkills.Teach(c, id)) n++;
             }
@@ -154,8 +154,7 @@ namespace WorldsCollide.PR
             foreach (var id in WcSeeds.Active.RageTable)
             {
                 if (n >= count) break;
-                if (WcSkills.Knows(c, id)) continue;
-                if (WcSkills.Teach(c, id)) n++;
+                if (PrKit.Ff6.StartSkills.TeachNew(c, id)) n++;   // a half-known one mended, not counted
             }
             SetF4(LearnApplied + i);
             WcSkills.Sync();
@@ -229,8 +228,8 @@ namespace WorldsCollide.PR
                     foreach (var id in WcSeeds.Active.ForgetTable)
                     {
                         if (n >= count) break;
-                        foreach (var a in c.OwnedAbilityList)
-                            if (a?.Ability != null && a.Ability.Id == id && a.SkillLevel >= 100) { a.SkillLevel = 0; n++; break; }
+                        // known as the menu shows it (either copy), forgotten in both (the kit's StartSkills)
+                        if (PrKit.Ff6.StartSkills.Shown(c, id) && PrKit.Ff6.StartSkills.Forget(c, id)) n++;
                     }
                     done.Add($"{c.characterStatusId}:{n}");
                 }
@@ -375,13 +374,7 @@ namespace WorldsCollide.PR
             foreach (var id in table)
             {
                 if (taught >= count) break;
-                OwnedAbility owned = null;
-                foreach (var a in c.OwnedAbilityList)
-                    if (a?.Ability != null && a.Ability.Id == id) owned = a;
-                if (owned != null && owned.SkillLevel >= 100) continue;
-                owned ??= new OwnedCharacterClient().AddAbility(c.Id, id);
-                if (owned == null) continue;
-                owned.SkillLevel = 100;
+                if (!PrKit.Ff6.StartSkills.TeachNew(c, id)) continue;   // both copies (the menu's too)
                 taught++;
             }
             return taught;
@@ -398,13 +391,7 @@ namespace WorldsCollide.PR
             var taught = new List<int>();
             for (int id = first; id < first + total && taught.Count < count; id++)
             {
-                OwnedAbility owned = null;
-                foreach (var a in c.OwnedAbilityList)
-                    if (a?.Ability != null && a.Ability.Id == id) owned = a;
-                if (owned != null && owned.SkillLevel >= 100) continue;
-                owned ??= new OwnedCharacterClient().AddAbility(c.Id, id);
-                if (owned == null) continue;
-                owned.SkillLevel = 100;
+                if (!PrKit.Ff6.StartSkills.TeachNew(c, id)) continue;   // both copies (the menu's too)
                 taught.Add(id);
             }
             SetF4(LearnApplied + i);

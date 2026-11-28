@@ -29,8 +29,6 @@ namespace WorldsCollide.PR
 
         internal static bool IsSpell(int id) => id >= First && id <= Last;
 
-        static bool Known(OwnedAbility a) => a?.Ability != null && IsSpell(a.Ability.Id) && a.SkillLevel > 0;
-
         // the seed's natural magic for this character up to `level`: type-1 learning rows on its job
         internal static HashSet<int> Natural(OwnedCharacterData c, int level)
         {
@@ -83,9 +81,8 @@ namespace WorldsCollide.PR
             var natural = Natural(c, level);
             var keep = new HashSet<int>(natural);
             keep.UnionWith(Granted());
-            var dropped = new List<int>();
-            foreach (var a in c.OwnedAbilityList)
-                if (Known(a) && !keep.Contains(a.Ability.Id)) { a.SkillLevel = 0; dropped.Add(a.Ability.Id); }
+            // any skill level, in either copy (the kit's StartSkills: the Abilities menu shows the dictionary's too)
+            var dropped = PrKit.Ff6.StartSkills.Forget(c, id => IsSpell(id) && !keep.Contains(id));
             var taught = new List<int>();
             foreach (var id in natural.OrderBy(x => x))
                 if (!WcSkills.Knows(c, id) && WcSkills.Teach(c, id)) taught.Add(id);
@@ -113,9 +110,9 @@ namespace WorldsCollide.PR
                 if (c == null || !BuiltIn.TryGetValue(c.characterStatusId, out var builtIn) || !WcEvents.IsRecruited(c.characterStatusId) ||
                     c.OwnedAbilityList == null) continue;
                 HashSet<int> natural = null;
-                foreach (var a in c.OwnedAbilityList)
+                foreach (var id in builtIn)
                 {
-                    if (!Known(a) || !builtIn.Contains(a.Ability.Id)) continue;
+                    if (PrKit.Ff6.StartSkills.Level(c, id) <= 0) continue;
                     if (espers == null)
                     {
                         espers = new HashSet<int>(); gear = new HashSet<int>();
@@ -132,9 +129,8 @@ namespace WorldsCollide.PR
                         granted = Granted();
                     }
                     natural ??= Natural(c, c.Parameter.ConfirmedLevel());
-                    int id = a.Ability.Id;
                     if (natural.Contains(id) || espers.Contains(id) || gear.Contains(id) || granted.Contains(id)) continue;
-                    a.SkillLevel = 0;
+                    PrKit.Ff6.StartSkills.Forget(c, id);
                     done.Add($"{c.characterStatusId}:{id}");
                 }
             }

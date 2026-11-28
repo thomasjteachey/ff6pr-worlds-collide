@@ -34,26 +34,11 @@ namespace WorldsCollide.PR
         }
 
         // known = learned to 100. Rages too: the PR gives Gau an entry for every rage, the unknown
-        // ones at 0 (counting any entry shared all 252 at a WC start: the user's Deck seed)
-        internal static bool Knows(OwnedCharacterData c, int id)
-        {
-            var list = c.OwnedAbilityList;
-            if (list == null) return false;
-            foreach (var a in list)
-                if (a?.Ability != null && a.Ability.Id == id) return a.SkillLevel >= 100;
-            return false;
-        }
+        // ones at 0 (counting any entry shared all 252 at a WC start: the user's Deck seed). Both
+        // copies of a character's abilities (list + the menu's dictionary): the kit's StartSkills
+        internal static bool Knows(OwnedCharacterData c, int id) => PrKit.Ff6.StartSkills.Knows(c, id);
 
-        internal static bool Teach(OwnedCharacterData c, int id)
-        {
-            OwnedAbility owned = null;
-            foreach (var a in c.OwnedAbilityList)
-                if (a?.Ability != null && a.Ability.Id == id) owned = a;
-            owned ??= new OwnedCharacterClient().AddAbility(c.Id, id);
-            if (owned == null) return false;
-            owned.SkillLevel = 100;
-            return true;
-        }
+        internal static bool Teach(OwnedCharacterData c, int id) => PrKit.Ff6.StartSkills.Teach(c, id);
 
         // the owned character who should learn a technique set first (a holder of its command, else
         // nobody: the result waits for one)
@@ -79,10 +64,7 @@ namespace WorldsCollide.PR
                     var holders = owned.Where(c => Has(c, command)).ToList();
                     if (holders.Count == 0) continue;
                     var known = new HashSet<int>();
-                    foreach (var c in owned)
-                        foreach (var a in c.OwnedAbilityList)
-                            if (a?.Ability != null && a.Ability.Id >= first && a.Ability.Id <= last && a.SkillLevel >= 100)
-                                known.Add(a.Ability.Id);
+                    foreach (var c in owned) known.UnionWith(PrKit.Ff6.StartSkills.Known(c, first, last));   // either copy
                     int taught = 0;
                     foreach (var h in holders)
                         foreach (var id in known)

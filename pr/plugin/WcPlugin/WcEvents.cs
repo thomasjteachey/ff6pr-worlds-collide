@@ -1149,14 +1149,7 @@ namespace WorldsCollide.PR
                     if (c == null || c.characterStatusId != statusId) continue;
                     foreach (var id in teach)
                     {
-                        Last.Data.User.OwnedAbility owned = null;
-                        var have = c.OwnedAbilityList;
-                        if (have != null)
-                            foreach (var a in have)
-                                if (a?.Ability != null && a.Ability.Id == id) owned = a;
-                        owned ??= new OwnedCharacterClient().AddAbility(c.Id, id);
-                        if (owned == null) continue;
-                        owned.SkillLevel = 100;
+                        if (!PrKit.Ff6.StartSkills.Teach(c, id)) continue;   // both copies (the menu's too)
                         done.Add(id.ToString());
                     }
                 }
@@ -1277,9 +1270,8 @@ namespace WorldsCollide.PR
                 foreach (var (kind, flag, lo, hi) in new[] { ("rages", "-srr", 800, 1054), ("lores", "-slr", 140, 163), ("dances", "-sdr", 164, 171) })
                 {
                     if (!flags.Contains(flag) || c.OwnedAbilityList == null) continue;
-                    int n = 0;
-                    foreach (var a in c.OwnedAbilityList)
-                        if (a?.Ability != null && a.Ability.Id >= lo && a.Ability.Id <= hi && a.SkillLevel > 0) { a.SkillLevel = 0; n++; }
+                    // both copies: the menu's dictionary too, on a loaded save (the kit's StartSkills)
+                    int n = PrKit.Ff6.StartSkills.Forget(c, id => id >= lo && id <= hi).Count;
                     if (n > 0) dropped.Add($"{n} {kind}");
                 }
                 // WC's MagiTek menu is the 4 basic beams for everyone, Terra too, until "Magitek
@@ -1287,9 +1279,7 @@ namespace WorldsCollide.PR
                 // done, teaches them back (WcObjectives.MagitekUpgrade, every few seconds)
                 if (statusId == 1 && c.OwnedAbilityList != null)
                 {
-                    int n = 0;
-                    foreach (var a in c.OwnedAbilityList)
-                        if (a?.Ability != null && WcObjectives.MagitekTerra.Contains(a.Ability.Id) && a.SkillLevel > 0) { a.SkillLevel = 0; n++; }
+                    int n = PrKit.Ff6.StartSkills.Forget(c, id => WcObjectives.MagitekTerra.Contains(id)).Count;
                     if (n > 0) dropped.Add($"{n} Magitek moves past WC's basic 4");
                 }
                 LastRecruit = $"character {statusId}: the PR's join extras HP +{hp}, MP +{mp} removed (HP {p.CurrentHP}/{p.ConfirmedMaxHp()}, MP {p.CurrentMP}/{p.ConfirmedMaxMp()})" +
